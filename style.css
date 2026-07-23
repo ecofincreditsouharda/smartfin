@@ -1,0 +1,39 @@
+:root { --bg:#f4f6f9; --ink:#1f2733; --line:#dfe4ea; --accent:#305496; --accent2:#e8eef7; }
+* { box-sizing: border-box; }
+body { margin:0; font:15px/1.45 system-ui,Segoe UI,Roboto,Arial,sans-serif;
+       color:var(--ink); background:var(--bg); }
+header { background:var(--accent); color:#fff; padding:14px 22px;
+         display:flex; align-items:center; justify-content:space-between; }
+header h1 { font-size:18px; margin:0; font-weight:600; }
+#who { font-size:13px; opacity:.9; }
+.card { background:#fff; border:1px solid var(--line); border-radius:10px;
+        padding:18px 20px; margin:18px auto; max-width:960px;
+        box-shadow:0 1px 2px rgba(0,0,0,.04); }
+h2 { margin:0 0 14px; font-size:16px; }
+.grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px 16px; }
+label { display:flex; flex-direction:column; font-size:12px; color:#5b6472; gap:4px; }
+input, select { padding:8px 10px; border:1px solid var(--line); border-radius:6px;
+                font-size:14px; color:var(--ink); background:#fff; }
+button { margin-top:14px; background:var(--accent); color:#fff; border:0;
+         padding:9px 16px; border-radius:6px; font-size:14px; cursor:pointer; }
+button.ghost { margin:0; background:var(--accent2); color:var(--accent); }
+button:hover { filter:brightness(1.05); }
+.msg { margin-left:10px; font-size:13px; color:#5b6472; }
+.err { color:#c0392b; }
+table { width:100%; border-collapse:collapse; margin-top:8px; font-size:13px; }
+th, td { border-bottom:1px solid var(--line); padding:7px 9px; text-align:right; }
+th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align:left; }
+th { background:var(--accent2); color:var(--accent); font-weight:600; }
+.summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr));
+           gap:8px 16px; margin-bottom:14px; }
+.summary div { display:flex; justify-content:space-between; gap:10px;
+               border-bottom:1px dashed var(--line); padding:4px 0; }
+.summary span { color:#5b6472; font-size:12px; }
+@media (max-width:640px){ .grid{ grid-template-columns:1fr 1fr; } }
+
+/* --- auth + admin additions --- */
+.card.narrow { max-width:420px; }
+.card.narrow label { margin-bottom:10px; }
+header button { margin:0 0 0 10px; padding:5px 10px; font-size:12px; }
+h2 button { margin:0 0 0 10px; font-size:12px; padding:4px 10px; vertical-align:middle; }
+input[readonly] { background:#eef1f4; color:#5b6472; }
