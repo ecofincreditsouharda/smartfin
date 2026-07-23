@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cooperative Loan Register</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header>
+  <h1>Cooperative Loan Register</h1>
+  <div id="who"></div>
+</header>
+
+<!-- Login gate -->
+<section id="gate" class="card narrow">
+  <h2>Sign in</h2>
+  <label>User ID<input id="loginId" autocomplete="username" /></label>
+  <label>Password<input id="loginPw" type="password" autocomplete="current-password" /></label>
+  <button id="loginBtn">Sign in</button>
+  <span id="loginMsg" class="err"></span>
+</section>
+
+<!-- App -->
+<main id="app" hidden>
+  <!-- Add loan (hidden for Staff) -->
+  <section id="addCard" class="card">
+    <h2>Add a loan</h2>
+    <div class="grid">
+      <label>Borrower<input id="Borrower" /></label>
+      <label>Member ID<input id="MemberID" /></label>
+      <label>Loan Type<input id="LoanType" value="Agriculture" /></label>
+      <label>Branch<input id="Branch" value="Main Branch" /></label>
+      <label>Amount (₹)<input id="Amount" type="number" value="200000" /></label>
+      <label>Rate (% p.a.)<input id="RatePct" type="number" step="0.01" value="18" /></label>
+      <label>Tenure (months)<input id="TenureMonths" type="number" value="24" /></label>
+      <label>Method<select id="Method"><option>Flat</option><option>Cut</option></select></label>
+      <label>Sanction Date<input id="SanctionDate" type="date" /></label>
+      <label>Disbursement Date<input id="DisbursementDate" type="date" /></label>
+      <label>First EMI Date<input id="FirstEMIDate" type="date" /></label>
+      <label>Custom EMI (optional, ₹)<input id="CustomEMI" type="number" placeholder="blank = base EMI" /></label>
+    </div>
+    <button id="addBtn">Add loan &amp; preview schedule</button>
+    <span id="addMsg" class="msg"></span>
+  </section>
+
+  <!-- Loans -->
+  <section class="card">
+    <h2>Loans <button id="refreshBtn" class="ghost">Refresh</button></h2>
+    <div id="loans"></div>
+  </section>
+
+  <!-- Schedule -->
+  <section id="schedCard" class="card" hidden>
+    <h2 id="schedTitle">Schedule</h2>
+    <div id="summary" class="summary"></div>
+    <div id="schedule"></div>
+  </section>
+
+  <!-- Admin: user management (Admin only) -->
+  <section id="adminCard" class="card" hidden>
+    <h2>User management</h2>
+    <div class="grid">
+      <label>User ID<input id="uId" /></label>
+      <label>Name<input id="uName" /></label>
+      <label>Role<select id="uRole"><option>Staff</option><option>BranchManager</option><option>Admin</option></select></label>
+      <label>Branch<input id="uBranch" placeholder="e.g. Main Branch" /></label>
+      <label>Temp password (8+)<input id="uPw" /></label>
+    </div>
+    <button id="userAddBtn">Add user</button>
+    <span id="userMsg" class="msg"></span>
+    <div id="users"></div>
+  </section>
+
+  <!-- Change my password -->
+  <section class="card narrow">
+    <h2>Change my password</h2>
+    <label>Current<input id="cpOld" type="password" /></label>
+    <label>New (8+)<input id="cpNew" type="password" /></label>
+    <button id="cpBtn">Update password</button>
+    <span id="cpMsg" class="msg"></span>
+  </section>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
