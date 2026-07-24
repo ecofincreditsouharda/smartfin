@@ -8,19 +8,22 @@
 </head>
 <body>
 
-<!-- Login gate -->
-<section id="gate" class="card narrow center">
-  <h1>Financial Record</h1>
-  <label>User ID<input id="loginId" autocomplete="username" /></label>
-  <label>Password<input id="loginPw" type="password" autocomplete="current-password" /></label>
-  <button id="loginBtn">Sign in</button>
-  <span id="loginMsg" class="err"></span>
-</section>
+<!-- LOGIN (shown alone until signed in) -->
+<div id="gate">
+  <section class="card narrow">
+    <h1>Financial Record</h1>
+    <label>User ID<input id="loginId" autocomplete="username" /></label>
+    <label>Password<input id="loginPw" type="password" autocomplete="current-password" /></label>
+    <button id="loginBtn">Sign in</button>
+    <span id="loginMsg" class="err"></span>
+  </section>
+</div>
 
-<!-- App shell -->
+<!-- APP (hidden until signed in) -->
 <div id="app" hidden>
   <aside id="nav">
     <h2>Financial Record</h2>
+    <button class="navbtn" data-view="dashboard">Dashboard</button>
     <button class="navbtn" data-view="loans">Loans</button>
     <button class="navbtn" data-view="deposits">Deposits</button>
     <button class="navbtn" data-view="expenses">Expenses</button>
@@ -33,8 +36,15 @@
   </aside>
 
   <main id="main">
+    <!-- DASHBOARD -->
+    <section class="view" id="view-dashboard">
+      <div class="card"><h2>Dashboard <button class="ghost" data-refresh="dashboard">Refresh</button></h2>
+        <div id="dash" class="stats"></div>
+      </div>
+    </section>
+
     <!-- LOANS -->
-    <section class="view" id="view-loans">
+    <section class="view" id="view-loans" hidden>
       <div class="card add-only"><h2>Add a loan</h2>
         <div class="grid">
           <label>Borrower<input id="l_Borrower" /></label>
@@ -44,7 +54,8 @@
           <label>Amount (₹)<input id="l_Amount" type="number" value="200000" /></label>
           <label>Rate (% p.a.)<input id="l_RatePct" type="number" step="0.01" value="18" /></label>
           <label>Tenure (months)<input id="l_TenureMonths" type="number" value="24" /></label>
-          <label>Method<select id="l_Method"><option>Flat</option><option>Cut</option></select></label>
+          <label>Interest Method<select id="l_Method"><option>Flat</option><option>Cut</option></select></label>
+          <label>Repayment Frequency<select id="l_Frequency"><option>Monthly</option><option>Daily</option></select></label>
           <label>Sanction Date<input id="l_SanctionDate" type="date" /></label>
           <label>Disbursement Date<input id="l_DisbursementDate" type="date" /></label>
           <label>First EMI Date<input id="l_FirstEMIDate" type="date" /></label>
@@ -54,7 +65,7 @@
       </div>
       <div class="card"><h2>Loans <button class="ghost" data-refresh="loans">Refresh</button></h2><div id="l_list"></div></div>
       <div class="card" id="l_schedCard" hidden><h2 id="l_schedTitle">Schedule</h2>
-        <div id="l_summary" class="summary"></div><div id="l_sched"></div></div>
+        <div id="l_summary" class="summary"></div><div id="l_sched" class="scrolly"></div></div>
     </section>
 
     <!-- DEPOSITS -->
@@ -112,7 +123,7 @@
         <button id="r_add">Add receipt</button> <span id="r_msg" class="msg"></span>
       </div>
       <div class="card" id="r_recCard" hidden><h2>Receipts</h2><div id="r_receipts"></div></div>
-      <div class="card" id="r_schedCard" hidden><h2>Scheduled EMIs</h2><div id="r_sched"></div></div>
+      <div class="card" id="r_schedCard" hidden><h2>Scheduled instalments</h2><div id="r_sched" class="scrolly"></div></div>
     </section>
 
     <!-- REPORTS -->
@@ -131,7 +142,7 @@
           </label>
           <label>&nbsp;<button id="rep_load">Load</button></label>
         </div>
-        <div id="rep_grid" class="report"></div>
+        <div id="rep_grid" class="report scrolly"></div>
       </div>
     </section>
 
