@@ -1,4 +1,4 @@
-/* ---- CONFIG: set after deploying the backend (see BUILD_PLAN.md) ---- */
+/* ---- CONFIG: set after deploying the backend ---- */
 const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwRuT2u72CRkkpx_kR4cL6zUdY_0AA0m-HPRkqZK4OC6D-hxD_RgWbXRQvRVUQaMB0j/exec';   // ends with /exec
 
 let session = null;
@@ -22,6 +22,12 @@ const tableFrom = (rows) => {
   const money = /amount|emi|repayable|value|paid|balance|arrears|interest/i;
   let h = '<table><tr>' + cols.map(c => `<th>${c}</th>`).join('') + '</tr>';
   rows.forEach(r => h += '<tr>' + cols.map(c => `<td>${money.test(c) ? rupee(r[c]) : (r[c] ?? '')}</td>`).join('') + '</tr>');
+  return h + '</table>';
+};
+const schedTable = (sch) => {
+  let h = '<table><tr><th>#</th><th>Date</th><th>Opening</th><th>Interest</th><th>Principal</th><th>Instalment</th><th>Closing</th></tr>';
+  sch.forEach(x => h += `<tr><td>${x.period}</td><td>${x.date}</td><td>${rupee(x.opening)}</td><td>${rupee(x.interest)}</td>` +
+    `<td>${rupee(x.principal)}</td><td>${rupee(x.emi)}</td><td>${rupee(x.closing)}</td></tr>`);
   return h + '</table>';
 };
 
@@ -59,7 +65,7 @@ function start(user) {
   const canAdd = user.role !== 'Staff';
   document.querySelectorAll('.add-only').forEach(el => el.style.display = canAdd ? '' : 'none');
   if (user.role === 'BranchManager') ['l_Branch','d_Branch','e_Branch'].forEach(id => { if($(id)){ $(id).value = user.branch; $(id).readOnly = true; }});
-  showView('loans');
+  showView('dashboard');
 }
 function showView(v) {
   document.querySelectorAll('.view').forEach(s => s.hidden = true);
@@ -68,11 +74,31 @@ function showView(v) {
   refresh(v);
 }
 function refresh(v) {
+  if (v === 'dashboard') loadDashboard();
   if (v === 'loans') loadList('loans_list', 'l_list', true);
   if (v === 'deposits') loadList('deposits_list', 'd_list');
   if (v === 'expenses') loadList('expenses_list', 'e_list');
   if (v === 'users' && session.role === 'Admin') loadUsers();
   if (v === 'settings' && session.role === 'Admin') loadSettings();
+}
+
+/* ----------------------------- DASHBOARD --------------------------- */
+async function loadDashboard() {
+  $('dash').innerHTML = '<p class="msg">Loading…</p>';
+  try {
+    const { stats } = await api('dashboard_stats');
+    const cards = [
+      ['Loans', stats.loanCount, ''],
+      ['Amount Disbursed', rupee(stats.totalDisbursed), ''],
+      ['Total Repayable', rupee(stats.totalRepayable), ''],
+      ['Collected', rupee(stats.totalCollected), ''],
+      ['Repayment Pending', rupee(stats.repaymentPending), 'warn'],
+      ['Deposits', stats.depositCount + ' · ' + rupee(stats.totalDeposits), ''],
+      ['Total Expenses', rupee(stats.totalExpenses), '']
+    ];
+    $('dash').innerHTML = cards.map(([label, value, cls]) =>
+      `<div class="stat ${cls}"><span>${label}</span><b>${value}</b></div>`).join('');
+  } catch (err) { $('dash').innerHTML = `<p class="err">${err.message}</p>`; }
 }
 
 /* --------------------------- REGISTERS ----------------------------- */
@@ -97,8 +123,9 @@ async function addLoan() {
   try {
     const loan = { Borrower:val('l_Borrower'), MemberID:val('l_MemberID'), LoanType:val('l_LoanType'),
       Branch:val('l_Branch'), Amount:val('l_Amount'), RateAnnual:Number(val('l_RatePct'))/100,
-      TenureMonths:val('l_TenureMonths'), Method:val('l_Method'), SanctionDate:val('l_SanctionDate'),
-      DisbursementDate:val('l_DisbursementDate'), FirstEMIDate:val('l_FirstEMIDate'), CustomEMI:val('l_CustomEMI') };
+      TenureMonths:val('l_TenureMonths'), Method:val('l_Method'), Frequency:val('l_Frequency'),
+      SanctionDate:val('l_SanctionDate'), DisbursementDate:val('l_DisbursementDate'),
+      FirstEMIDate:val('l_FirstEMIDate'), CustomEMI:val('l_CustomEMI') };
     const { id } = await api('loans_add', { loan });
     $('l_msg').textContent = 'Saved ' + id;
     await loadList('loans_list', 'l_list', true);
@@ -129,21 +156,16 @@ async function showSchedule(id) {
   try {
     const { result } = await api('loan_schedule', { loanId: id });
     const s = result.summary; $('l_schedCard').hidden = false;
-    $('l_schedTitle').textContent = 'Schedule — ' + id + ' (' + s.method + ')';
-    $('l_summary').innerHTML = [['Effective EMI', rupee(s.effEMI)], ['Effective Tenure', s.effTenure + ' mo'],
+    $('l_schedTitle').textContent = 'Schedule — ' + id + ' (' + s.method + ' · ' + (s.frequency||'Monthly') + ')';
+    const rows = [['Effective Instalment', rupee(s.effEMI)],
+      [s.frequency === 'Daily' ? 'Days' : 'Tenure', s.effTenure + (s.frequency === 'Daily' ? ' days' : ' mo')],
       ['Total Interest', rupee(s.totalInterest)], ['Total Repayable', rupee(s.totalRepayable)],
-      ['Extra-Day Interest', rupee(s.extraInterest) + ' (' + s.extraDays + ' d)']]
-      .map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('');
+      ['Extra-Day Interest', rupee(s.extraInterest) + ' (' + s.extraDays + ' d)']];
+    $('l_summary').innerHTML = rows.map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('');
     $('l_sched').innerHTML = schedTable(result.schedule);
     $('l_schedCard').scrollIntoView({ behavior:'smooth' });
   } catch (err) { alert(err.message); }
 }
-const schedTable = (sch) => {
-  let h = '<table><tr><th>#</th><th>Date</th><th>Opening</th><th>Interest</th><th>Principal</th><th>EMI</th><th>Closing</th></tr>';
-  sch.forEach(x => h += `<tr><td>${x.period}</td><td>${x.date}</td><td>${rupee(x.opening)}</td><td>${rupee(x.interest)}</td>` +
-    `<td>${rupee(x.principal)}</td><td>${rupee(x.emi)}</td><td>${rupee(x.closing)}</td></tr>`);
-  return h + '</table>';
-};
 
 /* --------------------------- REPAYMENTS ---------------------------- */
 async function loadLedger() {
@@ -172,12 +194,11 @@ async function addReceipt() {
 
 /* ----------------------------- REPORTS ----------------------------- */
 async function loadReport() {
+  $('rep_grid').innerHTML = '<p class="msg">Loading…</p>';
   try {
     const { grid } = await api('report_get', { sheet: val('rep_sheet') });
     let h = '<table>';
-    grid.forEach((row, ri) => {
-      h += '<tr>' + row.map(c => (ri === 0 ? `<th>${c}</th>` : `<td>${c}</td>`)).join('') + '</tr>';
-    });
+    grid.forEach((row, ri) => h += '<tr>' + row.map(c => (ri === 0 ? `<th>${c}</th>` : `<td>${c}</td>`)).join('') + '</tr>');
     $('rep_grid').innerHTML = h + '</table>';
   } catch (err) { $('rep_grid').innerHTML = `<p class="err">${err.message}</p>`; }
 }
