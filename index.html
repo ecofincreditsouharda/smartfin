@@ -3,84 +3,171 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Cooperative Loan Register</title>
+<title>Cooperative Financial Record</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-<header>
-  <h1>Cooperative Loan Register</h1>
-  <div id="who"></div>
-</header>
 
 <!-- Login gate -->
-<section id="gate" class="card narrow">
-  <h2>Sign in</h2>
+<section id="gate" class="card narrow center">
+  <h1>Financial Record</h1>
   <label>User ID<input id="loginId" autocomplete="username" /></label>
   <label>Password<input id="loginPw" type="password" autocomplete="current-password" /></label>
   <button id="loginBtn">Sign in</button>
   <span id="loginMsg" class="err"></span>
 </section>
 
-<!-- App -->
-<main id="app" hidden>
-  <!-- Add loan (hidden for Staff) -->
-  <section id="addCard" class="card">
-    <h2>Add a loan</h2>
-    <div class="grid">
-      <label>Borrower<input id="Borrower" /></label>
-      <label>Member ID<input id="MemberID" /></label>
-      <label>Loan Type<input id="LoanType" value="Agriculture" /></label>
-      <label>Branch<input id="Branch" value="Main Branch" /></label>
-      <label>Amount (₹)<input id="Amount" type="number" value="200000" /></label>
-      <label>Rate (% p.a.)<input id="RatePct" type="number" step="0.01" value="18" /></label>
-      <label>Tenure (months)<input id="TenureMonths" type="number" value="24" /></label>
-      <label>Method<select id="Method"><option>Flat</option><option>Cut</option></select></label>
-      <label>Sanction Date<input id="SanctionDate" type="date" /></label>
-      <label>Disbursement Date<input id="DisbursementDate" type="date" /></label>
-      <label>First EMI Date<input id="FirstEMIDate" type="date" /></label>
-      <label>Custom EMI (optional, ₹)<input id="CustomEMI" type="number" placeholder="blank = base EMI" /></label>
-    </div>
-    <button id="addBtn">Add loan &amp; preview schedule</button>
-    <span id="addMsg" class="msg"></span>
-  </section>
+<!-- App shell -->
+<div id="app" hidden>
+  <aside id="nav">
+    <h2>Financial Record</h2>
+    <button class="navbtn" data-view="loans">Loans</button>
+    <button class="navbtn" data-view="deposits">Deposits</button>
+    <button class="navbtn" data-view="expenses">Expenses</button>
+    <button class="navbtn" data-view="repayments">Repayments</button>
+    <button class="navbtn" data-view="reports">Reports</button>
+    <button class="navbtn admin-only" data-view="settings">Settings</button>
+    <button class="navbtn admin-only" data-view="users">Users</button>
+    <button class="navbtn" data-view="account">My account</button>
+    <div id="who"></div>
+  </aside>
 
-  <!-- Loans -->
-  <section class="card">
-    <h2>Loans <button id="refreshBtn" class="ghost">Refresh</button></h2>
-    <div id="loans"></div>
-  </section>
+  <main id="main">
+    <!-- LOANS -->
+    <section class="view" id="view-loans">
+      <div class="card add-only"><h2>Add a loan</h2>
+        <div class="grid">
+          <label>Borrower<input id="l_Borrower" /></label>
+          <label>Member ID<input id="l_MemberID" /></label>
+          <label>Loan Type<input id="l_LoanType" value="Agriculture" /></label>
+          <label>Branch<input id="l_Branch" value="Main Branch" /></label>
+          <label>Amount (₹)<input id="l_Amount" type="number" value="200000" /></label>
+          <label>Rate (% p.a.)<input id="l_RatePct" type="number" step="0.01" value="18" /></label>
+          <label>Tenure (months)<input id="l_TenureMonths" type="number" value="24" /></label>
+          <label>Method<select id="l_Method"><option>Flat</option><option>Cut</option></select></label>
+          <label>Sanction Date<input id="l_SanctionDate" type="date" /></label>
+          <label>Disbursement Date<input id="l_DisbursementDate" type="date" /></label>
+          <label>First EMI Date<input id="l_FirstEMIDate" type="date" /></label>
+          <label>Custom EMI (optional)<input id="l_CustomEMI" type="number" placeholder="blank = base EMI" /></label>
+        </div>
+        <button id="l_add">Add &amp; preview</button> <span id="l_msg" class="msg"></span>
+      </div>
+      <div class="card"><h2>Loans <button class="ghost" data-refresh="loans">Refresh</button></h2><div id="l_list"></div></div>
+      <div class="card" id="l_schedCard" hidden><h2 id="l_schedTitle">Schedule</h2>
+        <div id="l_summary" class="summary"></div><div id="l_sched"></div></div>
+    </section>
 
-  <!-- Schedule -->
-  <section id="schedCard" class="card" hidden>
-    <h2 id="schedTitle">Schedule</h2>
-    <div id="summary" class="summary"></div>
-    <div id="schedule"></div>
-  </section>
+    <!-- DEPOSITS -->
+    <section class="view" id="view-deposits" hidden>
+      <div class="card add-only"><h2>Add a deposit</h2>
+        <div class="grid">
+          <label>Depositor<input id="d_Depositor" /></label>
+          <label>Member ID<input id="d_MemberID" /></label>
+          <label>Deposit Type<input id="d_DepositType" value="Fixed Deposit" /></label>
+          <label>Branch<input id="d_Branch" value="Main Branch" /></label>
+          <label>Amount (₹)<input id="d_Amount" type="number" value="100000" /></label>
+          <label>Rate (% p.a.)<input id="d_RatePct" type="number" step="0.01" value="7" /></label>
+          <label>Tenure (months)<input id="d_TenureMonths" type="number" value="12" /></label>
+          <label>Start Date<input id="d_StartDate" type="date" /></label>
+          <label>Payout Mode<input id="d_PayoutMode" value="On Maturity" /></label>
+          <label>Remarks<input id="d_Remarks" /></label>
+        </div>
+        <button id="d_add">Add deposit</button> <span id="d_msg" class="msg"></span>
+      </div>
+      <div class="card"><h2>Deposits <button class="ghost" data-refresh="deposits">Refresh</button></h2><div id="d_list"></div></div>
+    </section>
 
-  <!-- Admin: user management (Admin only) -->
-  <section id="adminCard" class="card" hidden>
-    <h2>User management</h2>
-    <div class="grid">
-      <label>User ID<input id="uId" /></label>
-      <label>Name<input id="uName" /></label>
-      <label>Role<select id="uRole"><option>Staff</option><option>BranchManager</option><option>Admin</option></select></label>
-      <label>Branch<input id="uBranch" placeholder="e.g. Main Branch" /></label>
-      <label>Temp password (8+)<input id="uPw" /></label>
-    </div>
-    <button id="userAddBtn">Add user</button>
-    <span id="userMsg" class="msg"></span>
-    <div id="users"></div>
-  </section>
+    <!-- EXPENSES -->
+    <section class="view" id="view-expenses" hidden>
+      <div class="card add-only"><h2>Add an expense</h2>
+        <div class="grid">
+          <label>Date<input id="e_Date" type="date" /></label>
+          <label>Category<input id="e_Category" value="Staff & Admin" /></label>
+          <label>Description<input id="e_Description" /></label>
+          <label>Branch<input id="e_Branch" value="Main Branch" /></label>
+          <label>Amount (₹)<input id="e_Amount" type="number" /></label>
+          <label>Remarks<input id="e_Remarks" /></label>
+        </div>
+        <button id="e_add">Add expense</button> <span id="e_msg" class="msg"></span>
+      </div>
+      <div class="card"><h2>Expenses <button class="ghost" data-refresh="expenses">Refresh</button></h2><div id="e_list"></div></div>
+    </section>
 
-  <!-- Change my password -->
-  <section class="card narrow">
-    <h2>Change my password</h2>
-    <label>Current<input id="cpOld" type="password" /></label>
-    <label>New (8+)<input id="cpNew" type="password" /></label>
-    <button id="cpBtn">Update password</button>
-    <span id="cpMsg" class="msg"></span>
-  </section>
-</main>
+    <!-- REPAYMENTS -->
+    <section class="view" id="view-repayments" hidden>
+      <div class="card"><h2>Repayment ledger</h2>
+        <div class="grid">
+          <label>Loan ID<input id="r_LoanId" placeholder="e.g. ECO00001" /></label>
+          <label>&nbsp;<button id="r_load">Load ledger</button></label>
+        </div>
+        <div id="r_summary" class="summary"></div>
+      </div>
+      <div class="card add-only" id="r_addCard" hidden><h2>Record a receipt</h2>
+        <div class="grid">
+          <label>Date<input id="r_Date" type="date" /></label>
+          <label>Amount (₹)<input id="r_Amount" type="number" /></label>
+          <label>Mode<input id="r_Mode" value="Cash" /></label>
+          <label>Note<input id="r_Note" /></label>
+        </div>
+        <button id="r_add">Add receipt</button> <span id="r_msg" class="msg"></span>
+      </div>
+      <div class="card" id="r_recCard" hidden><h2>Receipts</h2><div id="r_receipts"></div></div>
+      <div class="card" id="r_schedCard" hidden><h2>Scheduled EMIs</h2><div id="r_sched"></div></div>
+    </section>
+
+    <!-- REPORTS -->
+    <section class="view" id="view-reports" hidden>
+      <div class="card"><h2>Financial statements</h2>
+        <div class="grid">
+          <label>Report
+            <select id="rep_sheet">
+              <option value="Profit_Loss">Profit &amp; Loss</option>
+              <option value="Balance_Sheet">Balance Sheet</option>
+              <option value="Cash_Flow">Cash Flow</option>
+              <option value="Monthly_Profit_Loss">Monthly P&amp;L</option>
+              <option value="Monthly_Balance_Sheet">Monthly Balance Sheet</option>
+              <option value="Monthly_Cash_Flow">Monthly Cash Flow</option>
+            </select>
+          </label>
+          <label>&nbsp;<button id="rep_load">Load</button></label>
+        </div>
+        <div id="rep_grid" class="report"></div>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="view" id="view-settings" hidden>
+      <div class="card"><h2>Settings (Assumptions)</h2>
+        <div id="set_form" class="grid"></div>
+        <button id="set_save">Save settings</button> <span id="set_msg" class="msg"></span>
+      </div>
+    </section>
+
+    <!-- USERS -->
+    <section class="view" id="view-users" hidden>
+      <div class="card"><h2>Add user</h2>
+        <div class="grid">
+          <label>User ID<input id="u_Id" /></label>
+          <label>Name<input id="u_Name" /></label>
+          <label>Role<select id="u_Role"><option>Staff</option><option>BranchManager</option><option>Admin</option></select></label>
+          <label>Branch<input id="u_Branch" /></label>
+          <label>Temp password (8+)<input id="u_Pw" /></label>
+        </div>
+        <button id="u_add">Add user</button> <span id="u_msg" class="msg"></span>
+      </div>
+      <div class="card"><h2>Users <button class="ghost" data-refresh="users">Refresh</button></h2><div id="u_list"></div></div>
+    </section>
+
+    <!-- ACCOUNT -->
+    <section class="view" id="view-account" hidden>
+      <div class="card narrow"><h2>Change my password</h2>
+        <label>Current<input id="cp_Old" type="password" /></label>
+        <label>New (8+)<input id="cp_New" type="password" /></label>
+        <button id="cp_go">Update password</button> <span id="cp_msg" class="msg"></span>
+      </div>
+    </section>
+  </main>
+</div>
 
 <script src="app.js"></script>
 </body>
