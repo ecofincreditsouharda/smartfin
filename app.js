@@ -1,11 +1,14 @@
+
 /* ---- CONFIG ---- */
 const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwRuT2u72CRkkpx_kR4cL6zUdY_0AA0m-HPRkqZK4OC6D-hxD_RgWbXRQvRVUQaMB0j/exec';   // ends with /exec
+const IDLE_MS = 60 * 1000;   // auto-logout after 60s of inactivity
 
-let session = null, lastSchedule = null, lastScheduleTitle = '';
+let session = null, lastSchedule = null, lastSchedTitle = '', lastMeta = null, lastReceipt = null;
 const $ = id => document.getElementById(id);
 const val = id => ($(id) ? $(id).value : '');
 const rupee = n => (n === '' || n == null || isNaN(Number(String(n).replace(/[^0-9.\-]/g,''))))
   ? (n || '') : '₹ ' + Number(String(n).replace(/[^0-9.\-]/g,'')).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const token = () => localStorage.getItem('coop_token') || '';
 
 async function api(action, payload = {}) {
@@ -16,13 +19,13 @@ async function api(action, payload = {}) {
   if (!data.ok) { if (/sign in/i.test(data.error||'')) logout(); throw new Error(data.error || 'Request failed'); }
   return data;
 }
-const summaryHtml = (pairs) => pairs.map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('');
+const summaryHtml = (pairs) => pairs.map(([k, v]) => `<div><span>${esc(k)}</span><b>${v}</b></div>`).join('');
 const tableFrom = (rows) => {
   if (!rows || !rows.length) return '<p class="msg">Nothing to show.</p>';
   const cols = Object.keys(rows[0]);
-  const money = /amount|emi|repayable|value|paid|balance|arrears|due|payout|instal/i;
-  let h = '<table><tr>' + cols.map(c => `<th>${c}</th>`).join('') + '</tr>';
-  rows.forEach(r => h += '<tr>' + cols.map(c => `<td>${money.test(c) ? rupee(r[c]) : (r[c] ?? '')}</td>`).join('') + '</tr>');
+  const money = /amount|emi|repayable|value|paid|balance|arrears|due|payout|instal|min/i;
+  let h = '<table><tr>' + cols.map(c => `<th>${esc(c)}</th>`).join('') + '</tr>';
+  rows.forEach(r => h += '<tr>' + cols.map(c => `<td>${money.test(c) ? rupee(r[c]) : esc(r[c])}</td>`).join('') + '</tr>');
   return h + '</table>';
 };
 const schedTable = (sch) => {
@@ -34,19 +37,31 @@ const schedTable = (sch) => {
 const fileToB64 = (file) => new Promise((res, rej) => {
   const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(file); });
 
+/* ---------------------- IDLE AUTO-LOGOUT --------------------------- */
+let idleTimer = null;
+function resetIdle() { if (!session) return; clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => { logout(); $('loginMsg').textContent = 'Signed out after inactivity.'; }, IDLE_MS); }
+['click','keydown','mousemove','touchstart','scroll'].forEach(ev =>
+  document.addEventListener(ev, resetIdle, { passive:true }));
+
 /* ------------------------------ BOOT ------------------------------- */
 window.addEventListener('DOMContentLoaded', async () => {
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
   if (token()) { try { const { user } = await api('me'); start(user); } catch { logout(); } }
+});
+document.addEventListener('change', e => {
+  if (e.target.id === 'r_Mode') $('r_UtrWrap').hidden = (e.target.value !== 'UPI');
 });
 document.addEventListener('click', e => {
   const t = e.target, d = t.dataset || {};
+  if (d.pwtoggle) { const f = $(d.pwtoggle); const show = f.type === 'password'; f.type = show ? 'text' : 'password'; t.textContent = show ? 'Hide' : 'Show'; return; }
   if (t.id === 'loginBtn') return login();
   if (d.view) return showView(d.view);
   if (d.refresh) return refresh(d.refresh);
-  const map = { l_preview:previewLoan, l_add:addLoan, l_print:printSchedule,
+  const map = { l_preview:previewLoan, l_add:addLoan, l_print:printSchedule, l_min:()=>{ $('l_schedCard').hidden = true; },
     d_preview:previewDeposit, d_add:addDeposit, w_go:fdWithdraw,
     s_open:savingsOpen, st_go:savingsTxn, pb_load:loadPassbook, tf_go:doTransfer,
-    m_add:addMember, e_add:addExpense, r_load:loadLedger, r_add:addReceipt,
+    m_add:addMember, e_add:addExpense, r_load:loadLedger, r_add:addReceipt, r_print:printReceipt,
     rep_load:loadReport, set_save:saveSettings, u_add:addUser, cp_go:changePw, logoutBtn:logout };
   if (map[t.id]) return map[t.id]();
   if (d.loan) return showSchedule(d.loan);
@@ -57,17 +72,19 @@ document.addEventListener('click', e => {
 
 /* ------------------------------ AUTH ------------------------------- */
 async function login() {
-  $('loginMsg').textContent = '';
+  $('loginMsg').textContent = 'Signing in…';
   try { const { token: tk, user } = await api('login', { userId: val('loginId').trim(), password: val('loginPw') });
-    localStorage.setItem('coop_token', tk); $('loginPw').value = ''; start(user);
+    localStorage.setItem('coop_token', tk); $('loginPw').value = '';
+    $('loginMsg').textContent = 'Login successful — loading…'; start(user);
   } catch (err) { $('loginMsg').textContent = err.message; }
 }
-function logout(){ localStorage.removeItem('coop_token'); session = null; $('app').hidden = true; $('gate').hidden = false; }
+function logout(){ clearTimeout(idleTimer); localStorage.removeItem('coop_token'); session = null;
+  $('app').hidden = true; $('gate').hidden = false; }
 function start(user) {
-  session = user; $('gate').hidden = true; $('app').hidden = false;
+  session = user; $('gate').hidden = true; $('app').hidden = false; resetIdle();
   const canWrite = ['Admin','BranchManager','Operator'].includes(user.role);
   const canReport = canWrite, canSettings = ['Admin','BranchManager'].includes(user.role), isAdmin = user.role === 'Admin';
-  $('who').innerHTML = `${user.name}<br><b>${user.role}</b>${(user.role!=='Admin'&&user.role!=='Director') ? ' · '+(user.branch||'—') : ''}` +
+  $('who').innerHTML = `${esc(user.name)}<br><b>${esc(user.role)}</b>${(user.role!=='Admin'&&user.role!=='Director') ? ' · '+esc(user.branch||'—') : ''}` +
     `<br><button id="logoutBtn" class="ghost">Sign out</button>`;
   document.querySelectorAll('.add-only').forEach(el => el.style.display = canWrite ? '' : 'none');
   document.querySelectorAll('.report-only').forEach(el => el.style.display = canReport ? '' : 'none');
@@ -97,47 +114,39 @@ function refresh(v) {
 /* ----------------------------- DASHBOARD --------------------------- */
 async function loadDashboard() {
   $('dash').innerHTML = '<p class="msg">Loading…</p>'; $('dash_overdue').innerHTML = '';
-  try {
-    const { stats, overdue } = await api('dashboard_stats');
-    $('dash').innerHTML = [
-      ['Loans', stats.loanCount, ''], ['Amount Disbursed', rupee(stats.totalDisbursed), ''],
-      ['Due This Month', rupee(stats.dueThisMonth), ''],
-      ['Members in Arrears', stats.overdueCount, stats.overdueCount ? 'warn' : ''],
-      ['Total Arrears', rupee(stats.totalArrears), stats.totalArrears > 0 ? 'warn' : '']
-    ].map(([l, v, c]) => `<div class="stat ${c}"><span>${l}</span><b>${v}</b></div>`).join('');
-    $('dash_overdue').innerHTML = overdue && overdue.length ? tableFrom(overdue)
-      : '<p class="msg">No missed EMIs 🎉</p>';
+  try { const { stats, overdue } = await api('dashboard_stats');
+    $('dash').innerHTML = [['Loans', stats.loanCount, ''], ['Amount Disbursed', rupee(stats.totalDisbursed), ''],
+      ['Due This Month', rupee(stats.dueThisMonth), ''], ['Members in Arrears', stats.overdueCount, stats.overdueCount ? 'warn' : ''],
+      ['Total Arrears', rupee(stats.totalArrears), stats.totalArrears > 0 ? 'warn' : '']]
+      .map(([l, v, c]) => `<div class="stat ${c}"><span>${l}</span><b>${v}</b></div>`).join('');
+    $('dash_overdue').innerHTML = overdue && overdue.length ? tableFrom(overdue) : '<p class="msg">No missed EMIs.</p>';
   } catch (err) { $('dash').innerHTML = `<p class="err">${err.message}</p>`; }
 }
 
 /* --------------------------- GENERIC LIST -------------------------- */
 async function loadList(action, target, linkKind) {
-  try {
-    const { rows } = await api(action);
+  try { const { rows } = await api(action);
     if (!rows.length) { $(target).innerHTML = '<p class="msg">Nothing to show.</p>'; return; }
-    const cols = Object.keys(rows[0]);
-    const money = /amount|emi|repayable|value|paid|balance|arrears|min/i;
-    let h = '<table><tr>' + cols.map(c => `<th>${c}</th>`).join('') + (linkKind ? '<th></th>' : '') + '</tr>';
-    rows.forEach(r => { h += '<tr>' + cols.map(c => `<td>${money.test(c) ? rupee(r[c]) : (r[c] ?? '')}</td>`).join('');
-      if (linkKind === 'loan') h += `<td><button class="ghost" data-loan="${r[cols[0]]}">Schedule</button></td>`;
-      if (linkKind === 'member') h += `<td><button class="ghost" data-member="${r[cols[0]]}">View</button></td>`;
+    const cols = Object.keys(rows[0]); const money = /amount|emi|repayable|value|paid|balance|arrears|min/i;
+    let h = '<table><tr>' + cols.map(c => `<th>${esc(c)}</th>`).join('') + (linkKind ? '<th></th>' : '') + '</tr>';
+    rows.forEach(r => { h += '<tr>' + cols.map(c => `<td>${money.test(c) ? rupee(r[c]) : esc(r[c])}</td>`).join('');
+      if (linkKind === 'loan') h += `<td><button class="ghost" data-loan="${esc(r[cols[0]])}">Schedule</button></td>`;
+      if (linkKind === 'member') h += `<td><button class="ghost" data-member="${esc(r[cols[0]])}">View</button></td>`;
       h += '</tr>'; });
     $(target).innerHTML = h + '</table>';
   } catch (err) { $(target).innerHTML = `<p class="err">${err.message}</p>`; }
 }
 
 /* ------------------------------ LOANS ------------------------------ */
-function loanFromForm() {
-  return { Borrower:val('l_Borrower'), MemberID:val('l_MemberID'), LoanType:val('l_LoanType'),
-    Branch:val('l_Branch'), Amount:val('l_Amount'), RateAnnual:Number(val('l_RatePct'))/100,
-    TenureMonths:val('l_TenureMonths'), Method:val('l_Method'), Frequency:val('l_Frequency'),
-    SanctionDate:val('l_SanctionDate'), DisbursementDate:val('l_DisbursementDate'),
-    FirstEMIDate:val('l_FirstEMIDate'), CustomEMI:val('l_CustomEMI') };
-}
+function loanFromForm() { return { Borrower:val('l_Borrower'), MemberID:val('l_MemberID'), LoanType:val('l_LoanType'),
+  Branch:val('l_Branch'), Amount:val('l_Amount'), RateAnnual:Number(val('l_RatePct'))/100, TenureMonths:val('l_TenureMonths'),
+  Method:val('l_Method'), Frequency:val('l_Frequency'), SanctionDate:val('l_SanctionDate'),
+  DisbursementDate:val('l_DisbursementDate'), FirstEMIDate:val('l_FirstEMIDate'), CustomEMI:val('l_CustomEMI') }; }
 async function previewLoan() {
   $('l_msg').textContent = 'Calculating…';
-  try { const { result } = await api('loan_preview', { loan: loanFromForm() });
-    renderSchedule('PREVIEW (not yet saved)', result); $('l_add').hidden = false; $('l_msg').textContent = 'Preview ready — review, then Confirm & Save.';
+  try { const { result, meta } = await api('loan_preview', { loan: loanFromForm() });
+    renderSchedule('PREVIEW (not yet saved)', result, meta); $('l_add').hidden = false;
+    $('l_msg').textContent = 'Preview ready — review, then Confirm & Save.';
   } catch (err) { $('l_msg').textContent = ''; alert(err.message); }
 }
 async function addLoan() {
@@ -148,32 +157,41 @@ async function addLoan() {
   } catch (err) { $('l_msg').textContent = ''; alert(err.message); }
 }
 async function showSchedule(id) {
-  try { const { result } = await api('loan_schedule', { loanId: id }); renderSchedule(id, result); }
+  try { const { result, meta } = await api('loan_schedule', { loanId: id }); renderSchedule(id, result, meta); }
   catch (err) { alert(err.message); }
 }
-function renderSchedule(title, result) {
-  const s = result.summary; lastSchedule = result.schedule;
-  lastScheduleTitle = 'Amortization — ' + title + ' (' + s.method + ' · ' + (s.frequency||'Monthly') + ')';
-  $('l_schedCard').hidden = false; $('l_schedTitle').firstChild.textContent = 'Schedule — ' + title + '  ';
+function renderSchedule(title, result, meta) {
+  const s = result.summary; lastSchedule = result.schedule; lastMeta = meta || {};
+  lastSchedTitle = 'Amortization — ' + title;
+  $('l_schedCard').hidden = false; $('l_schedTitle').textContent = 'Schedule — ' + title;
   $('l_summary').innerHTML = summaryHtml([['Effective Instalment', rupee(s.effEMI)],
     [s.frequency === 'Daily' ? 'Days' : 'Tenure', s.effTenure + (s.frequency === 'Daily' ? ' days' : ' mo')],
     ['Total Interest', rupee(s.totalInterest)], ['Total Repayable', rupee(s.totalRepayable)],
     ['Extra-Day Interest', rupee(s.extraInterest) + ' (' + s.extraDays + ' d)']]);
+  lastMeta.tenure = s.nominalTenure; lastMeta.method = s.method; lastMeta.frequency = s.frequency;
   $('l_sched').innerHTML = schedTable(result.schedule);
   $('l_schedCard').scrollIntoView({ behavior:'smooth' });
 }
 function printSchedule() {
   if (!lastSchedule) { alert('Load or preview a schedule first.'); return; }
+  const m = lastMeta || {}, bank = esc(m.bankName || (session && session.bankName) || 'Cooperative Bank');
+  const info = `<table class="meta"><tr><td><b>Borrower:</b> ${esc(m.borrower)}</td><td><b>Member ID:</b> ${esc(m.memberId)}</td></tr>` +
+    `<tr><td><b>Loan Type:</b> ${esc(m.loanType)}</td><td><b>Tenure:</b> ${esc(m.tenure)} months (${esc(m.method)} · ${esc(m.frequency)})</td></tr></table>`;
+  openPrint(`<h2>${bank}</h2><h3>Amortization Schedule</h3>${info}${schedTable(lastSchedule)}`);
+}
+function openPrint(inner) {
   const w = window.open('', '_blank');
-  w.document.write(`<html><head><title>${lastScheduleTitle}</title><style>
+  w.document.write(`<html><head><title>Print</title><style>
     @page { size: A4; margin: 2cm 1cm; }
     body { font-family: Arial, sans-serif; font-size: 11px; color:#000; }
-    h3 { text-align:center; margin:0 0 12px; }
-    table { width:100%; border-collapse:collapse; }
+    h2 { text-align:center; margin:0 0 2px; } h3 { text-align:center; margin:0 0 12px; font-weight:normal; }
+    table { width:100%; border-collapse:collapse; margin-top:8px; }
     th,td { border:1px solid #999; padding:4px 6px; text-align:right; }
     th:nth-child(2),td:nth-child(2){ text-align:left; }
-  </style></head><body><h3>${lastScheduleTitle}</h3>${schedTable(lastSchedule)}</body></html>`);
-  w.document.close(); w.focus(); setTimeout(() => { w.print(); }, 300);
+    table.meta td { border:0; text-align:left; padding:2px 6px; }
+    table.receipt td { border:0; text-align:left; padding:4px 6px; }
+  </style></head><body>${inner}</body></html>`);
+  w.document.close(); w.focus(); setTimeout(() => w.print(), 300);
 }
 
 /* --------------------------- REPAYMENTS ---------------------------- */
@@ -183,26 +201,46 @@ async function loadLedger() {
     $('r_summary').innerHTML = summaryHtml([['Total Payable', rupee(s.totalPayable)], ['Total Paid', rupee(s.totalPaid)],
       ['Balance Remaining', rupee(s.balanceRemaining)], ['Scheduled Due To-Date', rupee(s.scheduledDueToDate)],
       ['Arrears / (Advance)', rupee(s.arrears)], ['Next Due', s.nextDueDate + ' · ' + rupee(s.nextDueAmount)]]);
-    $('r_addCard').hidden = (session.role === 'Director');
+    $('r_addCard').hidden = (session.role === 'Director'); $('r_receiptBox').hidden = true;
     $('r_recCard').hidden = false; $('r_receipts').innerHTML = tableFrom(ledger.receipts);
     $('r_schedCard').hidden = false; $('r_sched').innerHTML = schedTable(ledger.schedule);
   } catch (err) { alert(err.message); }
 }
 async function addReceipt() {
   const id = val('r_LoanId').trim(); if (!id) { alert('Load a loan first.'); return; }
+  const mode = val('r_Mode');
+  if (mode === 'UPI' && !val('r_Utr').trim()) { alert('Please enter the UTR number for UPI.'); return; }
   $('r_msg').textContent = 'Saving…';
-  try { const { receiptNo } = await api('repayment_add', { repayment: { LoanID:id, Date:val('r_Date'),
-      Amount:val('r_Amount'), Mode:val('r_Mode'), Note:val('r_Note') } });
-    $('r_msg').textContent = 'Receipt ' + receiptNo; $('r_Amount').value = ''; loadLedger();
+  try { const { receipt } = await api('repayment_add', { repayment: { LoanID:id, Date:val('r_Date'),
+      Amount:val('r_Amount'), Mode:mode, Ref:val('r_Utr'), Note:val('r_Note') } });
+    lastReceipt = receipt; $('r_msg').textContent = 'Receipt ' + receipt.receiptNo; $('r_Amount').value = '';
+    $('r_receiptBox').hidden = false;
+    $('r_receiptView').innerHTML = summaryHtml([['Bank', esc(receipt.bankName)], ['Receipt No.', esc(receipt.receiptNo)],
+      ['Date', esc(receipt.date)], ['Borrower', esc(receipt.borrower)], ['Mode', esc(receipt.mode) + (receipt.ref ? ' ('+esc(receipt.ref)+')' : '')],
+      ['This payment', rupee(receipt.amount)], ['EMIs paid till now', receipt.emisPaid],
+      ['Amount paid till now', rupee(receipt.amountPaidTillNow)], ['Pending loan amount', rupee(receipt.pendingAmount)],
+      ['Operator', esc(receipt.operator)]]);
+    loadLedger();
   } catch (err) { $('r_msg').textContent = ''; alert(err.message); }
+}
+function printReceipt() {
+  if (!lastReceipt) { alert('Add a receipt first.'); return; }
+  const r = lastReceipt;
+  const body = `<h2>${esc(r.bankName)}</h2><h3>Loan Repayment Receipt</h3>
+    <table class="receipt">
+    <tr><td><b>Receipt No.</b></td><td>${esc(r.receiptNo)}</td><td><b>Date</b></td><td>${esc(r.date)}</td></tr>
+    <tr><td><b>Loan ID</b></td><td>${esc(r.loanId)}</td><td><b>Borrower</b></td><td>${esc(r.borrower)}</td></tr>
+    <tr><td><b>Mode</b></td><td>${esc(r.mode)}${r.ref ? ' ('+esc(r.ref)+')' : ''}</td><td><b>Amount</b></td><td>${rupee(r.amount)}</td></tr>
+    <tr><td><b>EMIs paid till now</b></td><td>${r.emisPaid}</td><td><b>Paid till now</b></td><td>${rupee(r.amountPaidTillNow)}</td></tr>
+    <tr><td><b>Pending loan amount</b></td><td>${rupee(r.pendingAmount)}</td><td><b>Operator</b></td><td>${esc(r.operator)}</td></tr>
+    </table><p style="margin-top:30px">Received with thanks. ____________________<br>Authorised Signature</p>`;
+  openPrint(body);
 }
 
 /* --------------------------- FIXED DEPOSITS ------------------------ */
-function depositFromForm() {
-  return { Depositor:val('d_Depositor'), MemberID:val('d_MemberID'), DepositType:'Fixed Deposit',
-    Branch:val('d_Branch'), Amount:val('d_Amount'), RateAnnual:Number(val('d_RatePct'))/100,
-    TenureMonths:val('d_TenureMonths'), StartDate:val('d_StartDate'), PayoutMode:val('d_PayoutMode'), Remarks:val('d_Remarks') };
-}
+function depositFromForm() { return { Depositor:val('d_Depositor'), MemberID:val('d_MemberID'), DepositType:'Fixed Deposit',
+  Branch:val('d_Branch'), Amount:val('d_Amount'), RateAnnual:Number(val('d_RatePct'))/100, TenureMonths:val('d_TenureMonths'),
+  StartDate:val('d_StartDate'), PayoutMode:val('d_PayoutMode'), Remarks:val('d_Remarks') }; }
 async function previewDeposit() {
   $('d_msg').textContent = 'Calculating…';
   try { const { result } = await api('deposit_preview', { deposit: depositFromForm() });
@@ -246,7 +284,7 @@ async function savingsTxn() {
 async function loadPassbook() {
   const id = val('pb_SavingsID').trim(); if (!id) return;
   try { const { passbook } = await api('savings_passbook', { savingsId: id });
-    $('pb_summary').innerHTML = summaryHtml([['Member', passbook.account.Member], ['Balance', rupee(passbook.account.Balance)],
+    $('pb_summary').innerHTML = summaryHtml([['Member', esc(passbook.account.Member)], ['Balance', rupee(passbook.account.Balance)],
       ['Minimum Balance', rupee(passbook.account.MinBalance)]]);
     $('pb_rows').innerHTML = tableFrom(passbook.rows);
   } catch (err) { alert(err.message); }
@@ -264,8 +302,7 @@ async function doTransfer() {
 /* ------------------------------ MEMBERS ---------------------------- */
 async function addMember() {
   $('m_msg').textContent = 'Saving…';
-  try {
-    const member = { FullName:val('m_FullName'), DOB:val('m_DOB'), Phone:val('m_Phone'), Address:val('m_Address'),
+  try { const member = { FullName:val('m_FullName'), DOB:val('m_DOB'), Phone:val('m_Phone'), Address:val('m_Address'),
       Aadhaar:val('m_Aadhaar'), PAN:val('m_PAN'), BankAccount:val('m_BankAccount'), IFSC:val('m_IFSC'), Branch:val('m_Branch') };
     const f = $('m_Photo').files[0];
     if (f) { member.PhotoBase64 = await fileToB64(f); member.PhotoMime = f.type; }
@@ -275,10 +312,10 @@ async function addMember() {
 }
 async function showMember(id) {
   try { const { member } = await api('member_get', { memberId: id }); $('m_card').hidden = false;
-    $('m_detail').innerHTML = summaryHtml([['Member ID', member.MemberID], ['Full Name', member.FullName],
-      ['DOB', member.DOB], ['Phone', member.Phone], ['Address', member.Address], ['Aadhaar', member.Aadhaar],
-      ['PAN', member.PAN], ['Bank A/C', member.BankAccount], ['IFSC', member.IFSC], ['Branch', member.Branch]]) +
-      (member.PhotoUrl ? `<div style="margin-top:10px"><a href="${member.PhotoUrl}" target="_blank">View photo</a></div>` : '');
+    $('m_detail').innerHTML = summaryHtml([['Member ID', esc(member.MemberID)], ['Full Name', esc(member.FullName)],
+      ['DOB', esc(member.DOB)], ['Phone', esc(member.Phone)], ['Address', esc(member.Address)], ['Aadhaar', esc(member.Aadhaar)],
+      ['PAN', esc(member.PAN)], ['Bank A/C', esc(member.BankAccount)], ['IFSC', esc(member.IFSC)], ['Branch', esc(member.Branch)]]) +
+      (member.PhotoUrl ? `<div style="margin-top:10px"><a href="${esc(member.PhotoUrl)}" target="_blank">View photo</a></div>` : '');
     $('m_card').scrollIntoView({ behavior:'smooth' });
   } catch (err) { alert(err.message); }
 }
@@ -296,7 +333,7 @@ async function addExpense() {
 async function loadReport() {
   $('rep_grid').innerHTML = '<p class="msg">Loading…</p>';
   try { const { grid } = await api('report_get', { sheet: val('rep_sheet') });
-    let h = '<table>'; grid.forEach((row, ri) => h += '<tr>' + row.map(c => (ri === 0 ? `<th>${c}</th>` : `<td>${c}</td>`)).join('') + '</tr>');
+    let h = '<table>'; grid.forEach((row, ri) => h += '<tr>' + row.map(c => (ri === 0 ? `<th>${esc(c)}</th>` : `<td>${esc(c)}</td>`)).join('') + '</tr>');
     $('rep_grid').innerHTML = h + '</table>';
   } catch (err) { $('rep_grid').innerHTML = `<p class="err">${err.message}</p>`; }
 }
@@ -304,8 +341,8 @@ async function loadReport() {
 /* ------------------------------ SETTINGS --------------------------- */
 async function loadSettings() {
   try { const { settings } = await api('settings_get');
-    $('set_form').innerHTML = settings.map(s => `<label>${s.label}<input data-skey="${s.key}" ` +
-      `type="${s.type==='date'?'date':(s.type==='number'?'number':'text')}" value="${s.value ?? ''}"></label>`).join('');
+    $('set_form').innerHTML = settings.map(s => `<label>${esc(s.label)}<input data-skey="${esc(s.key)}" ` +
+      `type="${s.type==='date'?'date':(s.type==='number'?'number':'text')}" value="${esc(s.value)}"></label>`).join('');
   } catch (err) { $('set_form').innerHTML = `<p class="err">${err.message}</p>`; }
 }
 async function saveSettings() {
@@ -319,10 +356,10 @@ async function saveSettings() {
 async function loadUsers() {
   try { const { users } = await api('users_list');
     let h = '<table><tr><th>User ID</th><th>Name</th><th>Role</th><th>Branch</th><th>Active</th><th>Last login</th><th></th></tr>';
-    users.forEach(u => h += `<tr><td>${u.UserID}</td><td>${u.Name||''}</td><td>${u.Role}</td><td>${u.Branch||''}</td>` +
-      `<td>${u.Active?'Yes':'No'}</td><td>${(u.LastLogin||'').slice(0,10)}</td>` +
-      `<td><button class="ghost" data-reset="${u.UserID}">Reset PW</button> ` +
-      `<button class="ghost" data-toggle="${u.UserID}" data-active="${u.Active}">${u.Active?'Disable':'Enable'}</button></td></tr>`);
+    users.forEach(u => h += `<tr><td>${esc(u.UserID)}</td><td>${esc(u.Name)}</td><td>${esc(u.Role)}</td><td>${esc(u.Branch)}</td>` +
+      `<td>${u.Active?'Yes':'No'}</td><td>${esc((u.LastLogin||'').slice(0,10))}</td>` +
+      `<td><button class="ghost" data-reset="${esc(u.UserID)}">Reset PW</button> ` +
+      `<button class="ghost" data-toggle="${esc(u.UserID)}" data-active="${u.Active}">${u.Active?'Disable':'Enable'}</button></td></tr>`);
     $('u_list').innerHTML = h + '</table>';
   } catch (err) { $('u_list').innerHTML = `<p class="err">${err.message}</p>`; }
 }
