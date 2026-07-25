@@ -1,4 +1,3 @@
-
 /* ---- CONFIG ---- */
 const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwRuT2u72CRkkpx_kR4cL6zUdY_0AA0m-HPRkqZK4OC6D-hxD_RgWbXRQvRVUQaMB0j/exec';   // ends with /exec
 const IDLE_MS = 60 * 1000;   // auto-logout after inactivity (change if too aggressive)
