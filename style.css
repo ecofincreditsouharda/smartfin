@@ -115,3 +115,12 @@ tr:hover td{background:#fafbfe}
   .grid{grid-template-columns:1fr 1fr}
 }
 @media (max-width:540px){ .grid{grid-template-columns:1fr} .card{padding:16px;margin:12px 0} h1{font-size:21px} }
+
+/* #1 login field spacing */
+.card.auth label{margin-bottom:14px}
+.card.auth #loginBtn{margin-top:8px}
+
+/* #10 keep wide tables inside the screen (mobile/PWA) — horizontal scroll */
+#l_list,#d_list,#s_list,#e_list,#m_list,#u_list,#r_receipts,#soc_list,#br_list,#dash_overdue,.report{
+  overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
+@media (max-width:860px){ table{white-space:nowrap} }
