@@ -1,5 +1,5 @@
-:root { --bg:#f4f6f9; --ink:#1f2733; --line:#dfe4ea; --accent:#305496; --accent2:#e8eef7;
-        --coral:#f08080; --coral-dark:#e26a6a; --navy:#00008b; }
+:root { --bg:##c9e8ff; --ink:#1f2733; --line:#dfe4ea; --accent:#305496; --accent2:#e8eef7;
+        --coral:#ffb0b0; --coral-dark:#fce6e6; --navy:#01284a; }
 * { box-sizing: border-box; }
 body { margin:0; font:15px/1.45 system-ui,Segoe UI,Roboto,Arial,sans-serif; color:var(--ink); background:var(--bg); }
 [hidden] { display: none !important; }
