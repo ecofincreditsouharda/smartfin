@@ -124,3 +124,8 @@ tr:hover td{background:#fafbfe}
 #l_list,#d_list,#s_list,#e_list,#m_list,#u_list,#r_receipts,#soc_list,#br_list,#dash_overdue,.report{
   overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
 @media (max-width:860px){ table{white-space:nowrap} }
+
+/* #5 report cell alignment on screen */
+.report table{table-layout:auto}
+.report table td,.report table th{text-align:right;vertical-align:top;white-space:nowrap}
+.report table td:first-child,.report table th:first-child{text-align:left;position:sticky;left:0;background:#fff}
