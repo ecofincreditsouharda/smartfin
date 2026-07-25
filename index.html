@@ -52,6 +52,7 @@
     <button class="navbtn" data-view="deposits">Fixed Deposits</button>
     <button class="navbtn" data-view="savings">Savings</button>
     <button class="navbtn" data-view="transfers">Transfers</button>
+    <button class="navbtn settings-only" data-view="society">Society Bank</button>
     <button class="navbtn" data-view="expenses">Expenses</button>
     <button class="navbtn report-only" data-view="reports">Reports</button>
     <button class="navbtn settings-only" data-view="settings">Settings</button>
@@ -224,17 +225,50 @@
           <option value="Profit_Loss">Profit &amp; Loss</option>
           <option value="Balance_Sheet">Balance Sheet</option>
           <option value="Cash_Flow">Cash Flow</option>
+          <option value="Loan_Monthly_Detail">Loan Monthly Detail</option>
+          <option value="Deposit_Monthly_Detail">Deposit Monthly Detail</option>
           <option value="Monthly_Profit_Loss">Monthly P&amp;L</option>
           <option value="Monthly_Balance_Sheet">Monthly Balance Sheet</option>
           <option value="Monthly_Cash_Flow">Monthly Cash Flow</option>
-        </select></label></div>
-        <div class="actions"><button id="rep_load" class="primary">Load</button></div>
+        </select></label>
+        <label id="rep_periodWrap">Period<select id="rep_period"></select></label></div>
+        <div class="actions"><button id="rep_load" class="primary">Load</button>
+          <button id="rep_print" class="ghost">Print (A4 landscape)</button></div>
         <div id="rep_grid" class="report scrolly"></div></div>
+    </section>
+
+    <section class="view" id="view-society" hidden>
+      <div class="card"><h2>Society Bank Account (mother account)</h2>
+        <div class="grid">
+          <label>Account Number<input id="soc_Acc" /></label>
+          <label>IFSC Code<input id="soc_IFSC" /></label>
+          <label>Address<input id="soc_Addr" /></label>
+          <label>Opening Balance (₹)<input id="soc_Open" type="number" /></label>
+        </div>
+        <div class="actions settings-only"><button id="soc_save" class="primary">Save account details</button><span id="soc_msg" class="msg"></span></div>
+        <div id="soc_bal" class="summary"></div></div>
+      <div class="card add-only"><h2>Manual bank transaction</h2>
+        <div class="grid">
+          <label>Direction<select id="soc_Dir"><option>Received</option><option>Sent</option></select></label>
+          <label>Amount (₹)<input id="soc_Amt" type="number" /></label>
+          <label>Party (from / to)<input id="soc_Party" /></label>
+          <label>Note<input id="soc_Note" /></label>
+        </div>
+        <div class="actions"><button id="soc_txn" class="primary">Post transaction</button><span id="soc_tmsg" class="msg"></span></div></div>
+      <div class="card"><div class="card-head"><h2>Transactions</h2><button class="ghost" data-refresh="society">Refresh</button></div><div id="soc_list"></div></div>
     </section>
 
     <section class="view" id="view-settings" hidden>
       <div class="card"><h2>Settings</h2><div id="set_form" class="grid"></div>
         <div class="actions"><button id="set_save" class="primary">Save settings</button><span id="set_msg" class="msg"></span></div></div>
+      <div class="card"><h2>Branch contacts</h2>
+        <div class="grid">
+          <label>Branch<input id="br_Branch" /></label>
+          <label>Address<input id="br_Address" /></label>
+          <label>Phone<input id="br_Phone" /></label>
+        </div>
+        <div class="actions"><button id="br_save" class="primary">Save branch</button><span id="br_msg" class="msg"></span></div>
+        <div id="br_list"></div></div>
     </section>
 
     <section class="view" id="view-users" hidden>
