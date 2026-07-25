@@ -116,9 +116,13 @@
     </section>
 
     <section class="view" id="view-repayments" hidden>
-      <div class="card"><h2>Repayment ledger</h2>
-        <div class="grid"><label>Loan ID<input id="r_LoanId" placeholder="e.g. ECO00001" /></label></div>
-        <div class="actions"><button id="r_load" class="primary">Load ledger</button></div>
+      <div class="card"><h2>Find a loan to collect / view</h2>
+        <div class="grid"><label>Search<input id="r_search" placeholder="loan id or borrower" /></label>
+          <label>Or Loan ID<input id="r_LoanId" placeholder="e.g. ECO00001" /></label></div>
+        <div class="actions"><button id="r_load" class="primary">Open ledger</button></div>
+        <div id="r_loanlist"></div></div>
+      <div class="card" id="r_ledgerHead" hidden>
+        <div class="card-head"><h2 id="r_ledgerTitle">Ledger</h2><button class="ghost" id="r_min">Minimise</button></div>
         <div id="r_summary" class="summary"></div></div>
       <div class="card add-only" id="r_addCard" hidden><h2>Record a receipt</h2>
         <div class="grid">
@@ -130,8 +134,7 @@
         </div>
         <div class="actions"><button id="r_add" class="primary">Add receipt</button><span id="r_msg" class="msg"></span></div>
         <div id="r_receiptBox" hidden><div id="r_receiptView" class="summary"></div>
-          <button class="ghost" id="r_print">Print receipt</button></div>
-      </div>
+          <button class="ghost" id="r_print">Print receipt</button></div></div>
       <div class="card" id="r_recCard" hidden><h2>Receipts <small>(print any anytime)</small></h2><div id="r_receipts"></div></div>
       <div class="card" id="r_schedCard" hidden><h2>Scheduled instalments</h2><div id="r_sched" class="scrolly"></div></div>
     </section>
@@ -209,13 +212,19 @@
       <div class="card add-only"><h2>Add an expense</h2>
         <div class="grid">
           <label>Date<input id="e_Date" type="date" /></label>
-          <label>Category<input id="e_Category" value="Staff & Admin" /></label>
+          <label>Category<select id="e_Category">
+            <option>Staff Salaries</option><option>Staff &amp; Admin</option><option>Rent</option>
+            <option>Utilities</option><option>Interest Expense</option><option>Office Supplies</option>
+            <option>External Expenses</option><option>Other</option></select></label>
+          <label id="e_ToWrap" hidden>To (paid to)<input id="e_To" /></label>
           <label>Description<input id="e_Description" /></label>
           <label>Branch<input id="e_Branch" value="Main Branch" /></label>
           <label>Amount (₹)<input id="e_Amount" type="number" /></label>
           <label>Remarks<input id="e_Remarks" /></label>
         </div>
-        <div class="actions"><button id="e_add" class="primary">Add expense</button><span id="e_msg" class="msg"></span></div></div>
+        <div class="actions"><button id="e_add" class="primary">Add expense</button><span id="e_msg" class="msg"></span></div>
+        <div id="e_voucherBox" hidden><div id="e_voucherView" class="summary"></div>
+          <button class="ghost" id="e_print">Print voucher</button></div></div>
       <div class="card"><div class="card-head"><h2>Expenses</h2><button class="ghost" data-refresh="expenses">Refresh</button></div><div id="e_list"></div></div>
     </section>
 
