@@ -1,6 +1,6 @@
 /* ---- CONFIG ---- */
 const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwRuT2u72CRkkpx_kR4cL6zUdY_0AA0m-HPRkqZK4OC6D-hxD_RgWbXRQvRVUQaMB0j/exec';   // ends with /exec
-const IDLE_MS = 60 * 1000;   // auto-logout after inactivity (change if too aggressive)
+const IDLE_MS = 120 * 1000;   // auto-logout after inactivity (change if too aggressive)
 
 let session = null, lastSchedule = null, lastMeta = null, lastReceipt = null, curLoanId = '';
 let editing = { type:null, id:null }, lastVoucher = null, repLoans = [];
@@ -73,6 +73,10 @@ document.addEventListener('click', e => {
   if (d.view) return showView(d.view);
   if (d.refresh) return refresh(d.refresh);
   if (d.rprint) return printPastReceipt(d.rprint);
+  if (d.voucher) return printPastVoucher(d.voucher);
+  if (d.photo) return showPhoto(d.photo);
+  if (d.bredit) return fillBranch(d.bredit);
+  if (t.id === 'modal_close' || t.id === 'modal') return closeModal();
   if (d.edit) { const i = d.edit.indexOf(':'); return startEdit(d.edit.slice(0,i), d.edit.slice(i+1)); }
   if (d.openledger) return openLedger(d.openledger);
   const map = { l_preview:previewLoan, l_add:addLoan, l_print:printSchedule, l_min:()=>{ $('l_schedCard').hidden = true; },
@@ -112,9 +116,21 @@ function start(user) {
   document.querySelectorAll('.report-only').forEach(el => el.style.display = canReport ? '' : 'none');
   document.querySelectorAll('.settings-only').forEach(el => el.style.display = canSettings ? '' : 'none');
   document.querySelectorAll('.admin-only').forEach(el => el.style.display = isAdmin ? '' : 'none');
-  if (user.role === 'BranchManager' || user.role === 'Operator')
-    ['l_Branch','d_Branch','e_Branch','m_Branch','s_Branch'].forEach(id => { if($(id)){ $(id).value = user.branch; $(id).readOnly = true; }});
+  populateBranchSelects();
   showView('dashboard');
+}
+async function populateBranchSelects() {
+  let names = [];
+  try { const { branches } = await api('branches_list'); names = (branches||[]).map(b => b.Branch).filter(Boolean); } catch (e) {}
+  if (!names.length) names = ['Main Branch'];
+  const locked = (session.role === 'BranchManager' || session.role === 'Operator');
+  document.querySelectorAll('select.branch-select').forEach(sel => {
+    const cur = sel.value;
+    sel.innerHTML = names.map(n => `<option>${esc(n)}</option>`).join('');
+    if (locked && session.branch) { if (!names.includes(session.branch)) sel.innerHTML += `<option>${esc(session.branch)}</option>`;
+      sel.value = session.branch; sel.disabled = true; }
+    else if (cur && names.includes(cur)) sel.value = cur;
+  });
 }
 function showView(v) {
   document.querySelectorAll('.view').forEach(s => s.hidden = true);
@@ -159,6 +175,7 @@ async function loadList(action, target, linkKind, editKey) {
       if (hasBtn) { h += '<td>';
         if (linkKind === 'loan') h += `<button class="ghost" data-loan="${esc(id)}">Schedule</button> `;
         if (linkKind === 'member') h += `<button class="ghost" data-member="${esc(id)}">View</button> `;
+        if (editKey === 'expenses') h += `<button class="ghost" data-voucher="${esc(id)}">Voucher</button> `;
         if (editKey) h += `<button class="ghost" data-edit="${esc(editKey)}:${esc(id)}">Edit</button>`;
         h += '</td>'; }
       h += '</tr>'; });
@@ -202,7 +219,7 @@ function fillReg(key, f) {
 }
 function fillMember(m) { setV('m_FullName',m.FullName); setV('m_DOB',m.DOB && m.DOB.length>10 ? '' : m.DOB); setV('m_Phone',m.Phone);
   setV('m_Branch',m.Branch); setV('m_Address',m.Address); setV('m_Aadhaar',''); $('m_Aadhaar').placeholder = 'unchanged ('+ (m.Aadhaar||'') +') — type to replace';
-  setV('m_PAN',m.PAN); setV('m_BankAccount',m.BankAccount); setV('m_IFSC',m.IFSC); }
+  setV('m_PAN',m.PAN); setV('m_BankName',m.BankName); setV('m_BankAccount',m.BankAccount); setV('m_IFSC',m.IFSC); }
 function setV(id, v){ if ($(id)) $(id).value = (v == null ? '' : v); }
 
 /* ------------------------ REPAYMENTS: loan list -------------------- */
@@ -429,11 +446,24 @@ async function doTransfer() {
   } catch (err) { $('tf_msg').textContent = ''; alert(err.message); }
 }
 
+/* ------------------------------ MODAL ------------------------------ */
+function openModal(title, html) { $('modal_title').textContent = title || ''; $('modal_body').innerHTML = html; $('modal').hidden = false; }
+function closeModal() { $('modal').hidden = true; $('modal_body').innerHTML = ''; }
+function driveId(url) { const m = String(url||'').match(/\/d\/([^/]+)\//) || String(url||'').match(/id=([^&]+)/); return m ? m[1] : ''; }
+function showPhoto(url) {
+  const id = driveId(url);
+  const img = id ? `https://drive.google.com/thumbnail?id=${id}&sz=w600` : url;
+  openModal('Member photo',
+    `<img src="${esc(img)}" style="max-width:100%;border-radius:10px" onerror="this.style.display='none';document.getElementById('photo_fallback').style.display='block'"/>` +
+    `<p id="photo_fallback" style="display:none">Couldn't load the image inline (the photo is stored privately in Drive). ` +
+    `<a href="${esc(url)}" target="_blank">Open in Drive</a> instead.</p>`);
+}
+
 /* ------------------------------ MEMBERS ---------------------------- */
 async function addMember() {
   $('m_msg').textContent = 'Saving…';
   try { const member = { FullName:val('m_FullName'), DOB:val('m_DOB'), Phone:val('m_Phone'), Address:val('m_Address'),
-      Aadhaar:val('m_Aadhaar'), PAN:val('m_PAN'), BankAccount:val('m_BankAccount'), IFSC:val('m_IFSC'), Branch:val('m_Branch') };
+      Aadhaar:val('m_Aadhaar'), PAN:val('m_PAN'), BankName:val('m_BankName'), BankAccount:val('m_BankAccount'), IFSC:val('m_IFSC'), Branch:val('m_Branch') };
     const f = $('m_Photo').files[0]; if (f) { member.PhotoBase64 = await fileToB64(f); member.PhotoMime = f.type; }
     if (editing.type === 'member') { await api('member_edit', { memberId:editing.id, member });
       $('m_msg').textContent = 'Updated ' + editing.id; $('m_Photo').value = ''; clearEdit(); return loadList('members_list', 'm_list', 'member', 'member'); }
@@ -443,11 +473,12 @@ async function addMember() {
 }
 async function showMember(id) {
   try { const { member } = await api('member_get', { memberId: id }); $('m_card').hidden = false;
-    $('m_detail').innerHTML = summaryHtml([['Member ID', esc(member.MemberID)], ['Full Name', esc(member.FullName)],
-      ['DOB', esc(member.DOB)], ['Phone', esc(member.Phone)], ['Address', esc(member.Address)], ['Aadhaar', esc(member.Aadhaar)],
-      ['PAN', esc(member.PAN)], ['Bank A/C', esc(member.BankAccount)], ['IFSC', esc(member.IFSC)], ['Branch', esc(member.Branch)]]) +
-      (member.PhotoUrl ? `<div style="margin-top:10px"><a href="${esc(member.PhotoUrl)}" target="_blank">View photo</a></div>` : '');
-    $('m_card').scrollIntoView({ behavior:'smooth' });
+    const pairs = [['Member ID', member.MemberID], ['Full Name', member.FullName], ['DOB', member.DOB], ['Phone', member.Phone],
+      ['Address', member.Address], ['Aadhaar', member.Aadhaar], ['PAN', member.PAN], ['Bank Name', member.BankName],
+      ['Bank A/C', member.BankAccount], ['IFSC', member.IFSC], ['Branch', member.Branch]];
+    let h = '<div class="summary">' + pairs.map(([k,v]) => `<div><span>${esc(k)} :</span><b>${esc(v)}</b></div>`).join('') + '</div>';
+    if (member.PhotoUrl) h += `<div style="margin-top:12px"><button class="ghost" data-photo="${esc(member.PhotoUrl)}">View photo</button></div>`;
+    $('m_detail').innerHTML = h; $('m_card').scrollIntoView({ behavior:'smooth' });
   } catch (err) { alert(err.message); }
 }
 
@@ -475,7 +506,7 @@ async function addExpense() {
 }
 function printVoucher(v) {
   if (!v) { alert('Add an expense first.'); return; }
-  const body = printHeader('Payment Voucher') +
+  const body = printHeader('Expense Voucher') +
     `<table class="meta">
       <tr><td><b>Voucher No.:</b> ${esc(v.expenseNo)}</td><td><b>Date:</b> ${esc(v.date)}</td></tr>
       <tr><td><b>To:</b> ${esc(v.to)}</td><td><b>Category:</b> ${esc(v.category)}</td></tr></table>` +
@@ -502,7 +533,8 @@ async function loadReport() {
   $('rep_grid').innerHTML = '<p class="msg">Loading…</p>';
   const sheet = val('rep_sheet'); lastReportName = $('rep_sheet').selectedOptions[0].text;
   const payload = { sheet };
-  if (AS_OF_REPORTS.includes(sheet) && val('rep_period')) payload.setCell = { a1:'B4', value: val('rep_period') };
+  if (AS_OF_REPORTS.includes(sheet)) { await ensurePeriods();
+    if (val('rep_period')) payload.setCell = { a1:'B4', value: val('rep_period') }; }
   try { const { grid } = await api('report_get', payload);
     let h = '<table>'; grid.forEach((row, ri) => h += '<tr>' + row.map(c => (ri === 0 ? `<th>${esc(c)}</th>` : `<td>${esc(c)}</td>`)).join('') + '</tr>');
     $('rep_grid').innerHTML = h + '</table>';
@@ -542,15 +574,29 @@ async function socTxn() {
   } catch (err) { $('soc_tmsg').textContent = ''; alert(err.message); }
 }
 
-/* ------------------------------ BRANCH CONTACTS -------------------- */
-async function loadBranches() {
-  try { const { branches } = await api('branches_list'); $('br_list').innerHTML = tableFrom(branches); }
-  catch (err) { $('br_list').innerHTML = `<p class="err">${err.message}</p>`; }
+async function printPastVoucher(id) {
+  try { const { voucher } = await api('voucher_get', { id }); printVoucher(voucher); }
+  catch (err) { alert(err.message); }
 }
+
+/* ------------------------------ BRANCH CONTACTS -------------------- */
+let branchRows = [];
+async function loadBranches() {
+  try { const { branches } = await api('branches_list'); branchRows = branches || [];
+    if (!branchRows.length) { $('br_list').innerHTML = '<p class="msg">No branches yet.</p>'; return; }
+    let h = '<table><tr><th>Branch</th><th>Address</th><th>Phone</th><th></th></tr>';
+    branchRows.forEach((b,i) => h += `<tr><td>${esc(b.Branch)}</td><td>${esc(b.Address)}</td><td>${esc(b.Phone)}</td>` +
+      `<td><button class="ghost" data-bredit="${i}">Edit</button></td></tr>`);
+    $('br_list').innerHTML = h + '</table>';
+  } catch (err) { $('br_list').innerHTML = `<p class="err">${err.message}</p>`; }
+}
+function fillBranch(i) { const b = branchRows[i]; if (!b) return;
+  setV('br_Branch', b.Branch); setV('br_Address', b.Address); setV('br_Phone', b.Phone); $('br_msg').textContent = 'Editing ' + b.Branch; }
 async function branchSave() {
   $('br_msg').textContent = 'Saving…';
   try { await api('branch_save', { branch: { Branch:val('br_Branch'), Address:val('br_Address'), Phone:val('br_Phone') } });
-    $('br_msg').textContent = 'Saved.'; loadBranches();
+    $('br_msg').textContent = 'Saved.'; setV('br_Branch',''); setV('br_Address',''); setV('br_Phone','');
+    loadBranches(); populateBranchSelects();
   } catch (err) { $('br_msg').textContent = ''; alert(err.message); }
 }
 
