@@ -2,25 +2,34 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Ecopay</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#f08080" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="apple-touch-icon" href="logo.png" />
+<title>Cooperative Financial Record</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
 <div id="gate">
   <section class="card narrow">
-    <h1>Ecofin Credit Souharda</h1>
+    <img src="logo.png" alt="Logo" class="logo-lg" onerror="this.style.display='none'" />
+    <h1>Financial Record</h1>
     <label>User ID<input id="loginId" autocomplete="username" /></label>
-    <label>Password<input id="loginPw" type="password" autocomplete="current-password" /></label>
+    <label>Password
+      <span class="pw-wrap">
+        <input id="loginPw" type="password" autocomplete="current-password" />
+        <button type="button" class="pw-toggle" data-pwtoggle="loginPw">Show</button>
+      </span>
+    </label>
     <button id="loginBtn">Sign in</button>
-    <span id="loginMsg" class="err"></span>
+    <span id="loginMsg" class="msg"></span>
   </section>
 </div>
 
 <div id="app" hidden>
   <aside id="nav">
-    <h2>Ecofin Credit Souharda</h2>
+    <div class="brand"><img src="logo.png" alt="Logo" class="logo-sm" onerror="this.style.display='none'" /><h2>Financial Record</h2></div>
     <button class="navbtn" data-view="dashboard">Dashboard</button>
     <button class="navbtn" data-view="members">Members</button>
     <button class="navbtn" data-view="loans">Loans</button>
@@ -37,15 +46,12 @@
   </aside>
 
   <main id="main">
-    <!-- DASHBOARD -->
     <section class="view" id="view-dashboard">
       <div class="card"><h2>Dashboard <button class="ghost" data-refresh="dashboard">Refresh</button></h2>
-        <div id="dash" class="stats"></div>
-      </div>
+        <div id="dash" class="stats"></div></div>
       <div class="card"><h2>Overdue / Missed EMIs (as of this month)</h2><div id="dash_overdue"></div></div>
     </section>
 
-    <!-- MEMBERS -->
     <section class="view" id="view-members" hidden>
       <div class="card add-only"><h2>Add member</h2>
         <div class="grid">
@@ -66,7 +72,6 @@
       <div class="card" id="m_card" hidden><h2>Member details</h2><div id="m_detail"></div></div>
     </section>
 
-    <!-- LOANS -->
     <section class="view" id="view-loans" hidden>
       <div class="card add-only"><h2>Add a loan</h2>
         <div class="grid">
@@ -88,32 +93,34 @@
         <button id="l_add" hidden>Confirm &amp; Save</button> <span id="l_msg" class="msg"></span>
       </div>
       <div class="card" id="l_schedCard" hidden>
-        <h2 id="l_schedTitle">Schedule <button class="ghost" id="l_print">Print (A4)</button></h2>
+        <h2><span id="l_schedTitle">Schedule</span>
+          <button class="ghost" id="l_print">Print (A4)</button>
+          <button class="ghost" id="l_min">Minimise</button></h2>
         <div id="l_summary" class="summary"></div><div id="l_sched" class="scrolly"></div></div>
       <div class="card"><h2>Loans <button class="ghost" data-refresh="loans">Refresh</button></h2><div id="l_list"></div></div>
     </section>
 
-    <!-- REPAYMENTS -->
     <section class="view" id="view-repayments" hidden>
       <div class="card"><h2>Repayment ledger</h2>
         <div class="grid"><label>Loan ID<input id="r_LoanId" placeholder="e.g. ECO00001" /></label>
           <label>&nbsp;<button id="r_load">Load ledger</button></label></div>
-        <div id="r_summary" class="summary"></div>
-      </div>
+        <div id="r_summary" class="summary"></div></div>
       <div class="card add-only" id="r_addCard" hidden><h2>Record a receipt</h2>
         <div class="grid">
           <label>Date<input id="r_Date" type="date" /></label>
           <label>Amount (₹)<input id="r_Amount" type="number" /></label>
-          <label>Mode<input id="r_Mode" value="Cash" /></label>
+          <label>Mode<select id="r_Mode"><option>Cash</option><option>UPI</option></select></label>
+          <label id="r_UtrWrap" hidden>UTR Number<input id="r_Utr" /></label>
           <label>Note<input id="r_Note" /></label>
         </div>
         <button id="r_add">Add receipt</button> <span id="r_msg" class="msg"></span>
+        <div id="r_receiptBox" hidden><div id="r_receiptView" class="summary"></div>
+          <button class="ghost" id="r_print">Print receipt</button></div>
       </div>
       <div class="card" id="r_recCard" hidden><h2>Receipts</h2><div id="r_receipts"></div></div>
       <div class="card" id="r_schedCard" hidden><h2>Scheduled instalments</h2><div id="r_sched" class="scrolly"></div></div>
     </section>
 
-    <!-- FIXED DEPOSITS -->
     <section class="view" id="view-deposits" hidden>
       <div class="card add-only"><h2>Add a fixed deposit</h2>
         <div class="grid">
@@ -130,23 +137,20 @@
         </div>
         <button id="d_preview" class="ghost">Preview maturity</button>
         <button id="d_add" hidden>Confirm &amp; Save</button> <span id="d_msg" class="msg"></span>
-        <div id="d_prev" class="summary"></div>
-      </div>
+        <div id="d_prev" class="summary"></div></div>
       <div class="card"><h2>Fixed Deposits <button class="ghost" data-refresh="deposits">Refresh</button></h2><div id="d_list"></div></div>
       <div class="card add-only"><h2>Withdraw a fixed deposit</h2>
         <div class="grid">
           <label>Deposit ID<input id="w_DepositID" /></label>
           <label>Type<select id="w_Type"><option>Maturity</option><option>Premature</option></select></label>
           <label>Date<input id="w_Date" type="date" /></label>
-          <label>Reduced Rate (premature, %)<input id="w_ReducedRate" type="number" step="0.01" placeholder="e.g. 5" /></label>
+          <label>Reduced Rate (premature, %)<input id="w_ReducedRate" type="number" step="0.01" /></label>
           <label>Payout Amount (optional)<input id="w_Payout" type="number" placeholder="blank = auto" /></label>
           <label>Note<input id="w_Note" /></label>
         </div>
-        <button id="w_go">Record withdrawal</button> <span id="w_msg" class="msg"></span>
-      </div>
+        <button id="w_go">Record withdrawal</button> <span id="w_msg" class="msg"></span></div>
     </section>
 
-    <!-- SAVINGS -->
     <section class="view" id="view-savings" hidden>
       <div class="card add-only"><h2>Open savings account</h2>
         <div class="grid">
@@ -157,8 +161,7 @@
           <label>Minimum Balance (₹)<input id="s_MinBalance" type="number" value="500" /></label>
           <label>Open Date<input id="s_OpenDate" type="date" /></label>
         </div>
-        <button id="s_open">Open account</button> <span id="s_msg" class="msg"></span>
-      </div>
+        <button id="s_open">Open account</button> <span id="s_msg" class="msg"></span></div>
       <div class="card"><h2>Savings accounts <button class="ghost" data-refresh="savings">Refresh</button></h2><div id="s_list"></div></div>
       <div class="card add-only"><h2>Deposit / Withdraw</h2>
         <div class="grid">
@@ -168,15 +171,13 @@
           <label>Date<input id="st_Date" type="date" /></label>
           <label>Note<input id="st_Note" /></label>
         </div>
-        <button id="st_go">Post transaction</button> <span id="st_msg" class="msg"></span>
-      </div>
+        <button id="st_go">Post transaction</button> <span id="st_msg" class="msg"></span></div>
       <div class="card"><h2>Passbook</h2>
         <div class="grid"><label>Savings ID<input id="pb_SavingsID" /></label>
           <label>&nbsp;<button id="pb_load">Load passbook</button></label></div>
         <div id="pb_summary" class="summary"></div><div id="pb_rows" class="scrolly"></div></div>
     </section>
 
-    <!-- TRANSFERS -->
     <section class="view" id="view-transfers" hidden>
       <div class="card add-only"><h2>Transfer between members (Savings)</h2>
         <div class="grid">
@@ -186,11 +187,9 @@
           <label>Date<input id="tf_Date" type="date" /></label>
           <label>Note<input id="tf_Note" /></label>
         </div>
-        <button id="tf_go">Transfer</button> <span id="tf_msg" class="msg"></span>
-      </div>
+        <button id="tf_go">Transfer</button> <span id="tf_msg" class="msg"></span></div>
     </section>
 
-    <!-- EXPENSES -->
     <section class="view" id="view-expenses" hidden>
       <div class="card add-only"><h2>Add an expense</h2>
         <div class="grid">
@@ -201,12 +200,10 @@
           <label>Amount (₹)<input id="e_Amount" type="number" /></label>
           <label>Remarks<input id="e_Remarks" /></label>
         </div>
-        <button id="e_add">Add expense</button> <span id="e_msg" class="msg"></span>
-      </div>
+        <button id="e_add">Add expense</button> <span id="e_msg" class="msg"></span></div>
       <div class="card"><h2>Expenses <button class="ghost" data-refresh="expenses">Refresh</button></h2><div id="e_list"></div></div>
     </section>
 
-    <!-- REPORTS -->
     <section class="view" id="view-reports" hidden>
       <div class="card"><h2>Financial statements</h2>
         <div class="grid">
@@ -220,17 +217,14 @@
           </select></label>
           <label>&nbsp;<button id="rep_load">Load</button></label>
         </div>
-        <div id="rep_grid" class="report scrolly"></div>
-      </div>
+        <div id="rep_grid" class="report scrolly"></div></div>
     </section>
 
-    <!-- SETTINGS -->
     <section class="view" id="view-settings" hidden>
       <div class="card"><h2>Settings (Assumptions)</h2><div id="set_form" class="grid"></div>
         <button id="set_save">Save settings</button> <span id="set_msg" class="msg"></span></div>
     </section>
 
-    <!-- USERS -->
     <section class="view" id="view-users" hidden>
       <div class="card"><h2>Add user</h2>
         <div class="grid">
@@ -240,12 +234,10 @@
           <label>Branch<input id="u_Branch" /></label>
           <label>Temp password (8+)<input id="u_Pw" /></label>
         </div>
-        <button id="u_add">Add user</button> <span id="u_msg" class="msg"></span>
-      </div>
+        <button id="u_add">Add user</button> <span id="u_msg" class="msg"></span></div>
       <div class="card"><h2>Users <button class="ghost" data-refresh="users">Refresh</button></h2><div id="u_list"></div></div>
     </section>
 
-    <!-- ACCOUNT -->
     <section class="view" id="view-account" hidden>
       <div class="card narrow"><h2>Change my password</h2>
         <label>Current<input id="cp_Old" type="password" /></label>
