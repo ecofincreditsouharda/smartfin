@@ -3,33 +3,48 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="theme-color" content="#f08080" />
+<meta name="theme-color" content="#ffe3df" />
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="logo.png" />
-<title>Cooperative Financial Record</title>
+<title>ECOSMART</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-<div id="gate">
-  <section class="card narrow">
+<!-- SPLASH -->
+<div id="splash">
+  <div class="splash-inner">
+    <img src="logo.png" alt="Logo" class="splash-logo" onerror="this.style.display='none'" />
+    <div id="splashName" class="splash-name"></div>
+    <div class="splash-dots"><span></span><span></span><span></span></div>
+  </div>
+</div>
+
+<!-- LOGIN -->
+<div id="gate" hidden>
+  <section class="card auth">
     <img src="logo.png" alt="Logo" class="logo-lg" onerror="this.style.display='none'" />
-    <h1>Financial Record</h1>
+    <h1 id="loginName">ECOSMART</h1>
     <label>User ID<input id="loginId" autocomplete="username" /></label>
     <label>Password
-      <span class="pw-wrap">
-        <input id="loginPw" type="password" autocomplete="current-password" />
-        <button type="button" class="pw-toggle" data-pwtoggle="loginPw">Show</button>
-      </span>
+      <span class="pw-wrap"><input id="loginPw" type="password" autocomplete="current-password" />
+        <button type="button" class="pw-toggle" data-pwtoggle="loginPw">Show</button></span>
     </label>
-    <button id="loginBtn">Sign in</button>
+    <button id="loginBtn" class="primary block">Sign in</button>
     <span id="loginMsg" class="msg"></span>
   </section>
 </div>
 
+<!-- APP -->
 <div id="app" hidden>
-  <aside id="nav">
-    <div class="brand"><img src="logo.png" alt="Logo" class="logo-sm" onerror="this.style.display='none'" /><h2>Financial Record</h2></div>
+  <header id="topbar">
+    <button id="hamburger" aria-label="Menu">☰</button>
+    <img src="logo.png" alt="" class="logo-sm" onerror="this.style.display='none'" />
+    <span id="brandName" class="brand-name">ECOSMART</span>
+    <span id="who"></span>
+  </header>
+
+  <nav id="nav">
     <button class="navbtn" data-view="dashboard">Dashboard</button>
     <button class="navbtn" data-view="members">Members</button>
     <button class="navbtn" data-view="loans">Loans</button>
@@ -42,14 +57,14 @@
     <button class="navbtn settings-only" data-view="settings">Settings</button>
     <button class="navbtn admin-only" data-view="users">Users</button>
     <button class="navbtn" data-view="account">My account</button>
-    <div id="who"></div>
-  </aside>
+  </nav>
+  <div id="backdrop"></div>
 
   <main id="main">
     <section class="view" id="view-dashboard">
-      <div class="card"><h2>Dashboard <button class="ghost" data-refresh="dashboard">Refresh</button></h2>
+      <div class="card"><div class="card-head"><h2>Dashboard</h2><button class="ghost" data-refresh="dashboard">Refresh</button></div>
         <div id="dash" class="stats"></div></div>
-      <div class="card"><h2>Overdue / Missed EMIs (as of this month)</h2><div id="dash_overdue"></div></div>
+      <div class="card"><h2>Overdue / Missed EMIs (this month)</h2><div id="dash_overdue"></div></div>
     </section>
 
     <section class="view" id="view-members" hidden>
@@ -60,15 +75,15 @@
           <label>Phone<input id="m_Phone" /></label>
           <label>Branch<input id="m_Branch" value="Main Branch" /></label>
           <label>Address<input id="m_Address" /></label>
-          <label>Aadhaar Number<input id="m_Aadhaar" placeholder="stored securely, shown masked" /></label>
+          <label>Aadhaar Number<input id="m_Aadhaar" placeholder="shown masked" /></label>
           <label>PAN Number<input id="m_PAN" /></label>
           <label>Bank Account No.<input id="m_BankAccount" /></label>
           <label>IFSC Code<input id="m_IFSC" /></label>
           <label>Photo<input id="m_Photo" type="file" accept="image/*" /></label>
         </div>
-        <button id="m_add">Add member</button> <span id="m_msg" class="msg"></span>
+        <div class="actions"><button id="m_add" class="primary">Add member</button><span id="m_msg" class="msg"></span></div>
       </div>
-      <div class="card"><h2>Members <button class="ghost" data-refresh="members">Refresh</button></h2><div id="m_list"></div></div>
+      <div class="card"><div class="card-head"><h2>Members</h2><button class="ghost" data-refresh="members">Refresh</button></div><div id="m_list"></div></div>
       <div class="card" id="m_card" hidden><h2>Member details</h2><div id="m_detail"></div></div>
     </section>
 
@@ -89,21 +104,20 @@
           <label>First EMI Date<input id="l_FirstEMIDate" type="date" /></label>
           <label>Custom EMI (optional)<input id="l_CustomEMI" type="number" placeholder="blank = base EMI" /></label>
         </div>
-        <button id="l_preview" class="ghost">Preview</button>
-        <button id="l_add" hidden>Confirm &amp; Save</button> <span id="l_msg" class="msg"></span>
+        <div class="actions"><button id="l_preview" class="ghost">Preview</button>
+          <button id="l_add" class="primary" hidden>Confirm &amp; Save</button><span id="l_msg" class="msg"></span></div>
       </div>
       <div class="card" id="l_schedCard" hidden>
-        <h2><span id="l_schedTitle">Schedule</span>
-          <button class="ghost" id="l_print">Print (A4)</button>
-          <button class="ghost" id="l_min">Minimise</button></h2>
+        <div class="card-head"><h2 id="l_schedTitle">Schedule</h2>
+          <span><button class="ghost" id="l_print">Print (A4)</button><button class="ghost" id="l_min">Minimise</button></span></div>
         <div id="l_summary" class="summary"></div><div id="l_sched" class="scrolly"></div></div>
-      <div class="card"><h2>Loans <button class="ghost" data-refresh="loans">Refresh</button></h2><div id="l_list"></div></div>
+      <div class="card"><div class="card-head"><h2>Loans</h2><button class="ghost" data-refresh="loans">Refresh</button></div><div id="l_list"></div></div>
     </section>
 
     <section class="view" id="view-repayments" hidden>
       <div class="card"><h2>Repayment ledger</h2>
-        <div class="grid"><label>Loan ID<input id="r_LoanId" placeholder="e.g. ECO00001" /></label>
-          <label>&nbsp;<button id="r_load">Load ledger</button></label></div>
+        <div class="grid"><label>Loan ID<input id="r_LoanId" placeholder="e.g. ECO00001" /></label></div>
+        <div class="actions"><button id="r_load" class="primary">Load ledger</button></div>
         <div id="r_summary" class="summary"></div></div>
       <div class="card add-only" id="r_addCard" hidden><h2>Record a receipt</h2>
         <div class="grid">
@@ -113,11 +127,11 @@
           <label id="r_UtrWrap" hidden>UTR Number<input id="r_Utr" /></label>
           <label>Note<input id="r_Note" /></label>
         </div>
-        <button id="r_add">Add receipt</button> <span id="r_msg" class="msg"></span>
+        <div class="actions"><button id="r_add" class="primary">Add receipt</button><span id="r_msg" class="msg"></span></div>
         <div id="r_receiptBox" hidden><div id="r_receiptView" class="summary"></div>
           <button class="ghost" id="r_print">Print receipt</button></div>
       </div>
-      <div class="card" id="r_recCard" hidden><h2>Receipts</h2><div id="r_receipts"></div></div>
+      <div class="card" id="r_recCard" hidden><h2>Receipts <small>(print any anytime)</small></h2><div id="r_receipts"></div></div>
       <div class="card" id="r_schedCard" hidden><h2>Scheduled instalments</h2><div id="r_sched" class="scrolly"></div></div>
     </section>
 
@@ -135,10 +149,10 @@
           <label>Payout Mode<input id="d_PayoutMode" value="On Maturity" /></label>
           <label>Remarks<input id="d_Remarks" /></label>
         </div>
-        <button id="d_preview" class="ghost">Preview maturity</button>
-        <button id="d_add" hidden>Confirm &amp; Save</button> <span id="d_msg" class="msg"></span>
+        <div class="actions"><button id="d_preview" class="ghost">Preview maturity</button>
+          <button id="d_add" class="primary" hidden>Confirm &amp; Save</button><span id="d_msg" class="msg"></span></div>
         <div id="d_prev" class="summary"></div></div>
-      <div class="card"><h2>Fixed Deposits <button class="ghost" data-refresh="deposits">Refresh</button></h2><div id="d_list"></div></div>
+      <div class="card"><div class="card-head"><h2>Fixed Deposits</h2><button class="ghost" data-refresh="deposits">Refresh</button></div><div id="d_list"></div></div>
       <div class="card add-only"><h2>Withdraw a fixed deposit</h2>
         <div class="grid">
           <label>Deposit ID<input id="w_DepositID" /></label>
@@ -148,7 +162,7 @@
           <label>Payout Amount (optional)<input id="w_Payout" type="number" placeholder="blank = auto" /></label>
           <label>Note<input id="w_Note" /></label>
         </div>
-        <button id="w_go">Record withdrawal</button> <span id="w_msg" class="msg"></span></div>
+        <div class="actions"><button id="w_go" class="primary">Record withdrawal</button><span id="w_msg" class="msg"></span></div></div>
     </section>
 
     <section class="view" id="view-savings" hidden>
@@ -161,8 +175,8 @@
           <label>Minimum Balance (₹)<input id="s_MinBalance" type="number" value="500" /></label>
           <label>Open Date<input id="s_OpenDate" type="date" /></label>
         </div>
-        <button id="s_open">Open account</button> <span id="s_msg" class="msg"></span></div>
-      <div class="card"><h2>Savings accounts <button class="ghost" data-refresh="savings">Refresh</button></h2><div id="s_list"></div></div>
+        <div class="actions"><button id="s_open" class="primary">Open account</button><span id="s_msg" class="msg"></span></div></div>
+      <div class="card"><div class="card-head"><h2>Savings accounts</h2><button class="ghost" data-refresh="savings">Refresh</button></div><div id="s_list"></div></div>
       <div class="card add-only"><h2>Deposit / Withdraw</h2>
         <div class="grid">
           <label>Savings ID<input id="st_SavingsID" /></label>
@@ -171,10 +185,10 @@
           <label>Date<input id="st_Date" type="date" /></label>
           <label>Note<input id="st_Note" /></label>
         </div>
-        <button id="st_go">Post transaction</button> <span id="st_msg" class="msg"></span></div>
+        <div class="actions"><button id="st_go" class="primary">Post transaction</button><span id="st_msg" class="msg"></span></div></div>
       <div class="card"><h2>Passbook</h2>
-        <div class="grid"><label>Savings ID<input id="pb_SavingsID" /></label>
-          <label>&nbsp;<button id="pb_load">Load passbook</button></label></div>
+        <div class="grid"><label>Savings ID<input id="pb_SavingsID" /></label></div>
+        <div class="actions"><button id="pb_load" class="primary">Load passbook</button></div>
         <div id="pb_summary" class="summary"></div><div id="pb_rows" class="scrolly"></div></div>
     </section>
 
@@ -187,7 +201,7 @@
           <label>Date<input id="tf_Date" type="date" /></label>
           <label>Note<input id="tf_Note" /></label>
         </div>
-        <button id="tf_go">Transfer</button> <span id="tf_msg" class="msg"></span></div>
+        <div class="actions"><button id="tf_go" class="primary">Transfer</button><span id="tf_msg" class="msg"></span></div></div>
     </section>
 
     <section class="view" id="view-expenses" hidden>
@@ -200,29 +214,27 @@
           <label>Amount (₹)<input id="e_Amount" type="number" /></label>
           <label>Remarks<input id="e_Remarks" /></label>
         </div>
-        <button id="e_add">Add expense</button> <span id="e_msg" class="msg"></span></div>
-      <div class="card"><h2>Expenses <button class="ghost" data-refresh="expenses">Refresh</button></h2><div id="e_list"></div></div>
+        <div class="actions"><button id="e_add" class="primary">Add expense</button><span id="e_msg" class="msg"></span></div></div>
+      <div class="card"><div class="card-head"><h2>Expenses</h2><button class="ghost" data-refresh="expenses">Refresh</button></div><div id="e_list"></div></div>
     </section>
 
     <section class="view" id="view-reports" hidden>
       <div class="card"><h2>Financial statements</h2>
-        <div class="grid">
-          <label>Report<select id="rep_sheet">
-            <option value="Profit_Loss">Profit &amp; Loss</option>
-            <option value="Balance_Sheet">Balance Sheet</option>
-            <option value="Cash_Flow">Cash Flow</option>
-            <option value="Monthly_Profit_Loss">Monthly P&amp;L</option>
-            <option value="Monthly_Balance_Sheet">Monthly Balance Sheet</option>
-            <option value="Monthly_Cash_Flow">Monthly Cash Flow</option>
-          </select></label>
-          <label>&nbsp;<button id="rep_load">Load</button></label>
-        </div>
+        <div class="grid"><label>Report<select id="rep_sheet">
+          <option value="Profit_Loss">Profit &amp; Loss</option>
+          <option value="Balance_Sheet">Balance Sheet</option>
+          <option value="Cash_Flow">Cash Flow</option>
+          <option value="Monthly_Profit_Loss">Monthly P&amp;L</option>
+          <option value="Monthly_Balance_Sheet">Monthly Balance Sheet</option>
+          <option value="Monthly_Cash_Flow">Monthly Cash Flow</option>
+        </select></label></div>
+        <div class="actions"><button id="rep_load" class="primary">Load</button></div>
         <div id="rep_grid" class="report scrolly"></div></div>
     </section>
 
     <section class="view" id="view-settings" hidden>
-      <div class="card"><h2>Settings (Assumptions)</h2><div id="set_form" class="grid"></div>
-        <button id="set_save">Save settings</button> <span id="set_msg" class="msg"></span></div>
+      <div class="card"><h2>Settings</h2><div id="set_form" class="grid"></div>
+        <div class="actions"><button id="set_save" class="primary">Save settings</button><span id="set_msg" class="msg"></span></div></div>
     </section>
 
     <section class="view" id="view-users" hidden>
@@ -234,15 +246,15 @@
           <label>Branch<input id="u_Branch" /></label>
           <label>Temp password (8+)<input id="u_Pw" /></label>
         </div>
-        <button id="u_add">Add user</button> <span id="u_msg" class="msg"></span></div>
-      <div class="card"><h2>Users <button class="ghost" data-refresh="users">Refresh</button></h2><div id="u_list"></div></div>
+        <div class="actions"><button id="u_add" class="primary">Add user</button><span id="u_msg" class="msg"></span></div></div>
+      <div class="card"><div class="card-head"><h2>Users</h2><button class="ghost" data-refresh="users">Refresh</button></div><div id="u_list"></div></div>
     </section>
 
     <section class="view" id="view-account" hidden>
       <div class="card narrow"><h2>Change my password</h2>
         <label>Current<input id="cp_Old" type="password" /></label>
         <label>New (8+)<input id="cp_New" type="password" /></label>
-        <button id="cp_go">Update password</button> <span id="cp_msg" class="msg"></span></div>
+        <div class="actions"><button id="cp_go" class="primary">Update password</button><span id="cp_msg" class="msg"></span></div></div>
     </section>
   </main>
 </div>
