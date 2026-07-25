@@ -3,6 +3,7 @@ const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwRuT2u72CRkkpx_kR4
 const IDLE_MS = 60 * 1000;   // auto-logout after inactivity (change if too aggressive)
 
 let session = null, lastSchedule = null, lastMeta = null, lastReceipt = null, curLoanId = '';
+let editing = { type:null, id:null }, lastVoucher = null, repLoans = [];
 let BANK = 'ECOSMART', LOGO_URL = 'logo.png';
 const $ = id => document.getElementById(id);
 const val = id => ($(id) ? $(id).value : '');
@@ -60,7 +61,9 @@ function applyBranding(name) {
 
 /* ------------------------------ EVENTS ----------------------------- */
 document.addEventListener('change', e => { if (e.target.id === 'r_Mode') $('r_UtrWrap').hidden = (e.target.value !== 'UPI');
-  if (e.target.id === 'rep_sheet') repPeriodToggle(); });
+  if (e.target.id === 'rep_sheet') repPeriodToggle();
+  if (e.target.id === 'e_Category') $('e_ToWrap').hidden = (e.target.value !== 'External Expenses'); });
+document.addEventListener('input', e => { if (e.target.id === 'r_search') filterLoanList(); });
 document.addEventListener('click', e => {
   const t = e.target, d = t.dataset || {};
   if (d.pwtoggle) { const f = $(d.pwtoggle), show = f.type === 'password'; f.type = show ? 'text' : 'password'; t.textContent = show ? 'Hide' : 'Show'; return; }
@@ -70,10 +73,13 @@ document.addEventListener('click', e => {
   if (d.view) return showView(d.view);
   if (d.refresh) return refresh(d.refresh);
   if (d.rprint) return printPastReceipt(d.rprint);
+  if (d.edit) { const i = d.edit.indexOf(':'); return startEdit(d.edit.slice(0,i), d.edit.slice(i+1)); }
+  if (d.openledger) return openLedger(d.openledger);
   const map = { l_preview:previewLoan, l_add:addLoan, l_print:printSchedule, l_min:()=>{ $('l_schedCard').hidden = true; },
     d_preview:previewDeposit, d_add:addDeposit, w_go:fdWithdraw, s_open:savingsOpen, st_go:savingsTxn, pb_load:loadPassbook,
-    tf_go:doTransfer, m_add:addMember, e_add:addExpense, r_load:loadLedger, r_add:addReceipt, r_print:()=>printReceiptObj(lastReceipt),
-    rep_load:loadReport, rep_print:printReport, soc_save:socSave, soc_txn:socTxn, br_save:branchSave,
+    tf_go:doTransfer, m_add:addMember, e_add:addExpense, e_print:()=>printVoucher(lastVoucher),
+    r_load:()=>openLedger(val('r_LoanId').trim()), r_add:addReceipt, r_print:()=>printReceiptObj(lastReceipt),
+    r_min:minimiseLedger, rep_load:loadReport, rep_print:printReport, soc_save:socSave, soc_txn:socTxn, br_save:branchSave,
     set_save:saveSettings, u_add:addUser, cp_go:changePw, logoutBtn:logout };
   if (map[t.id]) return map[t.id]();
   if (d.loan) return showSchedule(d.loan);
@@ -118,12 +124,13 @@ function showView(v) {
 }
 function refresh(v) {
   if (v === 'dashboard') loadDashboard();
-  if (v === 'members') loadList('members_list', 'm_list', 'member');
-  if (v === 'loans') loadList('loans_list', 'l_list', 'loan');
-  if (v === 'deposits') loadList('deposits_list', 'd_list');
+  if (v === 'members') loadList('members_list', 'm_list', 'member', 'member');
+  if (v === 'loans') loadList('loans_list', 'l_list', 'loan', 'loans');
+  if (v === 'deposits') loadList('deposits_list', 'd_list', null, 'deposits');
   if (v === 'savings') loadList('savings_list', 's_list');
-  if (v === 'expenses') loadList('expenses_list', 'e_list');
-  if (v === 'society' && ['Admin','BranchManager','Operator','Director'].includes(session.role)) loadSociety();
+  if (v === 'expenses') loadList('expenses_list', 'e_list', null, 'expenses');
+  if (v === 'repayments') loadRepaymentLoans();
+  if (v === 'society' && session.role) loadSociety();
   if (v === 'reports') { ensurePeriods(); repPeriodToggle(); }
   if (v === 'users' && session.role === 'Admin') loadUsers();
   if (v === 'settings' && ['Admin','BranchManager'].includes(session.role)) { loadSettings(); loadBranches(); }
@@ -142,18 +149,81 @@ async function loadDashboard() {
 }
 
 /* --------------------------- GENERIC LIST -------------------------- */
-async function loadList(action, target, linkKind) {
+async function loadList(action, target, linkKind, editKey) {
   try { const { rows } = await api(action);
     if (!rows.length) { $(target).innerHTML = '<p class="msg">Nothing to show.</p>'; return; }
     const cols = Object.keys(rows[0]); const money = /amount|emi|repayable|value|paid|balance|arrears|min/i;
-    let h = '<table><tr>' + cols.map(c => `<th>${esc(c)}</th>`).join('') + (linkKind ? '<th></th>' : '') + '</tr>';
-    rows.forEach(r => { h += '<tr>' + cols.map(c => `<td>${money.test(c) ? rupee(r[c]) : esc(r[c])}</td>`).join('');
-      if (linkKind === 'loan') h += `<td><button class="ghost" data-loan="${esc(r[cols[0]])}">Schedule</button></td>`;
-      if (linkKind === 'member') h += `<td><button class="ghost" data-member="${esc(r[cols[0]])}">View</button></td>`;
+    const hasBtn = linkKind || editKey;
+    let h = '<table><tr>' + cols.map(c => `<th>${esc(c)}</th>`).join('') + (hasBtn ? '<th></th>' : '') + '</tr>';
+    rows.forEach(r => { const id = r[cols[0]]; h += '<tr>' + cols.map(c => `<td>${money.test(c) ? rupee(r[c]) : esc(r[c])}</td>`).join('');
+      if (hasBtn) { h += '<td>';
+        if (linkKind === 'loan') h += `<button class="ghost" data-loan="${esc(id)}">Schedule</button> `;
+        if (linkKind === 'member') h += `<button class="ghost" data-member="${esc(id)}">View</button> `;
+        if (editKey) h += `<button class="ghost" data-edit="${esc(editKey)}:${esc(id)}">Edit</button>`;
+        h += '</td>'; }
       h += '</tr>'; });
     $(target).innerHTML = h + '</table>';
   } catch (err) { $(target).innerHTML = `<p class="err">${err.message}</p>`; }
 }
+
+/* ------------------------------ EDIT MODE -------------------------- */
+const EDIT_BTN = { loans:'l_add', deposits:'d_add', expenses:'e_add', member:'m_add' };
+const EDIT_VIEW = { loans:'loans', deposits:'deposits', expenses:'expenses', member:'members' };
+const EDIT_MSG = { loans:'l_msg', deposits:'d_msg', expenses:'e_msg', member:'m_msg' };
+function clearEdit() {
+  editing = { type:null, id:null };
+  setText('l_add','Confirm & Save'); $('l_add').hidden = true;
+  setText('d_add','Confirm & Save'); $('d_add').hidden = true;
+  setText('e_add','Add expense'); setText('m_add','Add member');
+}
+function setText(id, t){ if ($(id)) $(id).firstChild ? $(id).textContent = t : $(id).textContent = t; }
+async function startEdit(key, id) {
+  try {
+    showView(EDIT_VIEW[key]);
+    if (key === 'member') { const { member } = await api('member_get', { memberId:id }); fillMember(member); }
+    else { const { fields } = await api('reg_get', { key, id }); fillReg(key, fields); }
+    editing = { type:key, id };
+    const btn = EDIT_BTN[key]; $(btn).hidden = false; setText(btn, 'Update');
+    $(EDIT_MSG[key]).textContent = 'Editing ' + id + ' — change fields, then Update.';
+  } catch (err) { alert(err.message); }
+}
+function fillReg(key, f) {
+  if (key === 'loans') { setV('l_Borrower',f.Borrower); setV('l_MemberID',f.MemberID); setV('l_LoanType',f.LoanType);
+    setV('l_Branch',f.Branch); setV('l_Amount',f.Amount); setV('l_RatePct',(Number(f.RateAnnual)||0)*100);
+    setV('l_TenureMonths',f.TenureMonths); setV('l_Method',f.Method||'Flat'); setV('l_Frequency',f.Frequency||'Monthly');
+    setV('l_SanctionDate',f.SanctionDate); setV('l_DisbursementDate',f.DisbursementDate); setV('l_FirstEMIDate',f.FirstEMIDate);
+    setV('l_CustomEMI',f.CustomEMI); }
+  if (key === 'deposits') { setV('d_Depositor',f.Depositor); setV('d_MemberID',f.MemberID); setV('d_DepositType',f.DepositType);
+    setV('d_Branch',f.Branch); setV('d_Amount',f.Amount); setV('d_RatePct',(Number(f.RateAnnual)||0)*100);
+    setV('d_TenureMonths',f.TenureMonths); setV('d_StartDate',f.StartDate); setV('d_PayoutMode',f.PayoutMode); setV('d_Remarks',f.Remarks); }
+  if (key === 'expenses') { setV('e_Date',f.Date); setV('e_Category',f.Category); setV('e_Description',f.Description);
+    setV('e_Branch',f.Branch); setV('e_Amount',f.Amount); setV('e_Remarks',f.Remarks);
+    $('e_ToWrap').hidden = (f.Category !== 'External Expenses'); }
+}
+function fillMember(m) { setV('m_FullName',m.FullName); setV('m_DOB',m.DOB && m.DOB.length>10 ? '' : m.DOB); setV('m_Phone',m.Phone);
+  setV('m_Branch',m.Branch); setV('m_Address',m.Address); setV('m_Aadhaar',''); $('m_Aadhaar').placeholder = 'unchanged ('+ (m.Aadhaar||'') +') — type to replace';
+  setV('m_PAN',m.PAN); setV('m_BankAccount',m.BankAccount); setV('m_IFSC',m.IFSC); }
+function setV(id, v){ if ($(id)) $(id).value = (v == null ? '' : v); }
+
+/* ------------------------ REPAYMENTS: loan list -------------------- */
+async function loadRepaymentLoans() {
+  try { const { rows } = await api('loans_list'); repLoans = rows; renderLoanList();
+  } catch (err) { $('r_loanlist').innerHTML = `<p class="err">${err.message}</p>`; }
+}
+function filterLoanList(){ renderLoanList(); }
+function renderLoanList() {
+  const q = (val('r_search')||'').toLowerCase();
+  const rows = repLoans.filter(r => !q || Object.values(r).some(v => String(v).toLowerCase().includes(q)));
+  if (!rows.length) { $('r_loanlist').innerHTML = '<p class="msg">No matching loans.</p>'; return; }
+  const cols = Object.keys(rows[0]);
+  const money = /amount|emi|repayable/i;
+  let h = '<table><tr>' + cols.map(c => `<th>${esc(c)}</th>`).join('') + '<th></th></tr>';
+  rows.forEach(r => { h += '<tr>' + cols.map(c => `<td>${money.test(c) ? rupee(r[c]) : esc(r[c])}</td>`).join('') +
+    `<td><button class="ghost" data-openledger="${esc(r[cols[0]])}">Collect / View</button></td></tr>`; });
+  $('r_loanlist').innerHTML = h + '</table>';
+}
+function openLedger(id) { if (!id) return; $('r_LoanId').value = id; loadLedger(); }
+function minimiseLedger() { ['r_ledgerHead','r_addCard','r_recCard','r_schedCard'].forEach(x => $(x).hidden = true); }
 
 /* ------------------------------ LOANS ------------------------------ */
 function loanFromForm() { return { Borrower:val('l_Borrower'), MemberID:val('l_MemberID'), LoanType:val('l_LoanType'),
@@ -169,9 +239,12 @@ async function previewLoan() {
 }
 async function addLoan() {
   $('l_msg').textContent = 'Saving…';
-  try { const { id } = await api('loans_add', { loan: loanFromForm() });
+  try {
+    if (editing.type === 'loans') { await api('reg_edit', { key:'loans', id:editing.id, fields:loanFromForm() });
+      $('l_msg').textContent = 'Updated ' + editing.id; clearEdit(); return loadList('loans_list', 'l_list', 'loan', 'loans'); }
+    const { id } = await api('loans_add', { loan: loanFromForm() });
     $('l_msg').textContent = 'Saved ' + id; $('l_add').hidden = true;
-    await loadList('loans_list', 'l_list', 'loan'); showSchedule(id);
+    await loadList('loans_list', 'l_list', 'loan', 'loans'); showSchedule(id);
   } catch (err) { $('l_msg').textContent = ''; alert(err.message); }
 }
 async function showSchedule(id) {
@@ -229,6 +302,7 @@ function printDoc(inner, pageCss, extraCss) {
 async function loadLedger() {
   const id = val('r_LoanId').trim(); if (!id) return; curLoanId = id;
   try { const { ledger } = await api('repayment_ledger', { loanId: id }); const s = ledger.summary;
+    $('r_ledgerHead').hidden = false; $('r_ledgerTitle').textContent = 'Ledger — ' + id;
     $('r_summary').innerHTML = summaryHtml([['Total Payable', rupee(s.totalPayable)], ['Total Paid', rupee(s.totalPaid)],
       ['Balance Remaining', rupee(s.balanceRemaining)], ['Scheduled Due To-Date', rupee(s.scheduledDueToDate)],
       ['Arrears / (Advance)', rupee(s.arrears)], ['Next Due', s.nextDueDate + ' · ' + rupee(s.nextDueAmount)]]);
@@ -305,8 +379,11 @@ async function previewDeposit() {
 }
 async function addDeposit() {
   $('d_msg').textContent = 'Saving…';
-  try { const { id } = await api('deposits_add', { deposit: depositFromForm() });
-    $('d_msg').textContent = 'Saved ' + id; $('d_add').hidden = true; loadList('deposits_list', 'd_list');
+  try {
+    if (editing.type === 'deposits') { await api('reg_edit', { key:'deposits', id:editing.id, fields:depositFromForm() });
+      $('d_msg').textContent = 'Updated ' + editing.id; clearEdit(); return loadList('deposits_list', 'd_list', null, 'deposits'); }
+    const { id } = await api('deposits_add', { deposit: depositFromForm() });
+    $('d_msg').textContent = 'Saved ' + id; $('d_add').hidden = true; loadList('deposits_list', 'd_list', null, 'deposits');
   } catch (err) { $('d_msg').textContent = ''; alert(err.message); }
 }
 async function fdWithdraw() {
@@ -358,8 +435,10 @@ async function addMember() {
   try { const member = { FullName:val('m_FullName'), DOB:val('m_DOB'), Phone:val('m_Phone'), Address:val('m_Address'),
       Aadhaar:val('m_Aadhaar'), PAN:val('m_PAN'), BankAccount:val('m_BankAccount'), IFSC:val('m_IFSC'), Branch:val('m_Branch') };
     const f = $('m_Photo').files[0]; if (f) { member.PhotoBase64 = await fileToB64(f); member.PhotoMime = f.type; }
-    const { memberId } = await api('members_add', { member });
-    $('m_msg').textContent = 'Saved ' + memberId; $('m_Photo').value = ''; loadList('members_list', 'm_list', 'member');
+    if (editing.type === 'member') { await api('member_edit', { memberId:editing.id, member });
+      $('m_msg').textContent = 'Updated ' + editing.id; $('m_Photo').value = ''; clearEdit(); return loadList('members_list', 'm_list', 'member', 'member'); }
+    const { memberId, warning } = await api('members_add', { member });
+    $('m_msg').textContent = warning ? warning : ('Saved ' + memberId); $('m_Photo').value = ''; loadList('members_list', 'm_list', 'member', 'member');
   } catch (err) { $('m_msg').textContent = ''; alert(err.message); }
 }
 async function showMember(id) {
@@ -373,12 +452,40 @@ async function showMember(id) {
 }
 
 /* ------------------------------ EXPENSES --------------------------- */
+function expenseFromForm() {
+  const cat = val('e_Category');
+  const ex = { Date:val('e_Date'), Category:cat, Description:val('e_Description'),
+    Branch:val('e_Branch'), Amount:val('e_Amount'), Remarks:val('e_Remarks') };
+  if (cat === 'External Expenses') ex.To = val('e_To');
+  return ex;
+}
 async function addExpense() {
   $('e_msg').textContent = 'Saving…';
-  try { const { id } = await api('expenses_add', { expense: { Date:val('e_Date'), Category:val('e_Category'),
-      Description:val('e_Description'), Branch:val('e_Branch'), Amount:val('e_Amount'), Remarks:val('e_Remarks') } });
-    $('e_msg').textContent = 'Saved ' + id; loadList('expenses_list', 'e_list');
+  try {
+    if (editing.type === 'expenses') { await api('reg_edit', { key:'expenses', id:editing.id, fields:expenseFromForm() });
+      $('e_msg').textContent = 'Updated ' + editing.id; clearEdit(); return loadList('expenses_list', 'e_list', null, 'expenses'); }
+    const { id, voucher } = await api('expenses_add', { expense: expenseFromForm() });
+    lastVoucher = voucher; $('e_msg').textContent = 'Saved ' + id;
+    $('e_voucherBox').hidden = false;
+    $('e_voucherView').innerHTML = summaryHtml([['Bank', esc(voucher.bankName)], ['Voucher No.', esc(voucher.expenseNo)],
+      ['Date', esc(voucher.date)], ['To', esc(voucher.to)], ['Category', esc(voucher.category)],
+      ['Description', esc(voucher.description)], ['Amount', rupee(voucher.amount)], ['Branch', esc(voucher.branch)]]);
+    loadList('expenses_list', 'e_list', null, 'expenses');
   } catch (err) { $('e_msg').textContent = ''; alert(err.message); }
+}
+function printVoucher(v) {
+  if (!v) { alert('Add an expense first.'); return; }
+  const body = printHeader('Payment Voucher') +
+    `<table class="meta">
+      <tr><td><b>Voucher No.:</b> ${esc(v.expenseNo)}</td><td><b>Date:</b> ${esc(v.date)}</td></tr>
+      <tr><td><b>To:</b> ${esc(v.to)}</td><td><b>Category:</b> ${esc(v.category)}</td></tr></table>` +
+    `<table><tr><th>Description</th><th>Amount</th></tr>
+      <tr><td>${esc(v.description || v.category)}</td><td>${rupee(v.amount)}</td></tr>
+      <tr><td style="text-align:right"><b>Total</b></td><td><b>${rupee(v.amount)}</b></td></tr></table>` +
+    `<div class="sign">_______________________<br>Branch Manager Signature</div>` +
+    `<div class="foot">${esc(v.branch)} Branch${v.branchAddress ? ' — ' + esc(v.branchAddress) : ''}` +
+    `${v.branchPhone ? ' · Phone: ' + esc(v.branchPhone) : ''}${v.email ? ' · Email: ' + esc(v.email) : ''}</div>`;
+  printDoc(body, '@page{size:A4;margin:2cm 1cm}', 'body{font-size:12px}');
 }
 
 /* ------------------------------ REPORTS ---------------------------- */
@@ -403,8 +510,9 @@ async function loadReport() {
 }
 function printReport() {
   const grid = $('rep_grid').innerHTML;
-  if (!grid || /Loading|error|msg/.test(grid) && !/table/.test(grid)) { alert('Load a report first.'); return; }
-  printDoc(printHeader(lastReportName || 'Report') + grid, '@page{size:A4 landscape;margin:1cm}', 'body{font-size:10px}');
+  if (!/table/.test(grid)) { alert('Load a report first.'); return; }
+  printDoc(printHeader(lastReportName || 'Report') + grid, '@page{size:A4 landscape;margin:1cm}',
+    'body{font-size:8px} th,td{padding:2px 3px;white-space:normal;word-break:break-word} table{table-layout:fixed}');
 }
 
 /* ------------------------------ SOCIETY BANK ----------------------- */
