@@ -1,11 +1,11 @@
 {
-  "name": "Cooperative Financial Record",
-  "short_name": "CoopFR",
+  "name": "ECOSMART",
+  "short_name": "ECOSMART",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
-  "background_color": "#f4f6f9",
-  "theme_color": "#f08080",
+  "background_color": "#eef4fc",
+  "theme_color": "#ffe3df",
   "icons": [
     { "src": "logo.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
