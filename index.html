@@ -74,10 +74,11 @@
           <label>Full Name<input id="m_FullName" /></label>
           <label>Date of Birth<input id="m_DOB" type="date" /></label>
           <label>Phone<input id="m_Phone" /></label>
-          <label>Branch<input id="m_Branch" value="Main Branch" /></label>
+          <label>Branch<select id="m_Branch" class="branch-select"></select></label>
           <label>Address<input id="m_Address" /></label>
           <label>Aadhaar Number<input id="m_Aadhaar" placeholder="shown masked" /></label>
           <label>PAN Number<input id="m_PAN" /></label>
+          <label>Bank Name<input id="m_BankName" /></label>
           <label>Bank Account No.<input id="m_BankAccount" /></label>
           <label>IFSC Code<input id="m_IFSC" /></label>
           <label>Photo<input id="m_Photo" type="file" accept="image/*" /></label>
@@ -94,7 +95,7 @@
           <label>Borrower<input id="l_Borrower" /></label>
           <label>Member ID<input id="l_MemberID" /></label>
           <label>Loan Type<input id="l_LoanType" value="Agriculture" /></label>
-          <label>Branch<input id="l_Branch" value="Main Branch" /></label>
+          <label>Branch<select id="l_Branch" class="branch-select"></select></label>
           <label>Amount (₹)<input id="l_Amount" type="number" value="200000" /></label>
           <label>Rate (% p.a.)<input id="l_RatePct" type="number" step="0.01" value="18" /></label>
           <label>Tenure (months)<input id="l_TenureMonths" type="number" value="24" /></label>
@@ -145,7 +146,7 @@
           <label>Depositor<input id="d_Depositor" /></label>
           <label>Member ID<input id="d_MemberID" /></label>
           <label>Deposit Type<input id="d_DepositType" value="Fixed Deposit" readonly /></label>
-          <label>Branch<input id="d_Branch" value="Main Branch" /></label>
+          <label>Branch<select id="d_Branch" class="branch-select"></select></label>
           <label>Amount (₹)<input id="d_Amount" type="number" value="100000" /></label>
           <label>Rate (% p.a.)<input id="d_RatePct" type="number" step="0.01" value="7" /></label>
           <label>Tenure (months)<input id="d_TenureMonths" type="number" value="12" /></label>
@@ -174,7 +175,7 @@
         <div class="grid">
           <label>Member ID<input id="s_MemberID" /></label>
           <label>Member Name<input id="s_MemberName" /></label>
-          <label>Branch<input id="s_Branch" value="Main Branch" /></label>
+          <label>Branch<select id="s_Branch" class="branch-select"></select></label>
           <label>Interest Rate (% p.a.)<input id="s_Rate" type="number" step="0.01" value="4" /></label>
           <label>Minimum Balance (₹)<input id="s_MinBalance" type="number" value="500" /></label>
           <label>Open Date<input id="s_OpenDate" type="date" /></label>
@@ -218,7 +219,7 @@
             <option>External Expenses</option><option>Other</option></select></label>
           <label id="e_ToWrap" hidden>To (paid to)<input id="e_To" /></label>
           <label>Description<input id="e_Description" /></label>
-          <label>Branch<input id="e_Branch" value="Main Branch" /></label>
+          <label>Branch<select id="e_Branch" class="branch-select"></select></label>
           <label>Amount (₹)<input id="e_Amount" type="number" /></label>
           <label>Remarks<input id="e_Remarks" /></label>
         </div>
@@ -301,6 +302,8 @@
     </section>
   </main>
 </div>
+
+<div id="modal" hidden><div class="modal-box"><div class="modal-head"><span id="modal_title"></span><button id="modal_close" class="ghost">Close</button></div><div id="modal_body"></div></div></div>
 
 <script src="app.js"></script>
 </body>
