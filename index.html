@@ -82,8 +82,10 @@
           <label>Bank Account No.<input id="m_BankAccount" /></label>
           <label>IFSC Code<input id="m_IFSC" /></label>
           <label>Photo<input id="m_Photo" type="file" accept="image/*" /></label>
+          <label>Share Capital Member<select id="m_ShareCapitalMember"><option value="No">No</option><option value="Yes">Yes</option></select></label>
+          <label>Share Capital Collected (₹)<input id="m_ShareCapitalCollected" type="number" value="0" /></label>
         </div>
-        <div class="actions"><button id="m_add" class="primary">Add member</button><span id="m_msg" class="msg"></span></div>
+        <div class="actions"><button id="m_add" class="primary">Add member</button><button type="button" class="ghost" data-clear="members">Clear</button><span id="m_msg" class="msg"></span></div>
       </div>
       <div class="card"><div class="card-head"><h2>Members</h2><button class="ghost" data-refresh="members">Refresh</button></div>
         <div class="grid" style="margin-bottom:10px"><label>Search members<input id="m_search" placeholder="name · member ID · phone" /></label></div>
@@ -114,7 +116,7 @@
           <label>Guarantor 2 — Member No.<input id="l_G2MemberID" /></label>
         </div>
         <div class="actions"><button id="l_preview" class="ghost">Preview</button>
-          <button id="l_add" class="primary" hidden>Confirm &amp; Save</button><span id="l_msg" class="msg"></span></div>
+          <button id="l_add" class="primary" hidden>Confirm &amp; Save</button><button type="button" class="ghost" data-clear="loans">Clear</button><span id="l_msg" class="msg"></span></div>
       </div>
       <div class="card" id="l_schedCard" hidden>
         <div class="card-head"><h2 id="l_schedTitle">Schedule</h2>
@@ -165,7 +167,7 @@
           <label>Nominee<input id="d_Nominee" /></label>
         </div>
         <div class="actions"><button id="d_preview" class="ghost">Preview maturity</button>
-          <button id="d_add" class="primary" hidden>Confirm &amp; Save</button><span id="d_msg" class="msg"></span></div>
+          <button id="d_add" class="primary" hidden>Confirm &amp; Save</button><button type="button" class="ghost" data-clear="deposits">Clear</button><span id="d_msg" class="msg"></span></div>
         <div id="d_prev" class="summary"></div></div>
       <div class="card"><div class="card-head"><h2>Fixed Deposits</h2><button class="ghost" data-refresh="deposits">Refresh</button></div>
         <div class="grid" style="margin-bottom:10px"><label>Search deposits<input id="d_search" placeholder="name · member ID · phone" /></label></div>
@@ -193,7 +195,7 @@
           <label>Open Date<input id="s_OpenDate" type="date" /></label>
           <label>Nominee<input id="s_Nominee" /></label>
         </div>
-        <div class="actions"><button id="s_open" class="primary">Open account</button><span id="s_msg" class="msg"></span></div></div>
+        <div class="actions"><button id="s_open" class="primary">Open account</button><button type="button" class="ghost" data-clear="savings">Clear</button><span id="s_msg" class="msg"></span></div></div>
       <div class="card"><div class="card-head"><h2>Savings accounts</h2><button class="ghost" data-refresh="savings">Refresh</button></div>
         <div class="grid" style="margin-bottom:10px"><label>Search savings<input id="s_search" placeholder="name · member ID · phone · savings ID" /></label></div>
         <div id="s_list"></div></div>
@@ -213,7 +215,7 @@
           <label>To Date<input id="pb_to" type="date" /></label>
         </div>
         <div class="actions"><button id="pb_load" class="primary">Load passbook</button>
-          <button id="pb_print" class="ghost">Print passbook</button></div>
+          <button id="pb_print" class="ghost">Print passbook</button><button type="button" class="ghost" data-clear="passbook">Clear</button></div>
         <div id="pb_summary" class="summary"></div><div id="pb_rows" class="scrolly"></div></div>
     </section>
 
@@ -245,7 +247,7 @@
           <label>Amount (₹)<input id="e_Amount" type="number" /></label>
           <label>Remarks<input id="e_Remarks" /></label>
         </div>
-        <div class="actions"><button id="e_add" class="primary">Add expense</button><span id="e_msg" class="msg"></span></div>
+        <div class="actions"><button id="e_add" class="primary">Add expense</button><button type="button" class="ghost" data-clear="expenses">Clear</button><span id="e_msg" class="msg"></span></div>
         <div id="e_voucherBox" hidden><div id="e_voucherView" class="summary"></div>
           <button class="ghost" id="e_print">Print voucher</button></div></div>
       <div class="card"><div class="card-head"><h2>Expenses</h2><button class="ghost" data-refresh="expenses">Refresh</button></div><div id="e_list"></div></div>
@@ -311,7 +313,7 @@
         <div class="grid">
           <label>User ID<input id="u_Id" /></label>
           <label>Name<input id="u_Name" /></label>
-          <label>Role<select id="u_Role"><option>Operator</option><option>BranchManager</option><option>Collector</option><option>Director</option><option>Admin</option></select></label>
+          <label>Role<select id="u_Role"><option>Operator</option><option>BranchManager</option><option>Collector</option><option>Director</option><option>CEO</option><option>Admin</option></select></label>
           <label>Branch<input id="u_Branch" /></label>
           <label>Temp password (8+)<input id="u_Pw" /></label>
         </div>
