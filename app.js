@@ -39,13 +39,14 @@ const fileToB64 = (file) => new Promise((res, rej) => {
 /* ---------------------- IDLE AUTO-LOGOUT --------------------------- */
 let idleTimer = null;
 function resetIdle() { if (!session) return; clearTimeout(idleTimer);
-  idleTimer = setTimeout(() => { logout(); $('loginMsg').textContent = 'Signed out after inactivity.'; }, IDLE_MS); }
+  idleTimer = setTimeout(() => { logout(); }, IDLE_MS); }
 ['click','keydown','mousemove','touchstart','scroll'].forEach(ev => document.addEventListener(ev, resetIdle, { passive:true }));
 
 /* ------------------------------ BOOT (splash) ---------------------- */
 window.addEventListener('DOMContentLoaded', async () => {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
   LOGO_URL = new URL('logo.png', location.href).href;
+  if ($('loginMsg')) $('loginMsg').textContent = ''; // never show stale message on load
   try { const { bankName } = await api('bank_info'); if (bankName) BANK = bankName; } catch (e) {}
   applyBranding(BANK);
   setTimeout(async () => {
@@ -96,7 +97,11 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('click', e => {
   const t = e.target, d = t.dataset || {};
-  if (d.pwtoggle) { const f = $(d.pwtoggle), show = f.type === 'password'; f.type = show ? 'text' : 'password'; t.textContent = show ? 'Hide' : 'Show'; return; }
+  if (d.pwtoggle) { const f = $(d.pwtoggle), show = f.type === 'password'; f.type = show ? 'text' : 'password';
+    // Toggle eye icon appearance (crossed out when password is visible)
+    const eyeSvg = t.querySelector('svg') || t.closest('button').querySelector('svg');
+    if (eyeSvg) eyeSvg.style.opacity = show ? '0.4' : '1';
+    return; }
   if (t.id === 'hamburger') return toggleNav();
   if (t.id === 'backdrop') return toggleNav(false);
   if (t.id === 'loginBtn') return login();
@@ -132,11 +137,17 @@ async function login() {
   $('loginMsg').textContent = 'Signing in…';
   try { const { token: tk, user } = await api('login', { userId: val('loginId').trim(), password: val('loginPw') });
     localStorage.setItem('coop_token', tk); $('loginPw').value = '';
-    $('loginMsg').textContent = 'Login successful — loading…'; start(user);
+    $('loginMsg').textContent = ''; start(user);
   } catch (err) { $('loginMsg').textContent = err.message; }
 }
-function logout(){ clearTimeout(idleTimer); localStorage.removeItem('coop_token'); session = null;
-  $('app').hidden = true; $('gate').hidden = false; }
+function logout(){
+  clearTimeout(idleTimer); localStorage.removeItem('coop_token'); session = null;
+  $('app').hidden = true;
+  // Show splash briefly then go to login
+  $('splash').hidden = false; $('gate').hidden = true;
+  $('loginMsg').textContent = ''; // #7: clear any stale message
+  setTimeout(() => { $('splash').hidden = true; $('gate').hidden = false; }, 1400);
+}
 function start(user) {
   session = user; if (user.bankName) { BANK = user.bankName; applyBranding(BANK); }
   $('gate').hidden = true; $('splash').hidden = true; $('app').hidden = false; resetIdle();
@@ -646,8 +657,25 @@ async function showMember(id) {
       ['Bank A/C', member.BankAccount], ['IFSC', member.IFSC], ['Branch', member.Branch],
       ['Share Capital Member', member.ShareCapitalMember], ['Share Capital Collected', rupee(member.ShareCapitalCollected)]];
     let h = '<div class="summary">' + pairs.map(([k,v]) => `<div><span>${esc(k)} :</span><b>${esc(v)}</b></div>`).join('') + '</div>';
-    if (member.PhotoUrl) h += `<div style="margin-top:12px"><button class="ghost" data-photo="${esc(member.PhotoUrl)}">View photo</button></div>`;
-    if (member.IdProofUrl) h += `<div style="margin-top:8px"><a href="${esc(member.IdProofUrl)}" target="_blank" class="ghost" style="padding:8px 14px;border-radius:10px;background:#eaf1fb;color:#2c4a7c;text-decoration:none;font-size:13px">📄 View ID Proof${member.IdProofName ? ' ('+esc(member.IdProofName)+')' : ''}</a></div>`;
+    // Photo
+    if (member.PhotoUrl) h += `<div style="margin-top:12px"><button class="ghost" data-photo="${esc(member.PhotoUrl)}">📷 View photo</button></div>`;
+    // ID Proof
+    if (member.IdProofUrl) h += `<div style="margin-top:8px"><a href="${esc(member.IdProofUrl)}" target="_blank" style="display:inline-block;padding:8px 14px;border-radius:10px;background:#eaf1fb;color:#2c4a7c;text-decoration:none;font-size:13px">📄 View ID Proof${member.IdProofName ? ' — '+esc(member.IdProofName) : ''}</a></div>`;
+    // Linked loans
+    if (member.loans && member.loans.length) {
+      h += `<h3 style="margin:16px 0 8px;font-size:14px;color:#0f1720">Loans</h3>`;
+      h += `<table><tr><th>Loan ID</th><th>Amount</th><th>Paid</th><th>Remaining</th><th>Missed EMI</th></tr>`;
+      member.loans.forEach(l => h += `<tr><td>${esc(l.loanId)}</td><td>${rupee(l.amount)}</td><td>${rupee(l.paid)}</td>` +
+        `<td>${rupee(l.remaining)}</td><td style="color:${l.missedEMI>0?'#c0392b':'#27ae60'}">${l.missedEMI>0?rupee(l.missedEMI):'—'}</td></tr>`);
+      h += '</table>';
+    } else { h += `<p style="margin-top:14px;color:#7b8794;font-size:13px">No loans linked to this member.</p>`; }
+    // Linked savings
+    if (member.savings && member.savings.length) {
+      h += `<h3 style="margin:16px 0 8px;font-size:14px;color:#0f1720">Savings Accounts</h3>`;
+      h += `<table><tr><th>Savings ID</th><th>Balance</th><th>Min Balance</th></tr>`;
+      member.savings.forEach(s => h += `<tr><td>${esc(s.savingsId)}</td><td>${rupee(s.balance)}</td><td>${rupee(s.minBalance)}</td></tr>`);
+      h += '</table>';
+    } else { h += `<p style="margin-top:8px;color:#7b8794;font-size:13px">No savings accounts linked to this member.</p>`; }
     $('m_detail').innerHTML = h; $('m_card').scrollIntoView({ behavior:'smooth' });
   } catch (err) { alert(err.message); }
 }
