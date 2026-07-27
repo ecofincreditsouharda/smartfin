@@ -85,7 +85,9 @@
         </div>
         <div class="actions"><button id="m_add" class="primary">Add member</button><span id="m_msg" class="msg"></span></div>
       </div>
-      <div class="card"><div class="card-head"><h2>Members</h2><button class="ghost" data-refresh="members">Refresh</button></div><div id="m_list"></div></div>
+      <div class="card"><div class="card-head"><h2>Members</h2><button class="ghost" data-refresh="members">Refresh</button></div>
+        <div class="grid" style="margin-bottom:10px"><label>Search members<input id="m_search" placeholder="name · member ID · phone" /></label></div>
+        <div id="m_list"></div></div>
       <div class="card" id="m_card" hidden><h2>Member details</h2><div id="m_detail"></div></div>
     </section>
 
@@ -106,6 +108,10 @@
           <label>First EMI Date<input id="l_FirstEMIDate" type="date" /></label>
           <label>Custom EMI (optional)<input id="l_CustomEMI" type="number" placeholder="blank = base EMI" /></label>
           <label>Collector (optional)<select id="l_Collector" class="collector-select"><option value="">— select collector —</option></select></label>
+          <label>Guarantor 1 — Name<input id="l_G1Name" /></label>
+          <label>Guarantor 1 — Member No.<input id="l_G1MemberID" /></label>
+          <label>Guarantor 2 — Name<input id="l_G2Name" /></label>
+          <label>Guarantor 2 — Member No.<input id="l_G2MemberID" /></label>
         </div>
         <div class="actions"><button id="l_preview" class="ghost">Preview</button>
           <button id="l_add" class="primary" hidden>Confirm &amp; Save</button><span id="l_msg" class="msg"></span></div>
@@ -121,7 +127,7 @@
 
     <section class="view" id="view-repayments" hidden>
       <div class="card"><h2>Find a loan to collect / view</h2>
-        <div class="grid"><label>Search<input id="r_search" placeholder="loan id or borrower" /></label>
+        <div class="grid"><label>Search<input id="r_search" placeholder="loan ID · name · phone · member ID" /></label>
           <label>Or Loan ID<input id="r_LoanId" placeholder="e.g. ECO00001" /></label></div>
         <div class="actions"><button id="r_load" class="primary">Open ledger</button></div>
         <div id="r_loanlist"></div></div>
@@ -295,7 +301,7 @@
         <div class="grid">
           <label>User ID<input id="u_Id" /></label>
           <label>Name<input id="u_Name" /></label>
-          <label>Role<select id="u_Role"><option>Operator</option><option>BranchManager</option><option>Director</option><option>Admin</option></select></label>
+          <label>Role<select id="u_Role"><option>Operator</option><option>BranchManager</option><option>Collector</option><option>Director</option><option>Admin</option></select></label>
           <label>Branch<input id="u_Branch" /></label>
           <label>Temp password (8+)<input id="u_Pw" /></label>
         </div>
