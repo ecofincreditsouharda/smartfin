@@ -74,6 +74,18 @@ document.addEventListener('blur', async e => {
     await autofillMember(val('l_G1MemberID').trim(), 'l_G1Name', null);
   if (e.target.id === 'l_G2MemberID' && val('l_G2MemberID').trim() && !val('l_G2Name').trim())
     await autofillMember(val('l_G2MemberID').trim(), 'l_G2Name', null);
+  // #1 FD depositor autofill from member ID
+  if (e.target.id === 'd_MemberID' && val('d_MemberID').trim())
+    await autofillMember(val('d_MemberID').trim(), 'd_Depositor', null);
+  // #7 Transfer: autofill names from savings/member ID
+  if (e.target.id === 'tf_From' && val('tf_From').trim()) {
+    try { const { account } = await api('savings_lookup', { query: val('tf_From').trim() });
+      if ($('tf_FromName')) $('tf_FromName').value = account.MemberName || ''; } catch(e) {}
+  }
+  if (e.target.id === 'tf_To' && val('tf_To').trim()) {
+    try { const { account } = await api('savings_lookup', { query: val('tf_To').trim() });
+      if ($('tf_ToName')) $('tf_ToName').value = account.MemberName || ''; } catch(e) {}
+  }
 }, true);
 document.addEventListener('input', e => {
   if (e.target.id === 'r_search') filterLoanList();
@@ -90,6 +102,7 @@ document.addEventListener('click', e => {
   if (t.id === 'loginBtn') return login();
   if (d.view) return showView(d.view);
   if (d.refresh) return refresh(d.refresh);
+  if (d.edituser) return startUserEdit(d.edituser);
   if (d.rprint) return printPastReceipt(d.rprint);
   if (d.voucher) return printPastVoucher(d.voucher);
   if (d.photo) return showPhoto(d.photo);
@@ -98,7 +111,7 @@ document.addEventListener('click', e => {
   if (d.edit) { const i = d.edit.indexOf(':'); return startEdit(d.edit.slice(0,i), d.edit.slice(i+1)); }
   if (d.openledger) return openLedger(d.openledger);
   const map = { l_preview:previewLoan, l_add:addLoan, l_print:printSchedule, l_min:()=>{ $('l_schedCard').hidden = true; },
-    d_preview:previewDeposit, d_add:addDeposit, w_go:fdWithdraw, s_open:savingsOpen, st_go:savingsTxn, pb_load:loadPassbook,
+    d_preview:previewDeposit, d_add:addDeposit, w_go:fdWithdraw, s_open:savingsOpen, st_go:savingsTxn, pb_load:loadPassbook, pb_print:printPassbook,
     tf_go:doTransfer, m_add:addMember, e_add:addExpense, e_print:()=>printVoucher(lastVoucher),
     r_load:()=>openLedger(val('r_LoanId').trim()), r_add:addReceipt, r_print:()=>printReceiptObj(lastReceipt),
     r_min:minimiseLedger, rep_load:loadReport, rep_print:printReport, soc_save:socSave, soc_txn:socTxn, br_save:branchSave,
@@ -177,7 +190,16 @@ function refresh(v) {
   if (v === 'expenses') loadList('expenses_list', 'e_list', null, 'expenses');
   if (v === 'repayments') loadRepaymentLoans();
   if (v === 'society' && session.role) loadSociety();
-  if (v === 'reports') { ensurePeriods(); repPeriodToggle(); }
+  if (v === 'reports') {
+    repPeriodToggle();
+    // Default: Indian FY start (April 1) to today
+    if (!val('rep_from')) {
+      const now = new Date();
+      const fyYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear()-1;
+      $('rep_from').value = `${fyYear}-04-01`;
+      $('rep_to').value = now.toISOString().split('T')[0];
+    }
+  }
   if (v === 'users' && session.role === 'Admin') loadUsers();
   if (v === 'settings' && ['Admin','BranchManager'].includes(session.role)) { loadSettings(); loadBranches(); }
 }
@@ -514,8 +536,27 @@ async function loadPassbook() {
   try { const { passbook } = await api('savings_passbook', { savingsId: id });
     $('pb_summary').innerHTML = summaryHtml([['Member', esc(passbook.account.Member)], ['Balance', rupee(passbook.account.Balance)],
       ['Minimum Balance', rupee(passbook.account.MinBalance)]]);
-    $('pb_rows').innerHTML = tableFrom(passbook.rows);
+    // Filter by from/to date if provided
+    const from = val('pb_from'), to = val('pb_to');
+    let rows = passbook.rows;
+    if (from) rows = rows.filter(r => r.Date >= from);
+    if (to)   rows = rows.filter(r => r.Date <= to);
+    $('pb_rows').innerHTML = tableFrom(rows);
+    $('pb_rows').dataset.passbook = JSON.stringify({ account: passbook.account, rows });
   } catch (err) { alert(err.message); }
+}
+function printPassbook() {
+  const raw = $('pb_rows').dataset.passbook;
+  if (!raw) { alert('Load a passbook first.'); return; }
+  const { account, rows } = JSON.parse(raw);
+  let h = `<h3 style="text-align:center">${esc(BANK)}</h3>` +
+    `<p style="text-align:center">Savings Passbook — ${esc(account.SavingsID || '')}</p>` +
+    `<p>Member: <b>${esc(account.Member)}</b> &nbsp; Balance: <b>${rupee(account.Balance)}</b></p>` +
+    `<table><tr><th>Txn No</th><th>Date</th><th>Type</th><th>Amount</th><th>Balance</th><th>Note</th></tr>`;
+  rows.forEach(r => h += `<tr><td>${esc(r.TxnNo)}</td><td>${esc(r.Date)}</td><td>${esc(r.Type)}</td>` +
+    `<td>${rupee(r.Amount)}</td><td>${rupee(r.Balance)}</td><td>${esc(r.Note)}</td></tr>`);
+  h += '</table>';
+  printDoc(h, '@page{size:A4;margin:1.5cm}', 'body{font-size:10px}');
 }
 
 /* ------------------------------ TRANSFERS -------------------------- */
@@ -587,36 +628,32 @@ async function addExpense() {
 }
 function printVoucher(v) {
   if (!v) { alert('Add an expense first.'); return; }
-  const body = printHeader('Expense Voucher') +
+  const body = printHeader('') +
+    `<h2 style="text-align:center;margin:4px 0 12px">EXPENSE VOUCHER</h2>` +
     `<table class="meta">
       <tr><td><b>Voucher No.:</b> ${esc(v.expenseNo)}</td><td><b>Date:</b> ${esc(v.date)}</td></tr>
       <tr><td><b>To:</b> ${esc(v.to)}</td><td><b>Category:</b> ${esc(v.category)}</td></tr></table>` +
     `<table><tr><th>Description</th><th>Amount</th></tr>
       <tr><td>${esc(v.description || v.category)}</td><td>${rupee(v.amount)}</td></tr>
       <tr><td style="text-align:right"><b>Total</b></td><td><b>${rupee(v.amount)}</b></td></tr></table>` +
-    `<div class="sign">_______________________<br>Branch Manager Signature</div>` +
+    `<div style="display:flex;justify-content:space-between;margin-top:44px">` +
+    `<div>_______________________<br>Receiver Signature</div>` +
+    `<div>_______________________<br>Branch Manager Signature</div></div>` +
     `<div class="foot">${esc(v.branch)} Branch${v.branchAddress ? ' — ' + esc(v.branchAddress) : ''}` +
     `${v.branchPhone ? ' · Phone: ' + esc(v.branchPhone) : ''}${v.email ? ' · Email: ' + esc(v.email) : ''}</div>`;
   printDoc(body, '@page{size:A4;margin:2cm 1cm}', 'body{font-size:12px}');
 }
 
 /* ------------------------------ REPORTS ---------------------------- */
-const AS_OF_REPORTS = ['Profit_Loss','Balance_Sheet','Cash_Flow'];
-let periodsLoaded = false, lastReportName = '';
-async function ensurePeriods() {
-  if (periodsLoaded) return;
-  try { const { periods } = await api('period_list');
-    $('rep_period').innerHTML = periods.map(p => `<option>${esc(p)}</option>`).join(''); periodsLoaded = true;
-  } catch (e) {}
-}
-function repPeriodToggle() { $('rep_periodWrap').style.display = AS_OF_REPORTS.includes(val('rep_sheet')) ? '' : 'none'; }
+const AS_OF_REPORTS = ['Profit_Loss','Balance_Sheet','Cash_Flow','Monthly_Profit_Loss','Monthly_Balance_Sheet','Monthly_Cash_Flow'];
+let lastReportName = '';
+function repPeriodToggle() {} // no longer needed but called from refresh()
 async function loadReport() {
   $('rep_grid').innerHTML = '<p class="msg">Loading…</p>';
   const sheet = val('rep_sheet'); lastReportName = $('rep_sheet').selectedOptions[0].text;
-  const payload = { sheet };
-  if (AS_OF_REPORTS.includes(sheet)) { await ensurePeriods();
-    if (val('rep_period')) payload.setCell = { a1:'B4', value: val('rep_period') }; }
-  try { const { grid } = await api('report_get', payload);
+  const fromDate = val('rep_from'); const toDate = val('rep_to');
+  if (!fromDate || !toDate) { $('rep_grid').innerHTML = '<p class="err">Please select From and To dates.</p>'; return; }
+  try { const { grid } = await api('report_get', { sheet, fromDate, toDate });
     let h = '<table>'; grid.forEach((row, ri) => h += '<tr>' + row.map(c => (ri === 0 ? `<th>${esc(c)}</th>` : `<td>${esc(c)}</td>`)).join('') + '</tr>');
     $('rep_grid').innerHTML = h + '</table>';
   } catch (err) { $('rep_grid').innerHTML = `<p class="err">${err.message}</p>`; }
@@ -649,8 +686,8 @@ async function socSave() {
 }
 async function socTxn() {
   $('soc_tmsg').textContent = 'Posting…';
-  try { const { balance } = await api('society_txn', { txn: { Direction:val('soc_Dir'), Amount:val('soc_Amt'),
-      Party:val('soc_Party'), Note:val('soc_Note') } });
+  try { const { balance } = await api('society_txn', { txn: { Date:val('soc_Date'), Direction:val('soc_Dir'),
+      Amount:val('soc_Amt'), Party:val('soc_Party'), Note:val('soc_Note') } });
     $('soc_tmsg').textContent = 'Balance ' + rupee(balance); $('soc_Amt').value = ''; loadSociety();
   } catch (err) { $('soc_tmsg').textContent = ''; alert(err.message); }
 }
@@ -705,22 +742,43 @@ async function resetAll() {
   } catch (err) { $('reset_msg').textContent = err.message; }
 }
 /* ------------------------------ USERS ------------------------------ */
-async function loadUsers() {
+let editingUser = null;
+async function startUserEdit(userId) {
   try { const { users } = await api('users_list');
-    let h = '<table><tr><th>User ID</th><th>Name</th><th>Role</th><th>Branch</th><th>Active</th><th>Last login</th><th></th></tr>';
-    users.forEach(u => h += `<tr><td>${esc(u.UserID)}</td><td>${esc(u.Name)}</td><td>${esc(u.Role)}</td><td>${esc(u.Branch)}</td>` +
-      `<td>${u.Active?'Yes':'No'}</td><td>${esc((u.LastLogin||'').slice(0,10))}</td>` +
-      `<td><button class="ghost" data-reset="${esc(u.UserID)}">Reset PW</button> ` +
-      `<button class="ghost" data-toggle="${esc(u.UserID)}" data-active="${u.Active}">${u.Active?'Disable':'Enable'}</button></td></tr>`);
-    $('u_list').innerHTML = h + '</table>';
-  } catch (err) { $('u_list').innerHTML = `<p class="err">${err.message}</p>`; }
+    const u = users.find(x => x.UserID === userId); if (!u) return;
+    editingUser = userId;
+    setV('u_Id', u.UserID); setV('u_Name', u.Name); setV('u_Role', u.Role); setV('u_Branch', u.Branch);
+    $('u_Id').readOnly = true; // can't change user ID
+    $('u_msg').textContent = 'Editing ' + userId + ' — change fields then click Update.';
+    setText('u_add', 'Update user');
+  } catch (err) { alert(err.message); }
 }
 async function addUser() {
   $('u_msg').textContent = 'Saving…';
-  try { await api('users_add', { user: { userId:val('u_Id'), name:val('u_Name'), role:val('u_Role'),
-      branch:val('u_Branch'), password:val('u_Pw') } });
-    $('u_msg').textContent = 'User added.'; $('u_Pw').value = ''; loadUsers();
+  try {
+    if (editingUser) {
+      await api('users_edit', { user: { userId:editingUser, name:val('u_Name'), role:val('u_Role'), branch:val('u_Branch') } });
+      $('u_msg').textContent = 'Updated ' + editingUser; editingUser = null; $('u_Id').readOnly = false; setText('u_add','Add user');
+    } else {
+      await api('users_add', { user: { userId:val('u_Id'), name:val('u_Name'), role:val('u_Role'), branch:val('u_Branch'), password:val('u_Pw') } });
+      $('u_msg').textContent = 'User added.'; $('u_Pw').value = '';
+    }
+    $('u_Id').value=''; $('u_Name').value=''; $('u_Branch').value=''; loadUsers();
   } catch (err) { $('u_msg').textContent = ''; alert(err.message); }
+}
+async function loadUsers() {
+  try { const { users } = await api('users_list');
+    let h = '<table><tr><th>User ID</th><th>Name</th><th>Role</th><th>Branch</th><th>Active</th><th>Last Login</th><th></th></tr>';
+    users.forEach(u => {
+      const ll = u.LastLogin ? new Date(u.LastLogin).toLocaleString('en-IN', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
+      h += `<tr><td>${esc(u.UserID)}</td><td>${esc(u.Name)}</td><td>${esc(u.Role).replace(/([a-z])([A-Z])/g,'$1 $2')}</td><td>${esc(u.Branch)}</td>` +
+        `<td>${u.Active?'Yes':'No'}</td><td>${esc(ll)}</td>` +
+        `<td><button class="ghost" data-edituser="${esc(u.UserID)}">Edit</button> ` +
+        `<button class="ghost" data-reset="${esc(u.UserID)}">Reset PW</button> ` +
+        `<button class="ghost" data-toggle="${esc(u.UserID)}" data-active="${u.Active}">${u.Active?'Disable':'Enable'}</button></td></tr>`;
+    });
+    $('u_list').innerHTML = h + '</table>';
+  } catch (err) { $('u_list').innerHTML = `<p class="err">${err.message}</p>`; }
 }
 async function toggleUser(userId, active) { try { await api('users_update', { userId, active: !active }); loadUsers(); } catch (e) { alert(e.message); } }
 async function resetUser(userId) { try { const { tempPassword } = await api('users_reset_pw', { userId });
