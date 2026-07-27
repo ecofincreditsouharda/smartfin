@@ -141,3 +141,13 @@ select:disabled{background:#eef1f4;color:#5b6472}
 /* eye icon password toggle */
 .pw-toggle { display:flex; align-items:center; justify-content:center; width:38px; padding:0; }
 .pw-toggle svg { transition: opacity .2s; }
+
+/* toast notification */
+.toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(80px);
+  background:#333; color:#fff; padding:12px 22px; border-radius:10px; font-size:13px;
+  box-shadow:0 4px 16px rgba(0,0,0,.25); z-index:200; opacity:0; pointer-events:none;
+  transition:opacity .25s, transform .3s; max-width:88vw; text-align:center; white-space:pre-line; }
+.toast-show { opacity:1; transform:translateX(-50%) translateY(0); pointer-events:auto; }
+.toast-ok   { background:#27ae60; }
+.toast-warn { background:#e67e22; }
+.toast-err  { background:#c0392b; }
