@@ -1,7 +1,6 @@
-
 /* ---- CONFIG ---- */
-const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwRuT2u72CRkkpx_kR4cL6zUdY_0AA0m-HPRkqZK4OC6D-hxD_RgWbXRQvRVUQaMB0j/exec';   // ends with /exec
-const IDLE_MS = 120 * 1000;   // auto-logout after inactivity (change if too aggressive)
+const WEB_APP_URL = 'https://tgopjjtamvoftzdfvzuc.supabase.co/functions/v1/api';
+const IDLE_MS = 60 * 1000;   // auto-logout after inactivity (change if too aggressive)
 
 let session = null, lastSchedule = null, lastMeta = null, lastReceipt = null, curLoanId = '';
 let editing = { type:null, id:null }, lastVoucher = null, repLoans = [];
@@ -14,7 +13,7 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;
 const token = () => localStorage.getItem('coop_token') || '';
 
 async function api(action, payload = {}) {
-  const res = await fetch(WEB_APP_URL, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+  const res = await fetch(WEB_APP_URL, { method:'POST', headers:{ 'Content-Type':'application/json' },
     body: JSON.stringify(Object.assign({ action, token: token() }, payload)) });
   const data = await res.json();
   if (!data.ok) { if (/sign in/i.test(data.error||'')) logout(); throw new Error(data.error || 'Request failed'); }
