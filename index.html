@@ -152,8 +152,8 @@
     <section class="view" id="view-deposits" hidden>
       <div class="card add-only"><h2>Add a fixed deposit</h2>
         <div class="grid">
-          <label>Depositor<input id="d_Depositor" /></label>
-          <label>Member ID<input id="d_MemberID" /></label>
+          <label>Member ID<input id="d_MemberID" placeholder="enter to auto-fill name" /></label>
+          <label>Depositor Name<input id="d_Depositor" /></label>
           <label>Deposit Type<input id="d_DepositType" value="Fixed Deposit" readonly /></label>
           <label>Branch<select id="d_Branch" class="branch-select"></select></label>
           <label>Amount (₹)<input id="d_Amount" type="number" value="100000" /></label>
@@ -207,8 +207,13 @@
         </div>
         <div class="actions"><button id="st_go" class="primary">Post transaction</button><span id="st_msg" class="msg"></span></div></div>
       <div class="card"><h2>Passbook</h2>
-        <div class="grid"><label>Search (Name / Phone / Member ID / Savings ID)<input id="pb_SavingsID" placeholder="any of the above" /></label></div>
-        <div class="actions"><button id="pb_load" class="primary">Load passbook</button></div>
+        <div class="grid">
+          <label>Search (Name / Phone / Member ID / Savings ID)<input id="pb_SavingsID" placeholder="any of the above" /></label>
+          <label>From Date<input id="pb_from" type="date" /></label>
+          <label>To Date<input id="pb_to" type="date" /></label>
+        </div>
+        <div class="actions"><button id="pb_load" class="primary">Load passbook</button>
+          <button id="pb_print" class="ghost">Print passbook</button></div>
         <div id="pb_summary" class="summary"></div><div id="pb_rows" class="scrolly"></div></div>
     </section>
 
@@ -216,7 +221,9 @@
       <div class="card add-only"><h2>Transfer between members (Savings)</h2>
         <div class="grid">
           <label>From (Savings ID / Member ID)<input id="tf_From" placeholder="savings ID or member ID" /></label>
+          <label>From Name<input id="tf_FromName" readonly placeholder="auto-filled" /></label>
           <label>To (Savings ID / Member ID)<input id="tf_To" placeholder="savings ID or member ID" /></label>
+          <label>To Name<input id="tf_ToName" readonly placeholder="auto-filled" /></label>
           <label>Amount (₹)<input id="tf_Amount" type="number" /></label>
           <label>Date<input id="tf_Date" type="date" /></label>
           <label>Note<input id="tf_Note" /></label>
@@ -255,8 +262,10 @@
           <option value="Monthly_Profit_Loss">Monthly P&amp;L</option>
           <option value="Monthly_Balance_Sheet">Monthly Balance Sheet</option>
           <option value="Monthly_Cash_Flow">Monthly Cash Flow</option>
+          <option value="Borrower_Collections">Borrower Collections</option>
         </select></label>
-        <label id="rep_periodWrap">Period<select id="rep_period"></select></label></div>
+        <label>From Date<input id="rep_from" type="date" /></label>
+        <label>To Date<input id="rep_to" type="date" /></label></div>
         <div class="actions"><button id="rep_load" class="primary">Load</button>
           <button id="rep_print" class="ghost">Print (A4 landscape)</button></div>
         <div id="rep_grid" class="report scrolly"></div></div>
@@ -274,6 +283,7 @@
         <div id="soc_bal" class="summary"></div></div>
       <div class="card add-only"><h2>Manual bank transaction</h2>
         <div class="grid">
+          <label>Date<input id="soc_Date" type="date" /></label>
           <label>Direction<select id="soc_Dir"><option>Received</option><option>Sent</option></select></label>
           <label>Amount (₹)<input id="soc_Amt" type="number" /></label>
           <label>Party (from / to)<input id="soc_Party" /></label>
