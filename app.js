@@ -700,19 +700,17 @@ async function showMember(id) {
       ['Share Capital Member', member.ShareCapitalMember], ['Share Capital Collected', rupee(member.ShareCapitalCollected)]];
     let h = '<div class="summary">' + pairs.map(([k,v]) => `<div><span>${esc(k)} :</span><b>${esc(v)}</b></div>`).join('') + '</div>';
     // Photo section
-    if (member.PhotoUrl) {
-      h += `<div style="margin-top:12px"><button class="ghost" data-photo="${esc(member.PhotoUrl)}">📷 View photo</button></div>`;
-    } else {
-      h += `<div style="margin-top:12px"><label style="font-size:12px;color:#5b6472">📷 Upload Photo<input type="file" id="mu_Photo_${esc(member.MemberID)}" accept="image/*" style="margin-left:8px"/></label>
-        <button class="ghost" style="margin-top:6px" onclick="uploadMemberFile('${esc(member.MemberID)}','photo')">Upload Photo</button></div>`;
-    }
+    h += `<div style="margin-top:12px">`;
+    if (member.PhotoUrl) h += `<button class="ghost" data-photo="${esc(member.PhotoUrl)}" style="margin-bottom:6px">📷 View current photo</button><br>`;
+    h += `<label style="font-size:12px;color:#5b6472">📷 ${member.PhotoUrl ? 'Replace' : 'Upload'} Photo<input type="file" id="mu_Photo_${esc(member.MemberID)}" accept="image/*" style="margin-left:8px"/></label>
+      <button class="ghost" style="margin-top:6px" onclick="uploadMemberFile('${esc(member.MemberID)}','photo')">${member.PhotoUrl ? 'Replace Photo' : 'Upload Photo'}</button></div>`;
+
     // ID Proof section
-    if (member.IdProofUrl) {
-      h += `<div style="margin-top:8px"><a href="${esc(member.IdProofUrl)}" target="_blank" style="display:inline-block;padding:8px 14px;border-radius:10px;background:#eaf1fb;color:#2c4a7c;text-decoration:none;font-size:13px">📄 View ID Proof${member.IdProofName ? ' — '+esc(member.IdProofName) : ''}</a></div>`;
-    } else {
-      h += `<div style="margin-top:8px"><label style="font-size:12px;color:#5b6472">📄 Upload ID Proof (jpg/png/pdf)<input type="file" id="mu_IdProof_${esc(member.MemberID)}" accept="image/jpeg,image/png,application/pdf" style="margin-left:8px"/></label>
-        <button class="ghost" style="margin-top:6px" onclick="uploadMemberFile('${esc(member.MemberID)}','idproof')">Upload ID Proof</button></div>`;
-    }
+    h += `<div style="margin-top:8px">`;
+    if (member.IdProofUrl) h += `<a href="${esc(member.IdProofUrl)}" target="_blank" style="display:inline-block;margin-bottom:6px;padding:7px 14px;border-radius:10px;background:#eaf1fb;color:#2c4a7c;text-decoration:none;font-size:13px">📄 View current ID Proof${member.IdProofName ? ' — '+esc(member.IdProofName) : ''}</a><br>`;
+    h += `<label style="font-size:12px;color:#5b6472">📄 ${member.IdProofUrl ? 'Replace' : 'Upload'} ID Proof (jpg/png/pdf)<input type="file" id="mu_IdProof_${esc(member.MemberID)}" accept="image/jpeg,image/png,application/pdf" style="margin-left:8px"/></label>
+      <button class="ghost" style="margin-top:6px" onclick="uploadMemberFile('${esc(member.MemberID)}','idproof')">${member.IdProofUrl ? 'Replace ID Proof' : 'Upload ID Proof'}</button></div>`;
+
     h += `<div id="mu_msg_${esc(member.MemberID)}" style="margin-top:8px;font-size:13px;color:#5b6472"></div>`;
     // Linked loans
     if (member.loans && member.loans.length) {
