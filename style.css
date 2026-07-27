@@ -137,3 +137,7 @@ tr:hover td{background:#fafbfe}
 #modal .modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 #modal .modal-head span{font-weight:700;color:var(--head)}
 select:disabled{background:#eef1f4;color:#5b6472}
+
+/* eye icon password toggle */
+.pw-toggle { display:flex; align-items:center; justify-content:center; width:38px; padding:0; }
+.pw-toggle svg { transition: opacity .2s; }
