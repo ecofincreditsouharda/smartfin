@@ -102,6 +102,7 @@ document.addEventListener('click', e => {
   if (t.id === 'loginBtn') return login();
   if (d.view) return showView(d.view);
   if (d.refresh) return refresh(d.refresh);
+  if (d.clear) return clearForm(d.clear);
   if (d.edituser) return startUserEdit(d.edituser);
   if (d.rprint) return printPastReceipt(d.rprint);
   if (d.voucher) return printPastVoucher(d.voucher);
@@ -140,10 +141,10 @@ function start(user) {
   session = user; if (user.bankName) { BANK = user.bankName; applyBranding(BANK); }
   $('gate').hidden = true; $('splash').hidden = true; $('app').hidden = false; resetIdle();
   const role = user.role;
-  const canWrite    = ['Admin','BranchManager','Operator','Collector'].includes(role);
+  const canWrite    = ['Admin','CEO','BranchManager','Operator','Collector'].includes(role);
   const canReport   = canWrite;
-  const canSettings = ['Admin','BranchManager'].includes(role);
-  const canSociety  = ['Admin','BranchManager'].includes(role);
+  const canSettings = ['Admin','CEO','BranchManager'].includes(role);
+  const canSociety  = ['Admin','CEO','BranchManager'].includes(role);
   const isAdmin     = role === 'Admin';
   const isCollector = role === 'Collector';
   // hide everything except Repayments and Dashboard for Collector
@@ -227,6 +228,28 @@ async function loadList(action, target, linkKind, editKey) {
   } catch (err) { $(target).innerHTML = `<p class="err">${err.message}</p>`; }
 }
 
+/* ------------------------------ CLEAR FORMS ------------------------ */
+function clearForm(section) {
+  const maps = {
+    members:  ['m_FullName','m_DOB','m_Phone','m_Branch','m_Address','m_Aadhaar','m_PAN','m_BankName','m_BankAccount','m_IFSC','m_ShareCapitalCollected'],
+    loans:    ['l_Borrower','l_MemberID','l_LoanType','l_Amount','l_RatePct','l_TenureMonths','l_SanctionDate','l_DisbursementDate','l_FirstEMIDate','l_CustomEMI','l_G1Name','l_G1MemberID','l_G2Name','l_G2MemberID'],
+    deposits: ['d_MemberID','d_Depositor','d_Amount','d_RatePct','d_TenureMonths','d_StartDate','d_PayoutMode','d_Nominee','d_Remarks'],
+    savings:  ['s_MemberID','s_MemberName','s_Rate','s_MinBalance','s_OpenDate','s_Nominee'],
+    expenses: ['e_Date','e_Description','e_Amount','e_Remarks','e_To'],
+    passbook: ['pb_SavingsID','pb_from','pb_to'],
+  };
+  const selects = { members:['m_ShareCapitalMember'], loans:['l_Method','l_Frequency'], expenses:['e_Category'] };
+  (maps[section]||[]).forEach(id => { if ($(id)) $(id).value = ''; });
+  (selects[section]||[]).forEach(id => { if ($(id)) $(id).selectedIndex = 0; });
+  // Clear file inputs
+  if (section === 'members' && $('m_Photo')) $('m_Photo').value = '';
+  // Clear msg and hidden buttons
+  if (section === 'loans')    { $('l_add').hidden = true; if ($('l_schedCard')) $('l_schedCard').hidden = true; $('l_msg').textContent = ''; }
+  if (section === 'deposits') { $('d_add').hidden = true; if ($('d_prev')) $('d_prev').innerHTML = ''; $('d_msg').textContent = ''; }
+  if (section === 'members')  { $('m_msg').textContent = ''; clearEdit(); }
+  if (section === 'passbook') { $('pb_summary').innerHTML = ''; if ($('pb_rows')) $('pb_rows').innerHTML = ''; }
+}
+
 /* ------------------------------ EDIT MODE -------------------------- */
 const EDIT_BTN = { loans:'l_add', deposits:'d_add', expenses:'e_add', member:'m_add' };
 const EDIT_VIEW = { loans:'loans', deposits:'deposits', expenses:'expenses', member:'members' };
@@ -263,7 +286,9 @@ function fillReg(key, f) {
 }
 function fillMember(m) { setV('m_FullName',m.FullName); setV('m_DOB',m.DOB && m.DOB.length>10 ? '' : m.DOB); setV('m_Phone',m.Phone);
   setV('m_Branch',m.Branch); setV('m_Address',m.Address); setV('m_Aadhaar',''); $('m_Aadhaar').placeholder = 'unchanged ('+ (m.Aadhaar||'') +') — type to replace';
-  setV('m_PAN',m.PAN); setV('m_BankName',m.BankName); setV('m_BankAccount',m.BankAccount); setV('m_IFSC',m.IFSC); }
+  setV('m_PAN',m.PAN); setV('m_BankName',m.BankName); setV('m_BankAccount',m.BankAccount); setV('m_IFSC',m.IFSC);
+  setV('m_ShareCapitalCollected', m.ShareCapitalCollected||0);
+  if ($('m_ShareCapitalMember')) $('m_ShareCapitalMember').value = m.ShareCapitalMember||'No'; }
 function setV(id, v){ if ($(id)) $(id).value = (v == null ? '' : v); }
 
 /* ------------------------ REPAYMENTS: loan list -------------------- */
@@ -468,9 +493,9 @@ function printReceiptObj(r) {
     `<div class="ft">Computer Generated · No Signature Required</div>` +
     `</div>`;
   const css = `
-    @page { size: 9cm 12cm; margin: 3mm; }
+    @page { size: 8cm 12cm; margin: 3mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Consolas','Courier New',monospace; font-size: 7.5pt; width: 8.4cm; }
+    body { font-family: 'Consolas','Courier New',monospace; font-size: 7.5pt; width: 7.4cm; }
     .rc  { width: 100%; }
     .rl  { width: 34px; height: 34px; object-fit: contain; display: block; margin: 0 auto 3px; }
     .bn  { font-size: 10pt; font-weight: bold; text-align: center; margin-bottom: 1px; }
@@ -549,14 +574,23 @@ function printPassbook() {
   const raw = $('pb_rows').dataset.passbook;
   if (!raw) { alert('Load a passbook first.'); return; }
   const { account, rows } = JSON.parse(raw);
-  let h = `<h3 style="text-align:center">${esc(BANK)}</h3>` +
-    `<p style="text-align:center">Savings Passbook — ${esc(account.SavingsID || '')}</p>` +
-    `<p>Member: <b>${esc(account.Member)}</b> &nbsp; Balance: <b>${rupee(account.Balance)}</b></p>` +
-    `<table><tr><th>Txn No</th><th>Date</th><th>Type</th><th>Amount</th><th>Balance</th><th>Note</th></tr>`;
-  rows.forEach(r => h += `<tr><td>${esc(r.TxnNo)}</td><td>${esc(r.Date)}</td><td>${esc(r.Type)}</td>` +
+  const hd = `<div style="text-align:center;margin-bottom:12px">` +
+    `<img src="${LOGO_URL}" style="width:56px;height:56px;object-fit:contain;display:block;margin:0 auto 6px" onerror="this.style.display='none'"/>` +
+    `<h2 style="margin:0;font-size:18px">${esc(BANK)}</h2>` +
+    `<h3 style="margin:2px 0 0;font-weight:normal;font-size:13px">Savings Passbook</h3></div>` +
+    `<table class="meta" style="width:100%;margin-bottom:10px"><tr>` +
+    `<td><b>Savings ID:</b> ${esc(account.SavingsID||'')}</td>` +
+    `<td><b>Member:</b> ${esc(account.Member)}</td></tr><tr>` +
+    `<td><b>Member ID:</b> ${esc(account.MemberID||'')}</td>` +
+    `<td><b>DOB:</b> ${esc(account.DOB||'')}</td></tr><tr>` +
+    `<td colspan="2"><b>Address:</b> ${esc(account.Address||'')}</td></tr>` +
+    `<tr><td><b>Balance:</b> ${rupee(account.Balance)}</td>` +
+    `<td><b>Min Balance:</b> ${rupee(account.MinBalance)}</td></tr></table>`;
+  let t = '<table><tr><th>Txn No</th><th>Date</th><th>Type</th><th>Amount</th><th>Balance</th><th>Note</th></tr>';
+  rows.forEach(r => t += `<tr><td>${esc(r.TxnNo)}</td><td>${esc(r.Date)}</td><td>${esc(r.Type)}</td>` +
     `<td>${rupee(r.Amount)}</td><td>${rupee(r.Balance)}</td><td>${esc(r.Note)}</td></tr>`);
-  h += '</table>';
-  printDoc(h, '@page{size:A4;margin:1.5cm}', 'body{font-size:10px}');
+  t += '</table>';
+  printDoc(hd + t, '@page{size:A4;margin:1.5cm}', 'body{font-size:10px} table.meta td{border:0;padding:3px 6px}');
 }
 
 /* ------------------------------ TRANSFERS -------------------------- */
@@ -585,7 +619,9 @@ function showPhoto(url) {
 async function addMember() {
   $('m_msg').textContent = 'Saving…';
   try { const member = { FullName:val('m_FullName'), DOB:val('m_DOB'), Phone:val('m_Phone'), Address:val('m_Address'),
-      Aadhaar:val('m_Aadhaar'), PAN:val('m_PAN'), BankName:val('m_BankName'), BankAccount:val('m_BankAccount'), IFSC:val('m_IFSC'), Branch:val('m_Branch') };
+      Aadhaar:val('m_Aadhaar'), PAN:val('m_PAN'), BankName:val('m_BankName'), BankAccount:val('m_BankAccount'),
+      IFSC:val('m_IFSC'), Branch:val('m_Branch'),
+      ShareCapitalMember:val('m_ShareCapitalMember'), ShareCapitalCollected:val('m_ShareCapitalCollected') };
     const f = $('m_Photo').files[0]; if (f) { member.PhotoBase64 = await fileToB64(f); member.PhotoMime = f.type; }
     if (editing.type === 'member') { await api('member_edit', { memberId:editing.id, member });
       $('m_msg').textContent = 'Updated ' + editing.id; $('m_Photo').value = ''; clearEdit(); return loadList('members_list', 'm_list', 'member', 'member'); }
@@ -597,7 +633,8 @@ async function showMember(id) {
   try { const { member } = await api('member_get', { memberId: id }); $('m_card').hidden = false;
     const pairs = [['Member ID', member.MemberID], ['Full Name', member.FullName], ['DOB', member.DOB], ['Phone', member.Phone],
       ['Address', member.Address], ['Aadhaar', member.Aadhaar], ['PAN', member.PAN], ['Bank Name', member.BankName],
-      ['Bank A/C', member.BankAccount], ['IFSC', member.IFSC], ['Branch', member.Branch]];
+      ['Bank A/C', member.BankAccount], ['IFSC', member.IFSC], ['Branch', member.Branch],
+      ['Share Capital Member', member.ShareCapitalMember], ['Share Capital Collected', rupee(member.ShareCapitalCollected)]];
     let h = '<div class="summary">' + pairs.map(([k,v]) => `<div><span>${esc(k)} :</span><b>${esc(v)}</b></div>`).join('') + '</div>';
     if (member.PhotoUrl) h += `<div style="margin-top:12px"><button class="ghost" data-photo="${esc(member.PhotoUrl)}">View photo</button></div>`;
     $('m_detail').innerHTML = h; $('m_card').scrollIntoView({ behavior:'smooth' });
