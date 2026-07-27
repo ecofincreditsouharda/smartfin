@@ -1,6 +1,7 @@
+
 /* ---- CONFIG ---- */
 const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwRuT2u72CRkkpx_kR4cL6zUdY_0AA0m-HPRkqZK4OC6D-hxD_RgWbXRQvRVUQaMB0j/exec';   // ends with /exec
-const IDLE_MS = 120 * 1000;   // auto-logout after inactivity (change if too aggressive)
+const IDLE_MS = 60 * 1000;   // auto-logout after inactivity (change if too aggressive)
 
 let session = null, lastSchedule = null, lastMeta = null, lastReceipt = null, curLoanId = '';
 let editing = { type:null, id:null }, lastVoucher = null, repLoans = [];
@@ -84,7 +85,7 @@ document.addEventListener('click', e => {
     tf_go:doTransfer, m_add:addMember, e_add:addExpense, e_print:()=>printVoucher(lastVoucher),
     r_load:()=>openLedger(val('r_LoanId').trim()), r_add:addReceipt, r_print:()=>printReceiptObj(lastReceipt),
     r_min:minimiseLedger, rep_load:loadReport, rep_print:printReport, soc_save:socSave, soc_txn:socTxn, br_save:branchSave,
-    set_save:saveSettings, u_add:addUser, cp_go:changePw, logoutBtn:logout };
+    set_save:saveSettings, u_add:addUser, cp_go:changePw, reset_go:resetAll, logoutBtn:logout };
   if (map[t.id]) return map[t.id]();
   if (d.loan) return showSchedule(d.loan);
   if (d.member) return showMember(d.member);
@@ -108,14 +109,22 @@ function logout(){ clearTimeout(idleTimer); localStorage.removeItem('coop_token'
 function start(user) {
   session = user; if (user.bankName) { BANK = user.bankName; applyBranding(BANK); }
   $('gate').hidden = true; $('splash').hidden = true; $('app').hidden = false; resetIdle();
-  const canWrite = ['Admin','BranchManager','Operator'].includes(user.role);
-  const canReport = canWrite, canSettings = ['Admin','BranchManager'].includes(user.role), isAdmin = user.role === 'Admin';
-  $('who').innerHTML = `<span>${esc(user.name)} · <b>${esc(user.role)}</b>${(user.role!=='Admin'&&user.role!=='Director') ? ' · '+esc(user.branch||'—') : ''}</span>` +
+  const role = user.role;
+  const canWrite    = ['Admin','BranchManager','Operator'].includes(role);
+  const canReport   = canWrite;
+  const canSettings = ['Admin','BranchManager'].includes(role);
+  const canSociety  = ['Admin','BranchManager'].includes(role);
+  const isAdmin     = role === 'Admin';
+  // #6 readable role label (split BranchManager → Branch Manager)
+  const roleLabel = role.replace(/([a-z])([A-Z])/g, '$1 $2');
+  const branchLabel = (role !== 'Admin' && role !== 'Director') ? ' · ' + esc(user.branch || '—') : '';
+  $('who').innerHTML = `<span>${esc(user.name)} · <b>${esc(roleLabel)}</b>${branchLabel}</span>` +
     `<button id="logoutBtn">Sign out</button>`;
-  document.querySelectorAll('.add-only').forEach(el => el.style.display = canWrite ? '' : 'none');
-  document.querySelectorAll('.report-only').forEach(el => el.style.display = canReport ? '' : 'none');
+  document.querySelectorAll('.add-only').forEach(el    => el.style.display = canWrite    ? '' : 'none');
+  document.querySelectorAll('.report-only').forEach(el => el.style.display = canReport   ? '' : 'none');
   document.querySelectorAll('.settings-only').forEach(el => el.style.display = canSettings ? '' : 'none');
-  document.querySelectorAll('.admin-only').forEach(el => el.style.display = isAdmin ? '' : 'none');
+  document.querySelectorAll('.society-only').forEach(el => el.style.display = canSociety  ? '' : 'none');
+  document.querySelectorAll('.admin-only').forEach(el  => el.style.display = isAdmin     ? '' : 'none');
   populateBranchSelects();
   showView('dashboard');
 }
@@ -615,6 +624,14 @@ async function saveSettings() {
   } catch (err) { $('set_msg').textContent = ''; alert(err.message); }
 }
 
+async function resetAll() {
+  if (val('reset_confirm').trim() !== 'RESET') { $('reset_msg').textContent = 'Type RESET to confirm.'; return; }
+  if (!confirm('This will permanently delete ALL transaction data. User accounts will be kept.\n\nAre you absolutely sure?')) return;
+  $('reset_msg').textContent = 'Deleting…';
+  try { const { message } = await api('reset_all', { confirm:'CONFIRMED' });
+    $('reset_msg').textContent = message; $('reset_confirm').value = '';
+  } catch (err) { $('reset_msg').textContent = err.message; }
+}
 /* ------------------------------ USERS ------------------------------ */
 async function loadUsers() {
   try { const { users } = await api('users_list');
