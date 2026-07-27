@@ -51,10 +51,10 @@
     <button class="navbtn" data-view="repayments">Repayments</button>
     <button class="navbtn" data-view="deposits">Fixed Deposits</button>
     <button class="navbtn" data-view="savings">Savings</button>
-    <button class="navbtn" data-view="transfers">Transfers</button>
+    <button class="navbtn no-director" data-view="transfers">Transfers</button>
     <button class="navbtn society-only" data-view="society">Society Bank</button>
     <button class="navbtn" data-view="expenses">Expenses</button>
-    <button class="navbtn report-only" data-view="reports">Reports</button>
+    <button class="navbtn report-only director-report" data-view="reports">Reports</button>
     <button class="navbtn settings-only" data-view="settings">Settings</button>
     <button class="navbtn admin-only" data-view="users">Users</button>
     <button class="navbtn" data-view="account">My account</button>
@@ -82,6 +82,7 @@
           <label>Bank Account No.<input id="m_BankAccount" /></label>
           <label>IFSC Code<input id="m_IFSC" /></label>
           <label>Photo<input id="m_Photo" type="file" accept="image/*" /></label>
+          <label>ID Proof (jpeg/png/pdf)<input id="m_IdProof" type="file" accept="image/jpeg,image/png,application/pdf" /></label>
           <label>Share Capital Member<select id="m_ShareCapitalMember"><option value="No">No</option><option value="Yes">Yes</option></select></label>
           <label>Share Capital Collected (₹)<input id="m_ShareCapitalCollected" type="number" value="0" /></label>
         </div>
@@ -199,7 +200,7 @@
       <div class="card"><div class="card-head"><h2>Savings accounts</h2><button class="ghost" data-refresh="savings">Refresh</button></div>
         <div class="grid" style="margin-bottom:10px"><label>Search savings<input id="s_search" placeholder="name · member ID · phone · savings ID" /></label></div>
         <div id="s_list"></div></div>
-      <div class="card add-only"><h2>Deposit / Withdraw</h2>
+      <div class="card add-only no-director"><h2>Deposit / Withdraw</h2>
         <div class="grid">
           <label>Savings ID / Member ID / Name / Phone<input id="st_SavingsID" placeholder="any of the above" /></label>
           <label>Type<select id="st_Type"><option>Deposit</option><option>Withdraw</option><option>Interest</option></select></label>
@@ -208,7 +209,7 @@
           <label>Note<input id="st_Note" /></label>
         </div>
         <div class="actions"><button id="st_go" class="primary">Post transaction</button><span id="st_msg" class="msg"></span></div></div>
-      <div class="card"><h2>Passbook</h2>
+      <div class="card no-director-passbook"><h2>Passbook</h2>
         <div class="grid">
           <label>Search (Name / Phone / Member ID / Savings ID)<input id="pb_SavingsID" placeholder="any of the above" /></label>
           <label>From Date<input id="pb_from" type="date" /></label>
@@ -327,7 +328,14 @@
     </section>
 
     <section class="view" id="view-account" hidden>
-      <div class="card narrow"><h2>Change my password</h2>
+      <div class="card narrow profile-card"><h2>My Profile</h2>
+        <label>Name<input id="prof_Name" /></label>
+        <label>Display Name<input id="prof_DisplayName" /></label>
+        <label>Phone<input id="prof_Phone" /></label>
+        <label>Email<input id="prof_Email" /></label>
+        <label>Address<input id="prof_Address" /></label>
+        <div class="actions"><button id="prof_save" class="primary">Save profile</button><span id="prof_msg" class="msg"></span></div></div>
+      <div class="card narrow"><h2>Change password</h2>
         <label>Current<input id="cp_Old" type="password" /></label>
         <label>New (8+)<input id="cp_New" type="password" /></label>
         <div class="actions"><button id="cp_go" class="primary">Update password</button><span id="cp_msg" class="msg"></span></div></div>
