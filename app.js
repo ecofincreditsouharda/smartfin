@@ -247,6 +247,17 @@ async function loadList(action, target, linkKind, editKey) {
   } catch (err) { $(target).innerHTML = `<p class="err">${err.message}</p>`; }
 }
 
+/* ------------------------------ TOAST ------------------------------ */
+function showToast(msg, type) {
+  // type: 'ok' | 'warn' | 'err'
+  let toast = $('app-toast');
+  if (!toast) { toast = document.createElement('div'); toast.id = 'app-toast'; document.body.appendChild(toast); }
+  toast.textContent = msg;
+  toast.className = 'toast toast-' + (type||'ok') + ' toast-show';
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => { toast.className = 'toast'; }, 4000);
+}
+
 /* ------------------------------ CLEAR FORMS ------------------------ */
 function clearForm(section) {
   const maps = {
@@ -646,8 +657,16 @@ async function addMember() {
     if (idp) { member.IdProofBase64 = await fileToB64(idp); member.IdProofMime = idp.type; member.IdProofName = idp.name; }
     if (editing.type === 'member') { await api('member_edit', { memberId:editing.id, member });
       $('m_msg').textContent = 'Updated ' + editing.id; $('m_Photo').value = ''; clearEdit(); return loadList('members_list', 'm_list', 'member', 'member'); }
-    const { memberId, warning } = await api('members_add', { member });
-    $('m_msg').textContent = warning ? warning : ('Saved ' + memberId); $('m_Photo').value = ''; loadList('members_list', 'm_list', 'member', 'member');
+    const { memberId, photoUrl, idProofUrl, warning } = await api('members_add', { member });
+    $('m_Photo').value = ''; if ($('m_IdProof')) $('m_IdProof').value = '';
+    // Build status message
+    let statusMsg = '✅ Member saved — ' + memberId;
+    if (photoUrl)   statusMsg += ' · 📷 Photo uploaded';
+    if (idProofUrl) statusMsg += ' · 📄 ID Proof uploaded';
+    if (warning)    statusMsg += '\n⚠ ' + warning;
+    $('m_msg').textContent = statusMsg;
+    showToast(photoUrl || idProofUrl ? '✅ Files uploaded to Google Drive' : (warning ? '⚠ ' + warning : '✅ Member saved'), warning ? 'warn' : 'ok');
+    loadList('members_list', 'm_list', 'member', 'member');
   } catch (err) { $('m_msg').textContent = ''; alert(err.message); }
 }
 async function showMember(id) {
