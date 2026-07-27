@@ -105,6 +105,7 @@
           <label>Disbursement Date<input id="l_DisbursementDate" type="date" /></label>
           <label>First EMI Date<input id="l_FirstEMIDate" type="date" /></label>
           <label>Custom EMI (optional)<input id="l_CustomEMI" type="number" placeholder="blank = base EMI" /></label>
+          <label>Collector (optional)<select id="l_Collector" class="collector-select"><option value="">— select collector —</option></select></label>
         </div>
         <div class="actions"><button id="l_preview" class="ghost">Preview</button>
           <button id="l_add" class="primary" hidden>Confirm &amp; Save</button><span id="l_msg" class="msg"></span></div>
@@ -113,7 +114,9 @@
         <div class="card-head"><h2 id="l_schedTitle">Schedule</h2>
           <span><button class="ghost" id="l_print">Print (A4)</button><button class="ghost" id="l_min">Minimise</button></span></div>
         <div id="l_summary" class="summary"></div><div id="l_sched" class="scrolly"></div></div>
-      <div class="card"><div class="card-head"><h2>Loans</h2><button class="ghost" data-refresh="loans">Refresh</button></div><div id="l_list"></div></div>
+      <div class="card"><div class="card-head"><h2>Loans</h2><button class="ghost" data-refresh="loans">Refresh</button></div>
+        <div class="grid" style="margin-bottom:10px"><label>Search loans<input id="l_search" placeholder="name · member ID · phone" /></label></div>
+        <div id="l_list"></div></div>
     </section>
 
     <section class="view" id="view-repayments" hidden>
@@ -153,11 +156,14 @@
           <label>Start Date<input id="d_StartDate" type="date" /></label>
           <label>Payout Mode<input id="d_PayoutMode" value="On Maturity" /></label>
           <label>Remarks<input id="d_Remarks" /></label>
+          <label>Nominee<input id="d_Nominee" /></label>
         </div>
         <div class="actions"><button id="d_preview" class="ghost">Preview maturity</button>
           <button id="d_add" class="primary" hidden>Confirm &amp; Save</button><span id="d_msg" class="msg"></span></div>
         <div id="d_prev" class="summary"></div></div>
-      <div class="card"><div class="card-head"><h2>Fixed Deposits</h2><button class="ghost" data-refresh="deposits">Refresh</button></div><div id="d_list"></div></div>
+      <div class="card"><div class="card-head"><h2>Fixed Deposits</h2><button class="ghost" data-refresh="deposits">Refresh</button></div>
+        <div class="grid" style="margin-bottom:10px"><label>Search deposits<input id="d_search" placeholder="name · member ID · phone" /></label></div>
+        <div id="d_list"></div></div>
       <div class="card add-only"><h2>Withdraw a fixed deposit</h2>
         <div class="grid">
           <label>Deposit ID<input id="w_DepositID" /></label>
@@ -179,12 +185,15 @@
           <label>Interest Rate (% p.a.)<input id="s_Rate" type="number" step="0.01" value="4" /></label>
           <label>Minimum Balance (₹)<input id="s_MinBalance" type="number" value="500" /></label>
           <label>Open Date<input id="s_OpenDate" type="date" /></label>
+          <label>Nominee<input id="s_Nominee" /></label>
         </div>
         <div class="actions"><button id="s_open" class="primary">Open account</button><span id="s_msg" class="msg"></span></div></div>
-      <div class="card"><div class="card-head"><h2>Savings accounts</h2><button class="ghost" data-refresh="savings">Refresh</button></div><div id="s_list"></div></div>
+      <div class="card"><div class="card-head"><h2>Savings accounts</h2><button class="ghost" data-refresh="savings">Refresh</button></div>
+        <div class="grid" style="margin-bottom:10px"><label>Search savings<input id="s_search" placeholder="name · member ID · phone · savings ID" /></label></div>
+        <div id="s_list"></div></div>
       <div class="card add-only"><h2>Deposit / Withdraw</h2>
         <div class="grid">
-          <label>Savings ID<input id="st_SavingsID" /></label>
+          <label>Savings ID / Member ID / Name / Phone<input id="st_SavingsID" placeholder="any of the above" /></label>
           <label>Type<select id="st_Type"><option>Deposit</option><option>Withdraw</option><option>Interest</option></select></label>
           <label>Amount (₹)<input id="st_Amount" type="number" /></label>
           <label>Date<input id="st_Date" type="date" /></label>
@@ -192,7 +201,7 @@
         </div>
         <div class="actions"><button id="st_go" class="primary">Post transaction</button><span id="st_msg" class="msg"></span></div></div>
       <div class="card"><h2>Passbook</h2>
-        <div class="grid"><label>Savings ID<input id="pb_SavingsID" /></label></div>
+        <div class="grid"><label>Search (Name / Phone / Member ID / Savings ID)<input id="pb_SavingsID" placeholder="any of the above" /></label></div>
         <div class="actions"><button id="pb_load" class="primary">Load passbook</button></div>
         <div id="pb_summary" class="summary"></div><div id="pb_rows" class="scrolly"></div></div>
     </section>
@@ -200,8 +209,8 @@
     <section class="view" id="view-transfers" hidden>
       <div class="card add-only"><h2>Transfer between members (Savings)</h2>
         <div class="grid">
-          <label>From Savings ID<input id="tf_From" /></label>
-          <label>To Savings ID<input id="tf_To" /></label>
+          <label>From (Savings ID / Member ID)<input id="tf_From" placeholder="savings ID or member ID" /></label>
+          <label>To (Savings ID / Member ID)<input id="tf_To" placeholder="savings ID or member ID" /></label>
           <label>Amount (₹)<input id="tf_Amount" type="number" /></label>
           <label>Date<input id="tf_Date" type="date" /></label>
           <label>Note<input id="tf_Note" /></label>
