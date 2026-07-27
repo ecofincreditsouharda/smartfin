@@ -669,6 +669,28 @@ async function addMember() {
     loadList('members_list', 'm_list', 'member', 'member');
   } catch (err) { $('m_msg').textContent = ''; alert(err.message); }
 }
+async function uploadMemberFile(memberId, type) {
+  const fileInput = type === 'photo' ? $('mu_Photo_'+memberId) : $('mu_IdProof_'+memberId);
+  const msgEl = $('mu_msg_'+memberId);
+  if (!fileInput || !fileInput.files[0]) { if (msgEl) msgEl.textContent = 'Please select a file first.'; return; }
+  const f = fileInput.files[0];
+  if (msgEl) msgEl.textContent = 'Uploading…';
+  try {
+    const b64 = await fileToB64(f);
+    const member = type === 'photo'
+      ? { PhotoBase64: b64, PhotoMime: f.type }
+      : { IdProofBase64: b64, IdProofMime: f.type, IdProofName: f.name };
+    const { photoUrl, idProofUrl, warning } = await api('member_update_files', { memberId, member });
+    if (warning && !photoUrl && !idProofUrl) {
+      if (msgEl) msgEl.textContent = '⚠ ' + warning;
+      showToast('⚠ ' + warning, 'warn');
+    } else {
+      if (msgEl) msgEl.textContent = '✅ Uploaded successfully';
+      showToast('✅ File uploaded to Google Drive', 'ok');
+      setTimeout(() => showMember(memberId), 800);
+    }
+  } catch(err) { if (msgEl) msgEl.textContent = '⚠ ' + err.message; showToast('⚠ ' + err.message, 'err'); }
+}
 async function showMember(id) {
   try { const { member } = await api('member_get', { memberId: id }); $('m_card').hidden = false;
     const pairs = [['Member ID', member.MemberID], ['Full Name', member.FullName], ['DOB', member.DOB], ['Phone', member.Phone],
@@ -676,10 +698,21 @@ async function showMember(id) {
       ['Bank A/C', member.BankAccount], ['IFSC', member.IFSC], ['Branch', member.Branch],
       ['Share Capital Member', member.ShareCapitalMember], ['Share Capital Collected', rupee(member.ShareCapitalCollected)]];
     let h = '<div class="summary">' + pairs.map(([k,v]) => `<div><span>${esc(k)} :</span><b>${esc(v)}</b></div>`).join('') + '</div>';
-    // Photo
-    if (member.PhotoUrl) h += `<div style="margin-top:12px"><button class="ghost" data-photo="${esc(member.PhotoUrl)}">📷 View photo</button></div>`;
-    // ID Proof
-    if (member.IdProofUrl) h += `<div style="margin-top:8px"><a href="${esc(member.IdProofUrl)}" target="_blank" style="display:inline-block;padding:8px 14px;border-radius:10px;background:#eaf1fb;color:#2c4a7c;text-decoration:none;font-size:13px">📄 View ID Proof${member.IdProofName ? ' — '+esc(member.IdProofName) : ''}</a></div>`;
+    // Photo section
+    if (member.PhotoUrl) {
+      h += `<div style="margin-top:12px"><button class="ghost" data-photo="${esc(member.PhotoUrl)}">📷 View photo</button></div>`;
+    } else {
+      h += `<div style="margin-top:12px"><label style="font-size:12px;color:#5b6472">📷 Upload Photo<input type="file" id="mu_Photo_${esc(member.MemberID)}" accept="image/*" style="margin-left:8px"/></label>
+        <button class="ghost" style="margin-top:6px" onclick="uploadMemberFile('${esc(member.MemberID)}','photo')">Upload Photo</button></div>`;
+    }
+    // ID Proof section
+    if (member.IdProofUrl) {
+      h += `<div style="margin-top:8px"><a href="${esc(member.IdProofUrl)}" target="_blank" style="display:inline-block;padding:8px 14px;border-radius:10px;background:#eaf1fb;color:#2c4a7c;text-decoration:none;font-size:13px">📄 View ID Proof${member.IdProofName ? ' — '+esc(member.IdProofName) : ''}</a></div>`;
+    } else {
+      h += `<div style="margin-top:8px"><label style="font-size:12px;color:#5b6472">📄 Upload ID Proof (jpg/png/pdf)<input type="file" id="mu_IdProof_${esc(member.MemberID)}" accept="image/jpeg,image/png,application/pdf" style="margin-left:8px"/></label>
+        <button class="ghost" style="margin-top:6px" onclick="uploadMemberFile('${esc(member.MemberID)}','idproof')">Upload ID Proof</button></div>`;
+    }
+    h += `<div id="mu_msg_${esc(member.MemberID)}" style="margin-top:8px;font-size:13px;color:#5b6472"></div>`;
     // Linked loans
     if (member.loans && member.loans.length) {
       h += `<h3 style="margin:16px 0 8px;font-size:14px;color:#0f1720">Loans</h3>`;
