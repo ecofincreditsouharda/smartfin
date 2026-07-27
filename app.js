@@ -119,6 +119,7 @@ document.addEventListener('click', e => {
   const map = { l_preview:previewLoan, l_add:addLoan, l_print:printSchedule, l_min:()=>{ $('l_schedCard').hidden = true; },
     d_preview:previewDeposit, d_add:addDeposit, w_go:fdWithdraw, s_open:savingsOpen, st_go:savingsTxn, pb_load:loadPassbook, pb_print:printPassbook,
     tf_go:doTransfer, m_add:addMember, e_add:addExpense, e_print:()=>printVoucher(lastVoucher),
+    m_close:()=>{ $('m_card').hidden = true; },
     r_load:()=>openLedger(val('r_LoanId').trim()), r_add:addReceipt, r_print:()=>printReceiptObj(lastReceipt),
     r_min:minimiseLedger, rep_load:loadReport, rep_print:printReport, soc_save:socSave, soc_txn:socTxn, br_save:branchSave,
     set_save:saveSettings, u_add:addUser, cp_go:changePw, prof_save:saveProfile, reset_go:resetAll, logoutBtn:logout };
