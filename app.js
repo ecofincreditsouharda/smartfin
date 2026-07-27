@@ -1,4 +1,3 @@
-
 /* ---- CONFIG ---- */
 const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwRuT2u72CRkkpx_kR4cL6zUdY_0AA0m-HPRkqZK4OC6D-hxD_RgWbXRQvRVUQaMB0j/exec';   // ends with /exec
 const IDLE_MS = 60 * 1000;   // auto-logout after inactivity (change if too aggressive)
@@ -64,7 +63,20 @@ function applyBranding(name) {
 document.addEventListener('change', e => { if (e.target.id === 'r_Mode') $('r_UtrWrap').hidden = (e.target.value !== 'UPI');
   if (e.target.id === 'rep_sheet') repPeriodToggle();
   if (e.target.id === 'e_Category') $('e_ToWrap').hidden = (e.target.value !== 'External Expenses'); });
-document.addEventListener('input', e => { if (e.target.id === 'r_search') filterLoanList(); });
+document.addEventListener('blur', async e => {
+  if (e.target.id === 'l_Borrower' && val('l_Borrower').trim() && !val('l_MemberID').trim())
+    await autofillMember(val('l_Borrower').trim(), null, 'l_MemberID');
+  if (e.target.id === 'l_MemberID' && val('l_MemberID').trim() && !val('l_Borrower').trim())
+    await autofillMember(val('l_MemberID').trim(), 'l_Borrower', null);
+  if (e.target.id === 's_MemberID' && val('s_MemberID').trim())
+    await autofillMember(val('s_MemberID').trim(), 's_MemberName', null);
+}, true);
+document.addEventListener('input', e => {
+  if (e.target.id === 'r_search') filterLoanList();
+  if (e.target.id === 'l_search') filterList(allLoans, val('l_search'), 'l_list', 'loan', 'loans');
+  if (e.target.id === 'd_search') filterList(allDeposits, val('d_search'), 'd_list', null, 'deposits');
+  if (e.target.id === 's_search') filterList(allSavings, val('s_search'), 's_list');
+});
 document.addEventListener('click', e => {
   const t = e.target, d = t.dataset || {};
   if (d.pwtoggle) { const f = $(d.pwtoggle), show = f.type === 'password'; f.type = show ? 'text' : 'password'; t.textContent = show ? 'Hide' : 'Show'; return; }
@@ -110,12 +122,13 @@ function start(user) {
   session = user; if (user.bankName) { BANK = user.bankName; applyBranding(BANK); }
   $('gate').hidden = true; $('splash').hidden = true; $('app').hidden = false; resetIdle();
   const role = user.role;
-  const canWrite    = ['Admin','BranchManager','Operator'].includes(role);
+  const canWrite    = ['Admin','BranchManager','Operator','Collector'].includes(role);
   const canReport   = canWrite;
   const canSettings = ['Admin','BranchManager'].includes(role);
   const canSociety  = ['Admin','BranchManager'].includes(role);
   const isAdmin     = role === 'Admin';
-  // #6 readable role label (split BranchManager → Branch Manager)
+  const isCollector = role === 'Collector';
+  // hide everything except Repayments and Dashboard for Collector
   const roleLabel = role.replace(/([a-z])([A-Z])/g, '$1 $2');
   const branchLabel = (role !== 'Admin' && role !== 'Director') ? ' · ' + esc(user.branch || '—') : '';
   $('who').innerHTML = `<span>${esc(user.name)} · <b>${esc(roleLabel)}</b>${branchLabel}</span>` +
@@ -125,7 +138,10 @@ function start(user) {
   document.querySelectorAll('.settings-only').forEach(el => el.style.display = canSettings ? '' : 'none');
   document.querySelectorAll('.society-only').forEach(el => el.style.display = canSociety  ? '' : 'none');
   document.querySelectorAll('.admin-only').forEach(el  => el.style.display = isAdmin     ? '' : 'none');
-  populateBranchSelects();
+  // Collector: hide all nav except dashboard + repayments
+  if (isCollector) document.querySelectorAll('.navbtn').forEach(b => {
+    if (b.dataset.view !== 'dashboard' && b.dataset.view !== 'repayments') b.style.display = 'none'; });
+  populateBranchSelects(); populateCollectorSelect();
   showView('dashboard');
 }
 async function populateBranchSelects() {
@@ -176,19 +192,10 @@ async function loadDashboard() {
 /* --------------------------- GENERIC LIST -------------------------- */
 async function loadList(action, target, linkKind, editKey) {
   try { const { rows } = await api(action);
-    if (!rows.length) { $(target).innerHTML = '<p class="msg">Nothing to show.</p>'; return; }
-    const cols = Object.keys(rows[0]); const money = /amount|emi|repayable|value|paid|balance|arrears|min/i;
-    const hasBtn = linkKind || editKey;
-    let h = '<table><tr>' + cols.map(c => `<th>${esc(c)}</th>`).join('') + (hasBtn ? '<th></th>' : '') + '</tr>';
-    rows.forEach(r => { const id = r[cols[0]]; h += '<tr>' + cols.map(c => `<td>${money.test(c) ? rupee(r[c]) : esc(r[c])}</td>`).join('');
-      if (hasBtn) { h += '<td>';
-        if (linkKind === 'loan') h += `<button class="ghost" data-loan="${esc(id)}">Schedule</button> `;
-        if (linkKind === 'member') h += `<button class="ghost" data-member="${esc(id)}">View</button> `;
-        if (editKey === 'expenses') h += `<button class="ghost" data-voucher="${esc(id)}">Voucher</button> `;
-        if (editKey) h += `<button class="ghost" data-edit="${esc(editKey)}:${esc(id)}">Edit</button>`;
-        h += '</td>'; }
-      h += '</tr>'; });
-    $(target).innerHTML = h + '</table>';
+    if (action === 'loans_list')    allLoans    = rows;
+    if (action === 'deposits_list') allDeposits = rows;
+    if (action === 'savings_list')  allSavings  = rows;
+    renderListHtml(rows, target, linkKind, editKey);
   } catch (err) { $(target).innerHTML = `<p class="err">${err.message}</p>`; }
 }
 
@@ -251,11 +258,55 @@ function renderLoanList() {
 function openLedger(id) { if (!id) return; $('r_LoanId').value = id; loadLedger(); }
 function minimiseLedger() { ['r_ledgerHead','r_addCard','r_recCard','r_schedCard'].forEach(x => $(x).hidden = true); }
 
+/* ---- Collector select (shows users with Collector role for the branch) ---- */
+let collectorUsers = [];
+async function populateCollectorSelect() {
+  if (!$('l_Collector')) return;
+  try { const { users } = await api('users_list').catch(()=>({users:[]}));
+    collectorUsers = (users||[]).filter(u => u.Role === 'Collector' && (session.role === 'Admin' || u.Branch === session.branch));
+    $('l_Collector').innerHTML = '<option value="">— select collector —</option>' +
+      collectorUsers.map(u => `<option value="${esc(u.UserID)}">${esc(u.Name)} (${esc(u.Branch)})</option>`).join('');
+  } catch(e) {}
+}
+
+/* ---- Member autofill (used by loans + savings open) ---- */
+async function autofillMember(query, nameId, memberIdId) {
+  if (!query) return;
+  try { const { member } = await api('member_lookup', { query });
+    if (nameId && $(nameId)) $(nameId).value = member.FullName;
+    if (memberIdId && $(memberIdId)) $(memberIdId).value = member.MemberID;
+    return member;
+  } catch (e) { return null; }
+}
+
+/* ---- Client-side list search ---- */
+let allLoans = [], allDeposits = [], allSavings = [];
+function filterList(rows, query, target, linkKind, editKey) {
+  const q = (query||'').toLowerCase().trim();
+  const filtered = !q ? rows : rows.filter(r => Object.values(r).some(v => String(v).toLowerCase().includes(q)));
+  renderListHtml(filtered, target, linkKind, editKey);
+}
+function renderListHtml(rows, target, linkKind, editKey) {
+  if (!rows || !rows.length) { $(target).innerHTML = '<p class="msg">Nothing to show.</p>'; return; }
+  const cols = Object.keys(rows[0]); const money = /amount|emi|repayable|value|paid|balance|arrears|min/i;
+  const hasBtn = linkKind || editKey;
+  let h = '<table><tr>' + cols.map(c => `<th>${esc(c)}</th>`).join('') + (hasBtn ? '<th></th>' : '') + '</tr>';
+  rows.forEach(r => { const id = r[cols[0]]; h += '<tr>' + cols.map(c => `<td>${money.test(c) ? rupee(r[c]) : esc(r[c])}</td>`).join('');
+    if (hasBtn) { h += '<td>';
+      if (linkKind === 'loan') h += `<button class="ghost" data-loan="${esc(id)}">Schedule</button> `;
+      if (linkKind === 'member') h += `<button class="ghost" data-member="${esc(id)}">View</button> `;
+      if (editKey === 'expenses') h += `<button class="ghost" data-voucher="${esc(id)}">Voucher</button> `;
+      if (editKey) h += `<button class="ghost" data-edit="${esc(editKey)}:${esc(id)}">Edit</button>`;
+      h += '</td>'; } h += '</tr>'; });
+  $(target).innerHTML = h + '</table>';
+}
+
 /* ------------------------------ LOANS ------------------------------ */
 function loanFromForm() { return { Borrower:val('l_Borrower'), MemberID:val('l_MemberID'), LoanType:val('l_LoanType'),
   Branch:val('l_Branch'), Amount:val('l_Amount'), RateAnnual:Number(val('l_RatePct'))/100, TenureMonths:val('l_TenureMonths'),
   Method:val('l_Method'), Frequency:val('l_Frequency'), SanctionDate:val('l_SanctionDate'),
-  DisbursementDate:val('l_DisbursementDate'), FirstEMIDate:val('l_FirstEMIDate'), CustomEMI:val('l_CustomEMI') }; }
+  DisbursementDate:val('l_DisbursementDate'), FirstEMIDate:val('l_FirstEMIDate'), CustomEMI:val('l_CustomEMI'),
+  Collector:val('l_Collector') }; }
 async function previewLoan() {
   $('l_msg').textContent = 'Calculating…';
   try { const { result, meta } = await api('loan_preview', { loan: loanFromForm() });
@@ -301,7 +352,8 @@ function printSchedule() {
   const foot = `<div class="foot">${esc(m.branch)} Branch${m.branchAddress ? ' — ' + esc(m.branchAddress) : ''}` +
     `${m.branchPhone ? ' · Phone: ' + esc(m.branchPhone) : ''}${m.email ? ' · Email: ' + esc(m.email) : ''}</div>`;
   printDoc(printHeader('Amortization Schedule') + info + schedTable(lastSchedule) + sign + foot,
-    '@page{size:A4;margin:2cm 1cm}', 'body{font-size:11px}');
+    '@page{size:A4;margin:2cm 1cm}',
+    'body{font-size:11px} .hd{text-align:center;display:block} .hd h2{font-size:18px} table{font-size:10pt} th,td{font-size:10pt}');
 }
 /* In-place printing via a hidden iframe — no new tab (PWA-safe) */
 function printDoc(inner, pageCss, extraCss) {
@@ -393,7 +445,7 @@ function printReceiptObj(r) {
 /* --------------------------- FIXED DEPOSITS ------------------------ */
 function depositFromForm() { return { Depositor:val('d_Depositor'), MemberID:val('d_MemberID'), DepositType:'Fixed Deposit',
   Branch:val('d_Branch'), Amount:val('d_Amount'), RateAnnual:Number(val('d_RatePct'))/100, TenureMonths:val('d_TenureMonths'),
-  StartDate:val('d_StartDate'), PayoutMode:val('d_PayoutMode'), Remarks:val('d_Remarks') }; }
+  StartDate:val('d_StartDate'), PayoutMode:val('d_PayoutMode'), Remarks:val('d_Remarks'), Nominee:val('d_Nominee') }; }
 async function previewDeposit() {
   $('d_msg').textContent = 'Calculating…';
   try { const { result } = await api('deposit_preview', { deposit: depositFromForm() });
@@ -425,7 +477,8 @@ async function fdWithdraw() {
 async function savingsOpen() {
   $('s_msg').textContent = 'Saving…';
   try { const { savingsId } = await api('savings_open', { account: { MemberID:val('s_MemberID'), MemberName:val('s_MemberName'),
-      Branch:val('s_Branch'), Rate:Number(val('s_Rate'))/100, MinBalance:val('s_MinBalance'), OpenDate:val('s_OpenDate') } });
+      Branch:val('s_Branch'), Rate:Number(val('s_Rate'))/100, MinBalance:val('s_MinBalance'),
+      OpenDate:val('s_OpenDate'), Nominee:val('s_Nominee') } });
     $('s_msg').textContent = 'Opened ' + savingsId; loadList('savings_list', 's_list');
   } catch (err) { $('s_msg').textContent = ''; alert(err.message); }
 }
