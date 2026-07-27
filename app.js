@@ -1,6 +1,7 @@
+
 /* ---- CONFIG ---- */
 const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwRuT2u72CRkkpx_kR4cL6zUdY_0AA0m-HPRkqZK4OC6D-hxD_RgWbXRQvRVUQaMB0j/exec';   // ends with /exec
-const IDLE_MS = 60 * 1000;   // auto-logout after inactivity (change if too aggressive)
+const IDLE_MS = 120 * 1000;   // auto-logout after inactivity (change if too aggressive)
 
 let session = null, lastSchedule = null, lastMeta = null, lastReceipt = null, curLoanId = '';
 let editing = { type:null, id:null }, lastVoucher = null, repLoans = [];
@@ -70,12 +71,17 @@ document.addEventListener('blur', async e => {
     await autofillMember(val('l_MemberID').trim(), 'l_Borrower', null);
   if (e.target.id === 's_MemberID' && val('s_MemberID').trim())
     await autofillMember(val('s_MemberID').trim(), 's_MemberName', null);
+  if (e.target.id === 'l_G1MemberID' && val('l_G1MemberID').trim() && !val('l_G1Name').trim())
+    await autofillMember(val('l_G1MemberID').trim(), 'l_G1Name', null);
+  if (e.target.id === 'l_G2MemberID' && val('l_G2MemberID').trim() && !val('l_G2Name').trim())
+    await autofillMember(val('l_G2MemberID').trim(), 'l_G2Name', null);
 }, true);
 document.addEventListener('input', e => {
   if (e.target.id === 'r_search') filterLoanList();
-  if (e.target.id === 'l_search') filterList(allLoans, val('l_search'), 'l_list', 'loan', 'loans');
+  if (e.target.id === 'l_search') filterList(allLoans,    val('l_search'), 'l_list', 'loan', 'loans');
   if (e.target.id === 'd_search') filterList(allDeposits, val('d_search'), 'd_list', null, 'deposits');
-  if (e.target.id === 's_search') filterList(allSavings, val('s_search'), 's_list');
+  if (e.target.id === 's_search') filterList(allSavings,  val('s_search'), 's_list');
+  if (e.target.id === 'm_search') filterList(allMembers,  val('m_search'), 'm_list', 'member', 'member');
 });
 document.addEventListener('click', e => {
   const t = e.target, d = t.dataset || {};
@@ -195,6 +201,7 @@ async function loadList(action, target, linkKind, editKey) {
     if (action === 'loans_list')    allLoans    = rows;
     if (action === 'deposits_list') allDeposits = rows;
     if (action === 'savings_list')  allSavings  = rows;
+    if (action === 'members_list')  allMembers  = rows;
     renderListHtml(rows, target, linkKind, editKey);
   } catch (err) { $(target).innerHTML = `<p class="err">${err.message}</p>`; }
 }
@@ -280,7 +287,7 @@ async function autofillMember(query, nameId, memberIdId) {
 }
 
 /* ---- Client-side list search ---- */
-let allLoans = [], allDeposits = [], allSavings = [];
+let allLoans = [], allDeposits = [], allSavings = [], allMembers = [];
 function filterList(rows, query, target, linkKind, editKey) {
   const q = (query||'').toLowerCase().trim();
   const filtered = !q ? rows : rows.filter(r => Object.values(r).some(v => String(v).toLowerCase().includes(q)));
@@ -306,7 +313,9 @@ function loanFromForm() { return { Borrower:val('l_Borrower'), MemberID:val('l_M
   Branch:val('l_Branch'), Amount:val('l_Amount'), RateAnnual:Number(val('l_RatePct'))/100, TenureMonths:val('l_TenureMonths'),
   Method:val('l_Method'), Frequency:val('l_Frequency'), SanctionDate:val('l_SanctionDate'),
   DisbursementDate:val('l_DisbursementDate'), FirstEMIDate:val('l_FirstEMIDate'), CustomEMI:val('l_CustomEMI'),
-  Collector:val('l_Collector') }; }
+  Collector:val('l_Collector'),
+  G1Name:val('l_G1Name'), G1MemberID:val('l_G1MemberID'),
+  G2Name:val('l_G2Name'), G2MemberID:val('l_G2MemberID') }; }
 async function previewLoan() {
   $('l_msg').textContent = 'Calculating…';
   try { const { result, meta } = await api('loan_preview', { loan: loanFromForm() });
@@ -352,8 +361,8 @@ function printSchedule() {
   const foot = `<div class="foot">${esc(m.branch)} Branch${m.branchAddress ? ' — ' + esc(m.branchAddress) : ''}` +
     `${m.branchPhone ? ' · Phone: ' + esc(m.branchPhone) : ''}${m.email ? ' · Email: ' + esc(m.email) : ''}</div>`;
   printDoc(printHeader('Amortization Schedule') + info + schedTable(lastSchedule) + sign + foot,
-    '@page{size:A4;margin:2cm 1cm}',
-    'body{font-size:11px} .hd{text-align:center;display:block} .hd h2{font-size:18px} table{font-size:10pt} th,td{font-size:10pt}');
+    '@page{size:A4;margin:1cm}',
+    '.hd{text-align:center;display:block} .hd h2{font-size:18px} body{font-size:9pt} table{font-size:9pt} th,td{font-size:9pt;padding:3px 5px}');
 }
 /* In-place printing via a hidden iframe — no new tab (PWA-safe) */
 function printDoc(inner, pageCss, extraCss) {
