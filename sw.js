@@ -1,3 +1,4 @@
+
 const CACHE = 'coopfr-v14';
 const ASSETS = ['./', 'index.html', 'app.js', 'style.css', 'manifest.webmanifest', 'logo.png'];
 self.addEventListener('install', e => {
