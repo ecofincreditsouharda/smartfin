@@ -116,7 +116,7 @@ document.addEventListener('click', e => {
     tf_go:doTransfer, m_add:addMember, e_add:addExpense, e_print:()=>printVoucher(lastVoucher),
     r_load:()=>openLedger(val('r_LoanId').trim()), r_add:addReceipt, r_print:()=>printReceiptObj(lastReceipt),
     r_min:minimiseLedger, rep_load:loadReport, rep_print:printReport, soc_save:socSave, soc_txn:socTxn, br_save:branchSave,
-    set_save:saveSettings, u_add:addUser, cp_go:changePw, reset_go:resetAll, logoutBtn:logout };
+    set_save:saveSettings, u_add:addUser, cp_go:changePw, prof_save:saveProfile, reset_go:resetAll, logoutBtn:logout };
   if (map[t.id]) return map[t.id]();
   if (d.loan) return showSchedule(d.loan);
   if (d.member) return showMember(d.member);
@@ -160,7 +160,15 @@ function start(user) {
   // Collector: hide all nav except dashboard + repayments
   if (isCollector) document.querySelectorAll('.navbtn').forEach(b => {
     if (b.dataset.view !== 'dashboard' && b.dataset.view !== 'repayments') b.style.display = 'none'; });
+  // Director: no transfers, no add forms, no deposit/withdraw, no passbook, yes reports
+  if (role === 'Director') {
+    document.querySelectorAll('.no-director').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.no-director-passbook').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.report-only').forEach(el => el.style.display = '');
+  }
   populateBranchSelects(); populateCollectorSelect();
+  // Load profile for My Account page
+  loadProfile();
   showView('dashboard');
 }
 async function populateBranchSelects() {
@@ -623,6 +631,8 @@ async function addMember() {
       IFSC:val('m_IFSC'), Branch:val('m_Branch'),
       ShareCapitalMember:val('m_ShareCapitalMember'), ShareCapitalCollected:val('m_ShareCapitalCollected') };
     const f = $('m_Photo').files[0]; if (f) { member.PhotoBase64 = await fileToB64(f); member.PhotoMime = f.type; }
+    const idp = $('m_IdProof').files[0];
+    if (idp) { member.IdProofBase64 = await fileToB64(idp); member.IdProofMime = idp.type; member.IdProofName = idp.name; }
     if (editing.type === 'member') { await api('member_edit', { memberId:editing.id, member });
       $('m_msg').textContent = 'Updated ' + editing.id; $('m_Photo').value = ''; clearEdit(); return loadList('members_list', 'm_list', 'member', 'member'); }
     const { memberId, warning } = await api('members_add', { member });
@@ -637,6 +647,7 @@ async function showMember(id) {
       ['Share Capital Member', member.ShareCapitalMember], ['Share Capital Collected', rupee(member.ShareCapitalCollected)]];
     let h = '<div class="summary">' + pairs.map(([k,v]) => `<div><span>${esc(k)} :</span><b>${esc(v)}</b></div>`).join('') + '</div>';
     if (member.PhotoUrl) h += `<div style="margin-top:12px"><button class="ghost" data-photo="${esc(member.PhotoUrl)}">View photo</button></div>`;
+    if (member.IdProofUrl) h += `<div style="margin-top:8px"><a href="${esc(member.IdProofUrl)}" target="_blank" class="ghost" style="padding:8px 14px;border-radius:10px;background:#eaf1fb;color:#2c4a7c;text-decoration:none;font-size:13px">📄 View ID Proof${member.IdProofName ? ' ('+esc(member.IdProofName)+')' : ''}</a></div>`;
     $('m_detail').innerHTML = h; $('m_card').scrollIntoView({ behavior:'smooth' });
   } catch (err) { alert(err.message); }
 }
@@ -700,6 +711,21 @@ function printReport() {
   if (!/table/.test(grid)) { alert('Load a report first.'); return; }
   printDoc(printHeader(lastReportName || 'Report') + grid, '@page{size:A4 landscape;margin:1cm}',
     'body{font-size:8px} th,td{padding:2px 3px;white-space:normal;word-break:break-word} table{table-layout:fixed}');
+}
+
+/* ------------------------------ PROFILE (My Account) --------------- */
+async function loadProfile() {
+  try { const { profile } = await api('profile_get');
+    setV('prof_Name', profile.name); setV('prof_DisplayName', profile.displayName);
+    setV('prof_Phone', profile.phone); setV('prof_Email', profile.email); setV('prof_Address', profile.address);
+  } catch (e) {}
+}
+async function saveProfile() {
+  $('prof_msg').textContent = 'Saving…';
+  try { await api('profile_update', { profile: { name:val('prof_Name'), displayName:val('prof_DisplayName'),
+      phone:val('prof_Phone'), email:val('prof_Email'), address:val('prof_Address') } });
+    $('prof_msg').textContent = 'Profile saved.';
+  } catch (err) { $('prof_msg').textContent = err.message; }
 }
 
 /* ------------------------------ SOCIETY BANK ----------------------- */
