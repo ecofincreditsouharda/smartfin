@@ -121,8 +121,9 @@ tr:hover td{background:#fafbfe}
 .card.auth #loginBtn{margin-top:8px}
 
 /* #10 keep wide tables inside the screen (mobile/PWA) — horizontal scroll */
-#l_list,#d_list,#s_list,#e_list,#m_list,#u_list,#r_receipts,#soc_list,#br_list,#dash_overdue,.report{
+#l_list,#d_list,#s_list,#e_list,#m_list,#u_list,#r_receipts,#r_loanlist,#r_sched,#soc_list,#br_list,#dash_overdue,.report{
   overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
+#r_sched table,#r_loanlist table,#r_receipts table{ min-width:600px }
 @media (max-width:860px){ table{white-space:nowrap} }
 
 /* #5 report cell alignment on screen */
