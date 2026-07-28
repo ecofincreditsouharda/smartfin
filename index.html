@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
   <!-- Redirect to new domain -->
 <meta http-equiv="refresh" content="0; url=https://core.ecofincredit.com/">
 <script>
   window.location.replace("https://core.ecofincredit.com/");
 </script>
+<head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#ffe3df" />
@@ -328,7 +328,7 @@
         </div>
         <div class="actions"><button id="u_add" class="primary">Add user</button><span id="u_msg" class="msg"></span></div></div>
       <div class="card admin-only"><div class="card-head"><h2>Users</h2><button class="ghost" data-refresh="users">Refresh</button></div><div id="u_list"></div></div>
-      <div class="card admin-only" style="border:2px solid #f3c2c2;background:#fff8f8">
+      <div class="card admin-only" class="danger-card">
         <h2 style="color:#c0392b">⚠ Danger Zone — Reset All Data</h2>
         <p style="color:#5b6472;font-size:13px">This permanently deletes <b>all transactions</b>: loans, deposits, repayments, members, savings, expenses, society ledger and branches. <b>User accounts are preserved.</b> This cannot be undone.</p>
         <div class="grid"><label>Type RESET to confirm<input id="reset_confirm" placeholder="type RESET" /></label></div>
