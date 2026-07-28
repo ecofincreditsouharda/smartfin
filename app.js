@@ -39,7 +39,10 @@ const fileToB64 = (file) => new Promise((res, rej) => {
 /* ---------------------- IDLE AUTO-LOGOUT --------------------------- */
 let idleTimer = null;
 function resetIdle() { if (!session) return; clearTimeout(idleTimer);
-  idleTimer = setTimeout(() => { logout(); }, IDLE_MS); }
+  idleTimer = setTimeout(() => {
+    logout();
+    const t = $('inactivity-toast'); if (t) { t.style.display='block'; setTimeout(()=>t.style.display='none', 5000); }
+  }, IDLE_MS); }
 ['click','keydown','mousemove','touchstart','scroll'].forEach(ev => document.addEventListener(ev, resetIdle, { passive:true }));
 
 /* ------------------------------ BOOT (splash) ---------------------- */
@@ -54,8 +57,11 @@ window.addEventListener('DOMContentLoaded', async () => {
   setTimeout(() => { $('splash').hidden = true; $('gate').hidden = false; }, 1600);
 });
 function applyBranding(name) {
-  document.title = name; if ($('splashName')) $('splashName').textContent = name;
-  if ($('loginName')) $('loginName').textContent = name; if ($('brandName')) $('brandName').textContent = name;
+  document.title = name;
+  if ($('splashName')) $('splashName').textContent = name;
+  if ($('loginName'))  $('loginName').textContent  = name;
+  if ($('brandName'))  $('brandName').textContent  = name;
+  if ($('nav-brand'))  $('nav-brand').textContent  = name; // #2 drawer header
 }
 
 /* ------------------------------ EVENTS ----------------------------- */
@@ -63,10 +69,14 @@ document.addEventListener('change', e => { if (e.target.id === 'r_Mode') $('r_Ut
   if (e.target.id === 'rep_sheet') repPeriodToggle();
   if (e.target.id === 'e_Category') $('e_ToWrap').hidden = (e.target.value !== 'External Expenses'); });
 document.addEventListener('blur', async e => {
-  if (e.target.id === 'l_Borrower' && val('l_Borrower').trim() && !val('l_MemberID').trim())
-    await autofillMember(val('l_Borrower').trim(), null, 'l_MemberID');
-  if (e.target.id === 'l_MemberID' && val('l_MemberID').trim() && !val('l_Borrower').trim())
-    await autofillMember(val('l_MemberID').trim(), 'l_Borrower', null);
+  if (e.target.id === 'l_Borrower' && val('l_Borrower').trim() && !val('l_MemberID').trim()) {
+    const m = await autofillMember(val('l_Borrower').trim(), null, 'l_MemberID');
+    if (m && m.Branch && $('l_Branch') && !$('l_Branch').disabled) { setV('l_Branch', m.Branch); loadCollectorsForBranch(m.Branch); }
+  }
+  if (e.target.id === 'l_MemberID' && val('l_MemberID').trim() && !val('l_Borrower').trim()) {
+    const m = await autofillMember(val('l_MemberID').trim(), 'l_Borrower', null);
+    if (m && m.Branch && $('l_Branch') && !$('l_Branch').disabled) { setV('l_Branch', m.Branch); loadCollectorsForBranch(m.Branch); }
+  }
   if (e.target.id === 's_MemberID' && val('s_MemberID').trim())
     await autofillMember(val('s_MemberID').trim(), 's_MemberName', null);
   if (e.target.id === 'l_G1MemberID' && val('l_G1MemberID').trim() && !val('l_G1Name').trim())
@@ -118,6 +128,7 @@ document.addEventListener('click', e => {
     d_preview:previewDeposit, d_add:addDeposit, w_go:fdWithdraw, s_open:savingsOpen, st_go:savingsTxn, pb_load:loadPassbook, pb_print:printPassbook,
     tf_go:doTransfer, m_add:addMember, e_add:addExpense, e_print:()=>printVoucher(lastVoucher),
     m_close:()=>{ $('m_card').hidden = true; },
+    m_delete:deleteMember, ap_submit:submitApproval,
     r_load:()=>openLedger(val('r_LoanId').trim()), r_add:addReceipt, r_print:()=>printReceiptObj(lastReceipt),
     r_min:minimiseLedger, rep_load:loadReport, rep_print:printReport, soc_save:socSave, soc_txn:socTxn, br_save:branchSave,
     set_save:saveSettings, u_add:addUser, cp_go:changePw, prof_save:saveProfile, reset_go:resetAll, logoutBtn:logout };
@@ -180,6 +191,10 @@ function start(user) {
     document.querySelectorAll('.no-director-passbook').forEach(el => el.style.display = 'none');
     document.querySelectorAll('.report-only').forEach(el => el.style.display = '');
   }
+  const canApproval = ["Admin","CEO","BranchManager","Director"].includes(role);
+  document.querySelectorAll('.approval-role').forEach(el => el.style.display = canApproval ? '' : 'none');
+  // Nav bank name (#3)
+  if ($('nav_bank')) $('nav_bank').textContent = BANK;
   populateBranchSelects(); populateCollectorSelect();
   // Load profile for My Account page
   loadProfile();
@@ -213,6 +228,7 @@ function refresh(v) {
   if (v === 'expenses') loadList('expenses_list', 'e_list', null, 'expenses');
   if (v === 'repayments') loadRepaymentLoans();
   if (v === 'society' && session.role) loadSociety();
+  if (v === 'approvals') loadApprovals();
   if (v === 'reports') {
     repPeriodToggle();
     // Default: Indian FY start (April 1) to today
@@ -230,12 +246,22 @@ function refresh(v) {
 /* ----------------------------- DASHBOARD --------------------------- */
 async function loadDashboard() {
   $('dash').innerHTML = '<p class="msg">Loading…</p>'; $('dash_overdue').innerHTML = '';
-  try { const { stats, overdue } = await api('dashboard_stats');
-    $('dash').innerHTML = [['Loans', stats.loanCount, ''], ['Amount Disbursed', rupee(stats.totalDisbursed), ''],
+  try { const { stats, overdue, extraStats } = await api('dashboard_stats');
+    let statsHtml = [['Loans', stats.loanCount, ''], ['Amount Disbursed', rupee(stats.totalDisbursed), ''],
       ['Due This Month', rupee(stats.dueThisMonth), ''], ['Members in Arrears', stats.overdueCount, stats.overdueCount ? 'warn' : ''],
       ['Total Arrears', rupee(stats.totalArrears), stats.totalArrears > 0 ? 'warn' : '']]
       .map(([l, v, c]) => `<div class="stat ${c}"><span>${l}</span><b>${v}</b></div>`).join('');
+    if (extraStats) {
+      statsHtml += [['Interest Due This Month', rupee(extraStats.interestDueMonth), ''],
+        ['Principal Due This Month', rupee(extraStats.principalDueMonth), ''],
+        ['New Loans This Month', extraStats.newLoansThisMonth, '']]
+        .map(([l, v, c]) => `<div class="stat ${c}"><span>${l}</span><b>${v}</b></div>`).join('');
+    }
+    $('dash').innerHTML = statsHtml;
     $('dash_overdue').innerHTML = overdue && overdue.length ? tableFrom(overdue) : '<p class="msg">No missed EMIs.</p>';
+    if (extraStats && extraStats.newLoansDetail && extraStats.newLoansDetail.length) {
+      $('dash_overdue').innerHTML += '<h3 style="margin-top:16px">New Loans This Month</h3>' + tableFrom(extraStats.newLoansDetail);
+    }
   } catch (err) { $('dash').innerHTML = `<p class="err">${err.message}</p>`; }
 }
 
@@ -345,15 +371,14 @@ function openLedger(id) { if (!id) return; $('r_LoanId').value = id; loadLedger(
 function minimiseLedger() { ['r_ledgerHead','r_addCard','r_recCard','r_schedCard'].forEach(x => $(x).hidden = true); }
 
 /* ---- Collector select (shows users with Collector role for the branch) ---- */
-let collectorUsers = [];
-async function populateCollectorSelect() {
+async function populateCollectorSelect(branch) {
   if (!$('l_Collector')) return;
-  try { const { users } = await api('users_list').catch(()=>({users:[]}));
-    collectorUsers = (users||[]).filter(u => u.Role === 'Collector' && (session.role === 'Admin' || u.Branch === session.branch));
+  try { const { collectors } = await api('collectors_by_branch', { branch: branch || val('l_Branch') || '' });
     $('l_Collector').innerHTML = '<option value="">— select collector —</option>' +
-      collectorUsers.map(u => `<option value="${esc(u.UserID)}">${esc(u.Name)} (${esc(u.Branch)})</option>`).join('');
+      (collectors||[]).map(u => `<option value="${esc(u.userId)}">${esc(u.name)} (${esc(u.branch)})</option>`).join('');
   } catch(e) {}
 }
+async function loadCollectorsForBranch(branch) { await populateCollectorSelect(branch); }
 
 /* ---- Member autofill (used by loans + savings open) ---- */
 async function autofillMember(query, nameId, memberIdId) {
@@ -419,8 +444,9 @@ async function showSchedule(id) {
 function renderSchedule(title, result, meta) {
   const s = result.summary; lastSchedule = result.schedule; lastMeta = meta || {};
   $('l_schedCard').hidden = false; $('l_schedTitle').textContent = 'Schedule — ' + title;
-  $('l_summary').innerHTML = summaryHtml([['Effective Instalment', rupee(s.effEMI)],
-    [s.frequency === 'Daily' ? 'Days' : 'Tenure', s.effTenure + (s.frequency === 'Daily' ? ' days' : ' mo')],
+  $('l_summary').innerHTML = summaryHtml([
+    [s.frequency === 'Daily' ? 'Daily Instalment' : 'Effective Instalment', rupee(s.effEMI)],
+    [s.frequency === 'Daily' ? 'Total Days' : 'Tenure (months)', s.frequency === 'Daily' ? s.tenureDays||s.effTenure : s.effTenure + ' mo'],
     ['Total Interest', rupee(s.totalInterest)], ['Total Repayable', rupee(s.totalRepayable)],
     ['Extra-Day Interest', rupee(s.extraInterest) + ' (' + s.extraDays + ' d)']]);
   lastMeta.tenure = s.nominalTenure; lastMeta.method = s.method; lastMeta.frequency = s.frequency;
@@ -434,8 +460,12 @@ function printHeader(subtitle) {
 function printSchedule() {
   if (!lastSchedule) { alert('Load or preview a schedule first.'); return; }
   const m = lastMeta || {};
-  const info = `<table class="meta"><tr><td><b>Borrower:</b> ${esc(m.borrower)}</td><td><b>Member ID:</b> ${esc(m.memberId)}</td></tr>` +
-    `<tr><td><b>Loan Type:</b> ${esc(m.loanType)}</td><td><b>Tenure:</b> ${esc(m.tenure)} months (${esc(m.method)} · ${esc(m.frequency)})</td></tr></table>`;
+  const info = `<table class="meta" style="width:100%">` +
+    `<tr><td style="width:50%"><b>Borrower:</b> ${esc(m.borrower)}</td>` +
+    `<td style="text-align:right"><b>Member ID:</b> ${esc(m.memberId)}</td></tr>` +
+    `<tr><td><b>Loan Type:</b> ${esc(m.loanType)}</td>` +
+    `<td style="text-align:right"><b>Tenure:</b> ${esc(m.tenure)} months (${esc(m.method)} · ${esc(m.frequency)})</td></tr>` +
+    `</table>`;
   const sign = `<div class="sign">_______________________<br>Branch Manager Signature</div>`;
   const foot = `<div class="foot">${esc(m.branch)} Branch${m.branchAddress ? ' — ' + esc(m.branchAddress) : ''}` +
     `${m.branchPhone ? ' · Phone: ' + esc(m.branchPhone) : ''}${m.email ? ' · Email: ' + esc(m.email) : ''}</div>`;
@@ -486,15 +516,19 @@ async function addReceipt() {
   if (mode === 'UPI' && !val('r_Utr').trim()) { alert('Please enter the UTR number for UPI.'); return; }
   $('r_msg').textContent = 'Saving…';
   try { const { receipt } = await api('repayment_add', { repayment: { LoanID:id, Date:val('r_Date'),
-      Amount:val('r_Amount'), Mode:mode, Ref:val('r_Utr'), Note:val('r_Note') } });
+      Amount:val('r_Amount'), Mode:mode, Ref:val('r_Utr'), Note:val('r_Note'), PenaltyAmount:val('r_Penalty')||0, PenaltyType:val('r_PenaltyType') } });
     lastReceipt = receipt; $('r_msg').textContent = 'Receipt ' + receipt.receiptNo; $('r_Amount').value = '';
     $('r_receiptBox').hidden = false; $('r_receiptView').innerHTML = receiptSummary(receipt); loadLedger();
   } catch (err) { $('r_msg').textContent = ''; alert(err.message); }
 }
-const receiptSummary = (r) => summaryHtml([['Bank', esc(r.bankName)], ['Receipt No.', esc(r.receiptNo)], ['Date', esc(r.date)],
-  ['Borrower', esc(r.borrower)], ['Mode', esc(r.mode) + (r.ref ? ' ('+esc(r.ref)+')' : '')], ['This payment', rupee(r.amount)],
-  ['EMIs paid till now', r.emisPaid], ['Amount paid till now', rupee(r.amountPaidTillNow)],
-  ['Pending loan amount', rupee(r.pendingAmount)], ['Operator', esc(r.operator)]]);
+const receiptSummary = (r) => {
+  const pairs = [['Bank', esc(r.bankName)], ['Receipt No.', esc(r.receiptNo)], ['Date', esc(r.date)],
+    ['Borrower', esc(r.borrower)], ['Mode', esc(r.mode) + (r.ref ? ' ('+esc(r.ref)+')' : '')], ['This payment', rupee(r.amount)]];
+  if (r.penalty && Number(r.penalty) > 0) pairs.push(['Penalty', rupee(r.penalty) + (r.penaltyType ? ' (' + esc(r.penaltyType) + ')' : '')]);
+  pairs.push(['EMIs paid till now', r.emisPaid], ['Amount paid till now', rupee(r.amountPaidTillNow)],
+    ['Pending loan amount', rupee(r.pendingAmount)], ['Operator', esc(r.operator)]);
+  return summaryHtml(pairs);
+};
 async function printPastReceipt(receiptNo) {
   try { const { receipt } = await api('receipt_print', { loanId: curLoanId, receiptNo }); printReceiptObj(receipt); }
   catch (err) { alert(err.message); }
@@ -519,6 +553,7 @@ function printReceiptObj(r) {
     `EMIs    : ${r.emisPaid}\n` +
     `Paid    : ${inr(r.amountPaidTillNow)}\n` +
     `Balance : ${inr(r.pendingAmount)}\n` +
+    (r.penalty && Number(r.penalty) > 0 ? `Penalty : ${inr(r.penalty)} (${esc(r.penaltyType||'Late')})\n` : '') +
     `${D}\n` +
     `Operator: ${esc(r.operator)}\n` +
     `${D}\n` +
@@ -647,6 +682,7 @@ function showPhoto(url) {
 
 /* ------------------------------ MEMBERS ---------------------------- */
 async function addMember() {
+  const btn = $('m_add'); if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
   $('m_msg').textContent = 'Saving…';
   try { const member = { FullName:val('m_FullName'), DOB:val('m_DOB'), Phone:val('m_Phone'), Address:val('m_Address'),
       Aadhaar:val('m_Aadhaar'), PAN:val('m_PAN'), BankName:val('m_BankName'), BankAccount:val('m_BankAccount'),
@@ -668,6 +704,7 @@ async function addMember() {
     showToast(photoUrl || idProofUrl ? '✅ Files uploaded to Google Drive' : (warning ? '⚠ ' + warning : '✅ Member saved'), warning ? 'warn' : 'ok');
     loadList('members_list', 'm_list', 'member', 'member');
   } catch (err) { $('m_msg').textContent = ''; alert(err.message); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = editing.type === 'member' ? 'Update' : 'Add member'; } }
 }
 async function uploadMemberFile(memberId, type) {
   const fileInput = type === 'photo' ? $('mu_Photo_'+memberId) : $('mu_IdProof_'+memberId);
@@ -692,6 +729,7 @@ async function uploadMemberFile(memberId, type) {
   } catch(err) { if (msgEl) msgEl.textContent = '⚠ ' + err.message; showToast('⚠ ' + err.message, 'err'); }
 }
 async function showMember(id) {
+  currentMemberId = id;
   try { const { member } = await api('member_get', { memberId: id }); $('m_card').hidden = false;
     const pairs = [['Member ID', member.MemberID], ['Full Name', member.FullName], ['DOB', member.DOB], ['Phone', member.Phone],
       ['Address', member.Address], ['Aadhaar', member.Aadhaar], ['PAN', member.PAN], ['Bank Name', member.BankName],
@@ -867,7 +905,70 @@ async function saveProfile() {
   } catch (err) { $('prof_msg').textContent = err.message; }
 }
 
-/* ------------------------------ SOCIETY BANK ----------------------- */
+/* ------------------------------ DELETE MEMBER ---------------------- */
+let currentMemberId = null; // track which member is expanded
+async function deleteMember() {
+  if (!currentMemberId) { alert('Open a member first.'); return; }
+  if (!confirm(`Delete member ${currentMemberId}? This cannot be undone.\nMembers with active loans or savings cannot be deleted.`)) return;
+  try { await api('member_delete', { memberId: currentMemberId });
+    showToast('✅ Member deleted', 'ok'); $('m_card').hidden = true; currentMemberId = null;
+    loadList('members_list', 'm_list', 'member', 'member');
+  } catch (err) { showToast('⚠ ' + err.message, 'err'); }
+}
+
+/* ------------------------------ LOAN APPROVALS --------------------- */
+async function loadApprovals() {
+  try { const { approvals } = await api('approval_list');
+    if (!approvals.length) { $('ap_list').innerHTML = '<p class="msg">No approvals yet.</p>'; return; }
+    let h = '<div>';
+    approvals.forEach(a => {
+      const l = a.loan||{}, m = a.member||{};
+      const statusColor = a.status==='Approved'?'#16a34a':a.status==='Rejected'?'#dc2626':'#d97706';
+      h += `<div class="card" style="margin:10px 0;border-left:4px solid ${statusColor}">` +
+        `<div class="card-head"><h2>Loan ${esc(a.loan_id)} — ${esc(l.borrower||'')}</h2>` +
+        `<span style="color:${statusColor};font-weight:700">${esc(a.status)}</span></div>` +
+        `<div class="summary">` +
+        summaryHtml([['Member',esc(l.borrower||'')],['Member ID',esc(l.member_id||'')],['Branch',esc(l.branch||'')],
+          ['Amount',rupee(l.amount||0)],['Type',esc(l.loan_type||'')],['Submitted by',esc(a.submitted_by_name||'')],
+          ['Remarks',esc(a.remarks||'')],['Reviewed by',esc(a.reviewed_by||'—')],['Comments',esc(a.comments||'—')]]) +
+        `</div>` +
+        (a.doc_url ? `<div style="margin:8px 0"><a href="${esc(a.doc_url)}" target="_blank" class="ghost" style="padding:6px 12px;border-radius:8px;background:#eaf1fb;color:#2c4a7c;text-decoration:none;font-size:12px">📎 View Document${a.doc_name?' — '+esc(a.doc_name):''}</a></div>` : '') +
+        (['Admin','CEO','Director'].includes(session.role) ? `
+          <div class="actions" style="margin-top:10px">
+            <select id="ap_status_${esc(a.loan_id)}" style="width:auto"><option>Pending</option><option>Approved</option><option>Rejected</option></select>
+            <input id="ap_comment_${esc(a.loan_id)}" placeholder="Comments…" style="flex:1;max-width:300px"/>
+            <button class="primary" onclick="updateApproval('${esc(a.loan_id)}')">Save decision</button>
+          </div>` : '') +
+        `</div>`;
+    });
+    $('ap_list').innerHTML = h + '</div>';
+    // Director ribbon on CEO/Admin
+    if (['Admin','CEO'].includes(session.role)) {
+      const recent = approvals.filter(a=>a.status==='Approved'&&a.reviewed_by);
+      if (recent.length) {
+        const r = recent[0];
+        const ribbon = $('ap_ribbon') || (() => { const d=document.createElement('div'); d.id='ap_ribbon'; d.className='approval-ribbon'; $('view-approvals').prepend(d); return d; })();
+        ribbon.textContent = `✅ Director approved Loan ${r.loan_id} — reviewed by ${r.reviewed_by}`;
+      }
+    }
+  } catch (err) { $('ap_list').innerHTML = `<p class="err">${err.message}</p>`; }
+}
+async function submitApproval() {
+  $('ap_msg').textContent = 'Submitting…';
+  const f = $('ap_Doc').files[0];
+  const payload = { loanId: val('ap_LoanId').trim(), remarks: val('ap_Remarks') };
+  if (f) { payload.docBase64 = await fileToB64(f); payload.docMime = f.type; payload.docName = f.name; }
+  try { await api('approval_submit', payload);
+    $('ap_msg').textContent = ''; showToast('✅ Submitted for approval', 'ok'); loadApprovals();
+  } catch (err) { $('ap_msg').textContent = ''; showToast('⚠ ' + err.message, 'err'); }
+}
+async function updateApproval(loanId) {
+  const status  = $(`ap_status_${loanId}`)?.value || 'Pending';
+  const comments = $(`ap_comment_${loanId}`)?.value || '';
+  try { await api('approval_update', { loanId, status, comments });
+    showToast('✅ Decision saved', 'ok'); loadApprovals();
+  } catch (err) { showToast('⚠ ' + err.message, 'err'); }
+}
 async function loadSociety() {
   try { const { society } = await api('society_get');
     $('soc_Acc').value = society.accountNumber || ''; $('soc_IFSC').value = society.ifsc || '';
