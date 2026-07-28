@@ -218,3 +218,45 @@ tbody tr:hover td{background:#fafbff}
 
 /* ── DANGER ZONE ──────────────────────────────────────────────── */
 .danger-card{border:1.5px solid #fca5a5!important;background:#fff8f8!important}
+
+/* login page subtle background pattern */
+#gate::before{content:'';position:fixed;inset:0;z-index:-1;
+  background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23e07a61' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")}
+/* approval role visibility */
+.approval-role{display:none}
+/* ribbon for CEO/Admin */
+.approval-ribbon{background:linear-gradient(90deg,#16a34a,#15803d);color:#fff;
+  padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;margin-bottom:10px}
+/* inactivity toast handled inline */
+
+/* Gate login background — subtle translucent pattern */
+#gate { position: relative; }
+.gate-bg {
+  position: absolute; inset: 0; z-index: 0;
+  background:
+    radial-gradient(circle at 20% 30%, rgba(224,122,97,.08) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(37,99,235,.06) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(224,122,97,.04) 0%, transparent 70%);
+  pointer-events: none;
+}
+#gate .card { position: relative; z-index: 1; }
+
+/* Inactivity toast */
+#inactivity-toast {
+  display: none; position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: #d97706; color: #fff; padding: 10px 20px; border-radius: 50px;
+  font-size: 13px; font-weight: 500; z-index: 200; box-shadow: 0 4px 20px rgba(0,0,0,.2);
+}
+
+/* PWA sidebar font improvements */
+@media (max-width: 860px) {
+  .navbtn { font-size: 14px; padding: 10px 14px; }
+  #nav-brand { font-size: 12px; padding: 10px 14px 6px; }
+  .logo-sm { width: 26px; height: 26px; }
+  .brand-name { font-size: 13px; }
+  #who { font-size: 11px; }
+  #who div { line-height: 1.3; }
+}
+
+/* Disable pinch zoom on PWA */
+html { touch-action: manipulation; }
