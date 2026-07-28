@@ -499,43 +499,40 @@ async function printPastReceipt(receiptNo) {
 }
 function printReceiptObj(r) {
   if (!r) { alert('No receipt selected.'); return; }
-  const inr = n => '₹' + Number(n||0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
-  const line = '<div class="ln">--------------------------------</div>';
-  const row  = (l, v) => `<div class="row"><span class="lbl">${esc(l)}</span><span class="val">${v}</span></div>`;
+  const inr = n => '\u20b9' + Number(n||0).toLocaleString('en-IN', { minimumFractionDigits:2, maximumFractionDigits:2 });
+  const D = '--------------------------------';
   const body =
     `<div class="rc">` +
     `<img src="${LOGO_URL}" class="rl" onerror="this.style.display='none'"/>` +
     `<div class="bn">${esc(BANK)}</div>` +
-    `<div class="sub">Loan Repayment Receipt</div>` +
-    line +
-    row('Receipt No', esc(r.receiptNo)) +
-    row('Date',       esc(r.date)) +
-    row('Loan ID',    esc(r.loanId)) +
-    row('Borrower',   esc(r.borrower)) +
-    row('Mode',       esc(r.mode) + (r.ref ? ' ('+esc(r.ref)+')' : '')) +
-    line +
-    row('EMIs Paid',  String(r.emisPaid)) +
-    row('Paid Amt',   inr(r.amountPaidTillNow)) +
-    row('Pending',    inr(r.pendingAmount)) +
-    line +
-    row('Operator',   esc(r.operator)) +
-    line +
-    `<div class="ft">Thank You</div>` +
-    `<div class="ft">Computer Generated · No Signature Required</div>` +
-    `</div>`;
-  const css = `
-    @page { size: 8cm 12cm; margin: 3mm; }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Consolas','Courier New',monospace; font-size: 7.5pt; width: 7.4cm; }
-    .rc  { width: 100%; }
-    .rl  { width: 34px; height: 34px; object-fit: contain; display: block; margin: 0 auto 3px; }
-    .bn  { font-size: 10pt; font-weight: bold; text-align: center; margin-bottom: 1px; }
-    .sub { font-size: 7.5pt; text-align: center; margin-bottom: 3px; }
-    .ln  { font-size: 7pt; color: #666; margin: 2px 0; }
-    .row { display: flex; justify-content: space-between; padding: 1.5px 0; }
-    .lbl { color: #444; width: 52px; flex-shrink: 0; }
-    .val { font-weight: bold; text-align: right; word-break: break-all; }
-    .ft  { font-size: 6.5pt; text-align: center; margin-top: 2px; color: #555; }`;
+    `<div class="st">Loan Repayment Receipt</div>` +
+    `<pre>` +
+    `${D}\n` +
+    `Receipt : ${esc(r.receiptNo)}\n` +
+    `Date    : ${esc(r.date)}\n` +
+    `Loan ID : ${esc(r.loanId)}\n` +
+    `Borrower: ${esc(r.borrower)}\n` +
+    `Mode    : ${esc(r.mode)}${r.ref?' ('+esc(r.ref)+')':''}\n` +
+    `${D}\n` +
+    `EMIs    : ${r.emisPaid}\n` +
+    `Paid    : ${inr(r.amountPaidTillNow)}\n` +
+    `Balance : ${inr(r.pendingAmount)}\n` +
+    `${D}\n` +
+    `Operator: ${esc(r.operator)}\n` +
+    `${D}\n` +
+    `      ** THANK YOU **\n` +
+    ` Computer Generated Receipt\n` +
+    `   No Signature Required` +
+    `</pre></div>`;
+  const css =
+    `@page{size:72mm auto;margin:2mm 3mm}` +
+    `*{margin:0;padding:0;box-sizing:border-box}` +
+    `body{font-family:'Courier New',Courier,monospace;font-size:8.5pt;color:#000;width:66mm;background:#fff}` +
+    `.rc{width:100%;text-align:center}` +
+    `.rl{width:32px;height:32px;object-fit:contain;display:block;margin:2px auto 3px}` +
+    `.bn{font-size:11pt;font-weight:bold;letter-spacing:.5px;margin-bottom:1px}` +
+    `.st{font-size:8pt;margin-bottom:3px;font-style:italic}` +
+    `pre{font-family:'Courier New',Courier,monospace;font-size:8pt;white-space:pre;text-align:left;margin-top:4px;line-height:1.45}`;
   printDoc(body, css, '');
 }
 
