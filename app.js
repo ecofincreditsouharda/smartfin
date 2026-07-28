@@ -160,8 +160,12 @@ function start(user) {
   // hide everything except Repayments and Dashboard for Collector
   const roleLabel = role.replace(/([a-z])([A-Z])/g, '$1 $2');
   const branchLabel = (role !== 'Admin' && role !== 'Director') ? ' · ' + esc(user.branch || '—') : '';
-  $('who').innerHTML = `<span>${esc(user.name)} · <b>${esc(roleLabel)}</b>${branchLabel}</span>` +
-    `<button id="logoutBtn">Sign out</button>`;
+  const lastLoginLine = user.lastLogin ? `<div style="font-size:10px;color:#9ca3af;margin-top:1px">Last login: ${esc(user.lastLogin)}</div>` : '';
+  $('who').innerHTML =
+    `<div style="text-align:right"><div style="font-size:13px;font-weight:600;color:#111827">${esc(user.name)}</div>` +
+    `<div style="font-size:11px;color:#6b7280">${esc(roleLabel)}${branchLabel}</div>` +
+    lastLoginLine + `</div>` +
+    `<button id="logoutBtn" style="margin-left:8px">Sign out</button>`;
   document.querySelectorAll('.add-only').forEach(el    => el.style.display = canWrite    ? '' : 'none');
   document.querySelectorAll('.report-only').forEach(el => el.style.display = canReport   ? '' : 'none');
   document.querySelectorAll('.settings-only').forEach(el => el.style.display = canSettings ? '' : 'none');
