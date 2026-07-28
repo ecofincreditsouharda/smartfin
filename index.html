@@ -1,9 +1,8 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#ffe3df" />
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="logo.png" />
@@ -23,6 +22,7 @@
 
 <!-- LOGIN -->
 <div id="gate" hidden>
+  <div class="gate-bg"></div>
   <section class="card auth">
     <img src="logo.png" alt="Logo" class="logo-lg" onerror="this.style.display='none'" />
     <h1 id="loginName">ECOSMART</h1>
@@ -49,6 +49,8 @@
   </header>
 
   <nav id="nav">
+    <div id="nav-brand" style="padding:8px 12px 6px;font-size:11px;font-weight:700;color:#e07a61;letter-spacing:.05em;text-transform:uppercase;border-bottom:1px solid #fad4cd;margin-bottom:6px"></div>
+    <div id="nav_bank" style="font-size:11px;font-weight:700;color:#c0392b;letter-spacing:.04em;text-transform:uppercase;padding:6px 12px 2px;opacity:.7"></div>
     <button class="navbtn" data-view="dashboard">Dashboard</button>
     <button class="navbtn" data-view="members">Members</button>
     <button class="navbtn" data-view="loans">Loans</button>
@@ -59,6 +61,7 @@
     <button class="navbtn society-only" data-view="society">Society Bank</button>
     <button class="navbtn" data-view="expenses">Expenses</button>
     <button class="navbtn report-only director-report" data-view="reports">Reports</button>
+    <button class="navbtn approval-role" data-view="approvals">Loan Approvals</button>
     <button class="navbtn settings-only" data-view="settings">Settings</button>
     <button class="navbtn admin-only" data-view="users">Users</button>
     <button class="navbtn" data-view="account">My account</button>
@@ -95,7 +98,7 @@
       <div class="card"><div class="card-head"><h2>Members</h2><button class="ghost" data-refresh="members">Refresh</button></div>
         <div class="grid" style="margin-bottom:10px"><label>Search members<input id="m_search" placeholder="name · member ID · phone" /></label></div>
         <div id="m_list"></div></div>
-      <div class="card" id="m_card" hidden><div class="card-head"><h2>Member details</h2><button class="ghost" id="m_close">✕ Close</button></div><div id="m_detail"></div></div>
+      <div class="card" id="m_card" hidden><div class="card-head"><h2>Member details</h2><span><button class="ghost" id="m_print_detail">🖨 Print</button><button class="ghost" style="color:#dc2626" id="m_delete">🗑 Delete</button><button class="ghost" id="m_close">✕ Close</button></span></div><div id="m_detail"></div></div>
     </section>
 
     <section class="view" id="view-loans" hidden>
@@ -148,6 +151,10 @@
           <label>Mode<select id="r_Mode"><option>Cash</option><option>UPI</option></select></label>
           <label id="r_UtrWrap" hidden>UTR Number<input id="r_Utr" /></label>
           <label>Note<input id="r_Note" /></label>
+          <label>Penalty (₹)<input id="r_Penalty" type="number" value="0" /></label>
+          <label>Penalty Type<select id="r_PenaltyType"><option value="">None</option><option value="Late Payment">Late Payment</option><option value="Overdue">Overdue</option></select></label>
+          <label>Penalty Amount (₹)<input id="r_Penalty" type="number" value="0" /></label>
+          <label>Penalty Type<select id="r_PenaltyType"><option value="">None</option><option>Late Payment</option><option>Overdue</option></select></label>
         </div>
         <div class="actions"><button id="r_add" class="primary">Add receipt</button><span id="r_msg" class="msg"></span></div>
         <div id="r_receiptBox" hidden><div id="r_receiptView" class="summary"></div>
@@ -343,6 +350,21 @@
         <label>Current<input id="cp_Old" type="password" /></label>
         <label>New (8+)<input id="cp_New" type="password" /></label>
         <div class="actions"><button id="cp_go" class="primary">Update password</button><span id="cp_msg" class="msg"></span></div></div>
+    </section>
+  <div id="inactivity-toast" style="display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+    background:#374151;color:#fff;padding:10px 22px;border-radius:50px;font-size:13px;z-index:300;
+    box-shadow:0 4px 16px rgba(0,0,0,.3)">Signed out due to inactivity</div>
+
+    <section class="view" id="view-approvals" hidden>
+      <div class="card approval-role add-only"><h2>Submit Loan for Approval</h2>
+        <div class="grid">
+          <label>Loan ID<input id="ap_LoanId" placeholder="ECO00001" /></label>
+          <label>Supporting Document<input id="ap_Doc" type="file" accept="image/*,application/pdf" /></label>
+          <label>Remarks<input id="ap_Remarks" /></label>
+        </div>
+        <div class="actions"><button id="ap_submit" class="primary">Submit for Approval</button><span id="ap_msg" class="msg"></span></div></div>
+      <div class="card approval-role"><div class="card-head"><h2>Approval Queue</h2><button class="ghost" data-refresh="approvals">Refresh</button></div>
+        <div id="ap_list"></div></div>
     </section>
   </main>
 </div>
