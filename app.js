@@ -46,14 +46,12 @@ function resetIdle() { if (!session) return; clearTimeout(idleTimer);
 window.addEventListener('DOMContentLoaded', async () => {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
   LOGO_URL = new URL('logo.png', location.href).href;
-  if ($('loginMsg')) $('loginMsg').textContent = ''; // never show stale message on load
+  if ($('loginMsg')) $('loginMsg').textContent = '';
+  // #3: Always log out on page refresh — clear any stored token
+  localStorage.removeItem('coop_token');
   try { const { bankName } = await api('bank_info'); if (bankName) BANK = bankName; } catch (e) {}
   applyBranding(BANK);
-  setTimeout(async () => {
-    $('splash').hidden = true;
-    if (token()) { try { const { user } = await api('me'); start(user); return; } catch (e) {} }
-    $('gate').hidden = false;
-  }, 1600);
+  setTimeout(() => { $('splash').hidden = true; $('gate').hidden = false; }, 1600);
 });
 function applyBranding(name) {
   document.title = name; if ($('splashName')) $('splashName').textContent = name;
@@ -752,20 +750,55 @@ async function addExpense() {
 }
 function printVoucher(v) {
   if (!v) { alert('Add an expense first.'); return; }
-  const body = printHeader('') +
-    `<h2 style="text-align:center;margin:4px 0 12px">EXPENSE VOUCHER</h2>` +
-    `<table class="meta">
-      <tr><td><b>Voucher No.:</b> ${esc(v.expenseNo)}</td><td><b>Date:</b> ${esc(v.date)}</td></tr>
-      <tr><td><b>To:</b> ${esc(v.to)}</td><td><b>Category:</b> ${esc(v.category)}</td></tr></table>` +
-    `<table><tr><th>Description</th><th>Amount</th></tr>
-      <tr><td>${esc(v.description || v.category)}</td><td>${rupee(v.amount)}</td></tr>
-      <tr><td style="text-align:right"><b>Total</b></td><td><b>${rupee(v.amount)}</b></td></tr></table>` +
-    `<div style="display:flex;justify-content:space-between;margin-top:44px">` +
-    `<div>_______________________<br>Receiver Signature</div>` +
-    `<div>_______________________<br>Branch Manager Signature</div></div>` +
-    `<div class="foot">${esc(v.branch)} Branch${v.branchAddress ? ' — ' + esc(v.branchAddress) : ''}` +
-    `${v.branchPhone ? ' · Phone: ' + esc(v.branchPhone) : ''}${v.email ? ' · Email: ' + esc(v.email) : ''}</div>`;
-  printDoc(body, '@page{size:A4;margin:2cm 1cm}', 'body{font-size:12px}');
+  const body =
+    `<div class="vh">` +
+    `<img src="${LOGO_URL}" class="vl" onerror="this.style.display='none'"/>` +
+    `<div class="vbank">${esc(BANK)}</div>` +
+    `<div class="vtitle">EXPENSE VOUCHER</div>` +
+    `</div>` +
+    `<table class="vmeta">` +
+    `<tr><td class="vl-col">Voucher No.</td><td class="vc-col">${esc(v.expenseNo)}</td>` +
+    `<td class="vl-col" style="text-align:right">Date</td><td class="vr-col">${esc(v.date)}</td></tr>` +
+    `<tr><td class="vl-col">To</td><td class="vc-col">${esc(v.to)}</td>` +
+    `<td class="vl-col" style="text-align:right">Category</td><td class="vr-col">${esc(v.category)}</td></tr>` +
+    `</table>` +
+    `<table class="vamt"><tr><th>Description</th><th>Amount (₹)</th></tr>` +
+    `<tr><td>${esc(v.description||v.category)}</td><td>${rupee(v.amount)}</td></tr>` +
+    `<tr class="vtot"><td><b>Total</b></td><td><b>${rupee(v.amount)}</b></td></tr></table>` +
+    `<div class="vsign">` +
+    `<div><div class="vline"></div>Receiver Signature</div>` +
+    `<div><div class="vline"></div>Branch Manager Signature</div>` +
+    `</div>` +
+    `<div class="vfoot">${esc(v.branch)} Branch` +
+    `${v.branchAddress ? ' — '+esc(v.branchAddress) : ''}` +
+    `${v.branchPhone ? ' · '+esc(v.branchPhone) : ''}` +
+    `${v.email ? ' · '+esc(v.email) : ''}</div>`;
+  const css =
+    `@page{size:A4;margin:1cm}` +
+    `body{font-family:Arial,sans-serif;font-size:11px;color:#000;` +
+      `border:3px double #222;padding:16px;margin:0}` +
+    `.vh{text-align:center;border-bottom:2px solid #222;padding-bottom:10px;margin-bottom:12px}` +
+    `.vl{width:52px;height:52px;object-fit:contain;display:block;margin:0 auto 4px}` +
+    `.vbank{font-size:18px;font-weight:bold;letter-spacing:.5px}` +
+    `.vtitle{font-size:14px;font-weight:700;margin-top:4px;letter-spacing:2px;` +
+      `text-transform:uppercase;border:1px solid #444;display:inline-block;padding:2px 14px}` +
+    `table.vmeta{width:100%;border-collapse:collapse;margin:12px 0}` +
+    `table.vmeta td{padding:5px 8px;border:1px solid #ccc;font-size:11px}` +
+    `.vl-col{color:#555;width:80px;font-weight:600}` +
+    `.vc-col{font-weight:bold;width:180px}` +
+    `.vr-col{font-weight:bold;text-align:right;width:120px}` +
+    `table.vamt{width:100%;border-collapse:collapse;margin-top:8px}` +
+    `table.vamt th{background:#f0f0f0;border:1px solid #aaa;padding:5px 8px;` +
+      `font-size:11px;text-align:right}` +
+    `table.vamt th:first-child{text-align:left}` +
+    `table.vamt td{border:1px solid #ccc;padding:5px 8px;text-align:right}` +
+    `table.vamt td:first-child{text-align:left}` +
+    `.vtot td{border-top:2px solid #444;background:#f9f9f9}` +
+    `.vsign{display:flex;justify-content:space-between;margin-top:48px;font-size:11px;text-align:center}` +
+    `.vline{border-top:1px solid #333;width:160px;margin:0 auto 4px}` +
+    `.vfoot{margin-top:16px;border-top:1px solid #aaa;padding-top:6px;` +
+      `font-size:9px;color:#555;text-align:center}`;
+  printDoc(body, css, '');
 }
 
 /* ------------------------------ REPORTS ---------------------------- */
@@ -785,8 +818,34 @@ async function loadReport() {
 function printReport() {
   const grid = $('rep_grid').innerHTML;
   if (!/table/.test(grid)) { alert('Load a report first.'); return; }
-  printDoc(printHeader(lastReportName || 'Report') + grid, '@page{size:A4 landscape;margin:1cm}',
-    'body{font-size:8px} th,td{padding:2px 3px;white-space:normal;word-break:break-word} table{table-layout:fixed}');
+  const from = val('rep_from'), to = val('rep_to');
+  const fmtD = d => { if (!d) return ''; const dt = new Date(d);
+    const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return dt.getDate()+'-'+M[dt.getMonth()]+'-'+dt.getFullYear(); };
+  const timeline = from && to ? `<div class="tl">Period: <b>${fmtD(from)}</b> &nbsp;to&nbsp; <b>${fmtD(to)}</b></div>` : '';
+  const hdr =
+    `<div class="rh">` +
+    `<img src="${LOGO_URL}" class="rl" onerror="this.style.display='none'"/>` +
+    `<h1>${esc(BANK)}</h1>` +
+    `<h2>${esc(lastReportName||'Report')}</h2>` +
+    timeline +
+    `</div>`;
+  const css =
+    `body{font-size:8.5px;font-family:Arial,sans-serif;color:#000}` +
+    `.rh{text-align:center;border-bottom:2px solid #222;padding-bottom:8px;margin-bottom:10px}` +
+    `.rl{width:44px;height:44px;object-fit:contain;display:block;margin:0 auto 4px}` +
+    `h1{margin:0;font-size:16px;text-align:center}` +
+    `h2{margin:2px 0 0;font-size:11px;font-weight:600;text-align:center;color:#444}` +
+    `.tl{font-size:9px;color:#333;margin-top:5px;font-style:normal;text-align:center;` +
+      `background:#f5f5f5;padding:3px 8px;border-radius:3px;display:inline-block}` +
+    `table{width:100%;border-collapse:collapse;margin-top:8px;table-layout:fixed}` +
+    `th{background:#e8eef8;color:#1a3a8f;font-size:7.5px;padding:4px 5px;text-align:right;` +
+      `border:1px solid #bbb;text-transform:uppercase;letter-spacing:.03em;font-weight:700}` +
+    `th:first-child,th:nth-child(2){text-align:left}` +
+    `td{padding:3px 5px;text-align:right;border:1px solid #ddd;font-size:8.5px;word-break:break-word}` +
+    `td:first-child,td:nth-child(2){text-align:left}` +
+    `tr:nth-child(even) td{background:#fafbff}`;
+  printDoc(hdr + grid, '@page{size:A4 landscape;margin:1cm}', css);
 }
 
 /* ------------------------------ PROFILE (My Account) --------------- */
@@ -907,14 +966,24 @@ async function addUser() {
 }
 async function loadUsers() {
   try { const { users } = await api('users_list');
-    let h = '<table><tr><th>User ID</th><th>Name</th><th>Role</th><th>Branch</th><th>Active</th><th>Last Login</th><th></th></tr>';
+    let h = '<table><tr><th>User ID</th><th>Name / Last Login</th><th>Role</th><th>Branch</th><th>Active</th><th></th></tr>';
     users.forEach(u => {
-      const ll = u.LastLogin ? new Date(u.LastLogin).toLocaleString('en-IN', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
-      h += `<tr><td>${esc(u.UserID)}</td><td>${esc(u.Name)}</td><td>${esc(u.Role).replace(/([a-z])([A-Z])/g,'$1 $2')}</td><td>${esc(u.Branch)}</td>` +
-        `<td>${u.Active?'Yes':'No'}</td><td>${esc(ll)}</td>` +
-        `<td><button class="ghost" data-edituser="${esc(u.UserID)}">Edit</button> ` +
-        `<button class="ghost" data-reset="${esc(u.UserID)}">Reset PW</button> ` +
-        `<button class="ghost" data-toggle="${esc(u.UserID)}" data-active="${u.Active}">${u.Active?'Disable':'Enable'}</button></td></tr>`;
+      const ll = u.LastLogin
+        ? new Date(u.LastLogin).toLocaleString('en-IN', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })
+        : 'Never';
+      const roleDisplay = esc(u.Role).replace(/([a-z])([A-Z])/g,'$1 $2');
+      h += `<tr>
+        <td>${esc(u.UserID)}</td>
+        <td><div style="font-weight:600">${esc(u.Name)}</div>
+            <div style="font-size:11px;color:#6b7280;margin-top:2px">\u23F0 ${ll}</div></td>
+        <td>${roleDisplay}</td>
+        <td>${esc(u.Branch)}</td>
+        <td><span style="color:${u.Active?'#16a34a':'#dc2626'};font-weight:600">${u.Active?'Active':'Inactive'}</span></td>
+        <td style="white-space:nowrap">
+          <button class="ghost" data-edituser="${esc(u.UserID)}">Edit</button>
+          <button class="ghost" data-reset="${esc(u.UserID)}">Reset PW</button>
+          <button class="ghost" data-toggle="${esc(u.UserID)}" data-active="${u.Active}">${u.Active?'Disable':'Enable'}</button>
+        </td></tr>`;
     });
     $('u_list').innerHTML = h + '</table>';
   } catch (err) { $('u_list').innerHTML = `<p class="err">${err.message}</p>`; }
