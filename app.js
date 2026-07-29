@@ -1367,9 +1367,9 @@ async function loadApprovals(){
     let h='';
     approvals.forEach(a=>{
       const l=a.loan||{};
-      // Detect Keep Pending (stored as Pending with [Keep Pending] prefix in review_note)
-      const displayStatus=(a.status==='Pending'&&(a.review_note||'').startsWith('[Keep Pending]'))?'Keep Pending':a.status;
-      const displayComments=(a.review_note||'').replace(/^\[Keep Pending\]\s*/,'');
+      // Detect Keep Pending (stored as Pending with [Keep Pending] prefix in comments)
+      const displayStatus=(a.status==='Pending'&&(a.comments||'').startsWith('[Keep Pending]'))?'Keep Pending':a.status;
+      const displayComments=(a.comments||'').replace(/^\[Keep Pending\]\s*/,'');
       const statusClass=displayStatus==='Approved'?'approved':displayStatus==='Rejected'?'rejected':displayStatus==='Keep Pending'?'keepending':'';
       const statusColor=displayStatus==='Approved'?'#16a34a':displayStatus==='Rejected'?'#dc2626':displayStatus==='Keep Pending'?'#7c3aed':'#d97706';
       h+=`<div class="card ap-card ${statusClass}" style="margin:10px 0">`;
@@ -1399,7 +1399,7 @@ async function loadApprovals(){
       const canResubmit=(role==='BranchManager'||role==='CEO')&&a.status==='Rejected'&&a.next_role==='CEO';
       if(canResubmit){
         h+=`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">`;
-        h+=`<p style="font-size:12px;color:#dc2626;margin:0 0 8px">Returned with note: <b>${esc(a.review_note||'—')}</b></p>`;
+        h+=`<p style="font-size:12px;color:#dc2626;margin:0 0 8px">Returned with note: <b>${esc(a.comments||'—')}</b></p>`;
         h+=`<div class="grid" style="grid-template-columns:1fr;margin-bottom:8px">`;
         h+=`<label>Updated remarks / attachment<input id="ap_resub_remarks_${esc(a.loan_id)}" value="${esc(a.remarks||'')}" /></label>`;
         h+=`<label>Updated document<input type="file" id="ap_resub_doc_${esc(a.loan_id)}" accept="image/*,application/pdf" /></label>`;
