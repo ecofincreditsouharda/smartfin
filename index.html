@@ -39,6 +39,7 @@
     </label>
     <button id="loginBtn" class="primary block">Sign in</button>
     <span id="loginMsg" class="msg"></span>
+    <div style="margin-top:10px;font-size:11px;color:#9ca3af;letter-spacing:.01em" id="login_bankname"></div>
   </section>
 </div>
 
@@ -326,7 +327,16 @@
 
     <!-- SETTINGS -->
     <section class="view" id="view-settings" hidden>
-      <div class="card"><h2>Settings</h2><div id="set_form" class="grid"></div>
+      <div class="card">
+        <div class="card-head"><h2>Settings</h2></div>
+        <!-- Application Name (Admin only, stored locally) -->
+        <div class="admin-only" style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+          <label style="max-width:320px">Application Name <small style="font-weight:400;text-transform:none;color:#6b7280">(UI display name — shown instead of bank name in nav &amp; splash)</small>
+            <input id="set_appname" placeholder="e.g. ECOSMART Cooperative" />
+          </label>
+          <p style="font-size:11px;color:#9ca3af;margin:6px 0 0">Bank Name (from settings below) appears on printed documents: receipts, passbooks, vouchers, reports.</p>
+        </div>
+        <div id="set_form" class="grid"></div>
         <div class="actions"><button id="set_save" class="primary">Save settings</button><span id="set_msg" class="msg"></span></div></div>
       <div class="card"><h2>Branch contacts</h2>
         <div class="grid">
@@ -398,15 +408,32 @@
     <!-- MY ACCOUNT -->
     <section class="view" id="view-account" hidden>
       <div class="card narrow profile-card"><h2>My Profile &amp; Photo</h2>
-        <!-- Profile picture upload -->
-        <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border)">
-          <div id="prof_avatar_wrap" style="flex-shrink:0"></div>
-          <div style="flex:1">
-            <label style="text-transform:none;font-size:12px;color:#6b7280;letter-spacing:0">
-              Profile photo
-              <input type="file" id="prof_photo" accept="image/*" style="margin-top:4px" />
-            </label>
-            <button class="ghost" id="prof_photo_save" style="margin-top:6px;width:auto">Upload photo</button>
+        <!-- Profile picture upload with crop guide (#7) -->
+        <div style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+          <div style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap">
+            <div id="prof_avatar_wrap" style="flex-shrink:0"></div>
+            <div style="flex:1;min-width:200px">
+              <p style="margin:0 0 6px;font-size:12px;color:#374151;font-weight:600">Profile Photo</p>
+              <p style="margin:0 0 8px;font-size:11px;color:#9ca3af;line-height:1.5">
+                • Square images work best<br>
+                • Photo will be cropped to a <b>200×200 px circle</b><br>
+                • Recommended: face centred, min 200×200 px<br>
+                • Max file size: 5 MB (JPG/PNG)
+              </p>
+              <label style="text-transform:none;font-size:12px;color:#6b7280;letter-spacing:0;font-weight:500">
+                Choose photo
+                <input type="file" id="prof_photo" accept="image/*" style="margin-top:4px" />
+              </label>
+              <!-- Live crop preview -->
+              <div id="prof_crop_preview" style="display:none;margin-top:10px">
+                <p style="font-size:11px;color:#6b7280;margin:0 0 4px">Preview (will be cropped to circle):</p>
+                <div style="position:relative;display:inline-block">
+                  <canvas id="prof_crop_canvas" width="100" height="100" style="border-radius:50%;border:3px solid var(--primary);display:block"></canvas>
+                  <div style="position:absolute;inset:0;border-radius:50%;border:2px dashed rgba(224,122,97,.6);pointer-events:none"></div>
+                </div>
+              </div>
+              <button class="ghost" id="prof_photo_save" style="margin-top:8px;width:auto">Save photo</button>
+            </div>
           </div>
         </div>
         <label>Name<input id="prof_Name" /></label>
