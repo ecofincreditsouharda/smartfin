@@ -22,17 +22,20 @@
 
 <!-- LOGIN -->
 <div id="gate" hidden>
-  <div class="gate-bg"></div>
   <section class="card auth">
     <img src="logo.png" alt="Logo" class="logo-lg" onerror="this.style.display='none'" />
     <h1 id="loginName">ECOSMART</h1>
     <label>User ID<input id="loginId" autocomplete="username" /></label>
     <label>Password
-      <span class="pw-wrap"><input id="loginPw" type="password" autocomplete="current-password" />
-        <button type="button" class="pw-toggle" data-pwtoggle="loginPw" title="Show/hide password">
-          <svg id="eye-loginPw" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <span class="pw-wrap">
+        <input id="loginPw" type="password" autocomplete="current-password" />
+        <button type="button" class="pw-toggle" id="loginPwToggle" title="Show/hide password" aria-label="Toggle password">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none">
             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-          </svg></button></span>
+          </svg>
+        </button>
+      </span>
     </label>
     <button id="loginBtn" class="primary block">Sign in</button>
     <span id="loginMsg" class="msg"></span>
@@ -60,7 +63,7 @@
     <button class="navbtn society-only" data-view="society">Society Bank</button>
     <button class="navbtn" data-view="expenses">Expenses</button>
     <button class="navbtn report-only director-report" data-view="reports">Reports</button>
-    <button class="navbtn approval-role" data-view="approvals">Loan Approvals</button>
+    <button class="navbtn approval-role" data-view="approvals">Loan Approvals<span id="ap_badge" class="notif-badge" style="display:none">!</span></button>
     <button class="navbtn settings-only" data-view="settings">Settings</button>
     <button class="navbtn admin-only" data-view="users">Users</button>
     <button class="navbtn" data-view="account">My account</button>
@@ -69,12 +72,14 @@
   <div id="backdrop"></div>
 
   <main id="main">
+    <!-- DASHBOARD -->
     <section class="view" id="view-dashboard">
       <div class="card"><div class="card-head"><h2>Dashboard</h2><button class="ghost" data-refresh="dashboard">Refresh</button></div>
         <div id="dash" class="stats"></div></div>
       <div class="card"><h2>Overdue / Missed EMIs (this month)</h2><div id="dash_overdue"></div></div>
     </section>
 
+    <!-- MEMBERS -->
     <section class="view" id="view-members" hidden>
       <div class="card add-only"><h2>Add member</h2>
         <div class="grid">
@@ -101,6 +106,7 @@
       <div class="card" id="m_card" hidden><div class="card-head"><h2>Member details</h2><span><button class="ghost" id="m_print_detail">🖨 Print</button><button class="ghost" style="color:#dc2626" id="m_delete">🗑 Delete</button><button class="ghost" id="m_close">✕ Close</button></span></div><div id="m_detail"></div></div>
     </section>
 
+    <!-- LOANS -->
     <section class="view" id="view-loans" hidden>
       <div class="card add-only"><h2>Add a loan</h2>
         <div class="grid">
@@ -122,6 +128,8 @@
           <label>Guarantor 1 — Member No.<input id="l_G1MemberID" /></label>
           <label>Guarantor 2 — Name<input id="l_G2Name" /></label>
           <label>Guarantor 2 — Member No.<input id="l_G2MemberID" /></label>
+          <!-- Change Loan ID: only shown when editing, for BM/CEO/Admin -->
+          <label id="l_NewIdWrap" style="display:none">Change Loan ID (edit only)<input id="l_NewId" placeholder="leave blank to keep current" /></label>
         </div>
         <div class="actions"><button id="l_preview" class="ghost">Preview</button>
           <button id="l_add" class="primary" hidden>Confirm &amp; Save</button><button type="button" class="ghost" data-clear="loans">Clear</button><span id="l_msg" class="msg"></span></div>
@@ -135,6 +143,7 @@
         <div id="l_list"></div></div>
     </section>
 
+    <!-- REPAYMENTS -->
     <section class="view" id="view-repayments" hidden>
       <div class="card"><h2>Find a loan to collect / view</h2>
         <div class="grid"><label>Search<input id="r_search" placeholder="loan ID · name · phone · member ID" /></label>
@@ -156,11 +165,16 @@
         </div>
         <div class="actions"><button id="r_add" class="primary">Add receipt</button><span id="r_msg" class="msg"></span></div>
         <div id="r_receiptBox" hidden><div id="r_receiptView" class="summary"></div>
-          <button class="ghost" id="r_print">Print receipt</button></div></div>
+          <div class="actions">
+            <button class="ghost" id="r_print">Print receipt</button>
+            <button class="ghost" id="r_pdf" style="display:none">📄 Save as PDF</button>
+          </div>
+        </div></div>
       <div class="card" id="r_recCard" hidden><h2>Receipts <small>(print any anytime)</small></h2><div id="r_receipts"></div></div>
       <div class="card" id="r_schedCard" hidden><h2>Scheduled instalments</h2><div id="r_sched" class="scrolly"></div></div>
     </section>
 
+    <!-- FIXED DEPOSITS -->
     <section class="view" id="view-deposits" hidden>
       <div class="card add-only"><h2>Add a fixed deposit</h2>
         <div class="grid">
@@ -194,6 +208,7 @@
         <div class="actions"><button id="w_go" class="primary">Record withdrawal</button><span id="w_msg" class="msg"></span></div></div>
     </section>
 
+    <!-- SAVINGS -->
     <section class="view" id="view-savings" hidden>
       <div class="card add-only"><h2>Open savings account</h2>
         <div class="grid">
@@ -229,6 +244,7 @@
         <div id="pb_summary" class="summary"></div><div id="pb_rows" class="scrolly"></div></div>
     </section>
 
+    <!-- TRANSFERS -->
     <section class="view" id="view-transfers" hidden>
       <div class="card add-only"><h2>Transfer between members (Savings)</h2>
         <div class="grid">
@@ -243,6 +259,7 @@
         <div class="actions"><button id="tf_go" class="primary">Transfer</button><span id="tf_msg" class="msg"></span></div></div>
     </section>
 
+    <!-- EXPENSES -->
     <section class="view" id="view-expenses" hidden>
       <div class="card add-only"><h2>Add an expense</h2>
         <div class="grid">
@@ -263,6 +280,7 @@
       <div class="card"><div class="card-head"><h2>Expenses</h2><button class="ghost" data-refresh="expenses">Refresh</button></div><div id="e_list"></div></div>
     </section>
 
+    <!-- REPORTS -->
     <section class="view" id="view-reports" hidden>
       <div class="card"><h2>Financial statements</h2>
         <div class="grid"><label>Report<select id="rep_sheet">
@@ -283,6 +301,7 @@
         <div id="rep_grid" class="report scrolly"></div></div>
     </section>
 
+    <!-- SOCIETY -->
     <section class="view" id="view-society" hidden>
       <div class="card"><h2>Society Bank Account (mother account)</h2>
         <div class="grid">
@@ -305,6 +324,7 @@
       <div class="card"><div class="card-head"><h2>Transactions</h2><button class="ghost" data-refresh="society">Refresh</button></div><div id="soc_list"></div></div>
     </section>
 
+    <!-- SETTINGS -->
     <section class="view" id="view-settings" hidden>
       <div class="card"><h2>Settings</h2><div id="set_form" class="grid"></div>
         <div class="actions"><button id="set_save" class="primary">Save settings</button><span id="set_msg" class="msg"></span></div></div>
@@ -316,28 +336,79 @@
         </div>
         <div class="actions"><button id="br_save" class="primary">Save branch</button><span id="br_msg" class="msg"></span></div>
         <div id="br_list"></div></div>
+      <!-- HIERARCHY CHART — Admin only -->
+      <div class="card admin-only">
+        <div class="card-head"><h2>Organisation Hierarchy</h2><button class="ghost" id="hier_reset">Reset</button></div>
+        <p style="font-size:12px;color:#6b7280;margin:0 0 10px">Drag roles to reorder. The topmost role has authority over all below it. Lower roles are controlled by those above them.</p>
+        <div id="hier_tree" class="hier-tree"></div>
+        <div class="actions"><button id="hier_save" class="primary">Save hierarchy</button><span id="hier_msg" class="msg"></span></div>
+      </div>
     </section>
 
+    <!-- USERS -->
     <section class="view" id="view-users" hidden>
-      <div class="card admin-only"><h2>Add user</h2>
+      <div class="card admin-only"><h2>Add / Edit User</h2>
         <div class="grid">
           <label>User ID<input id="u_Id" /></label>
           <label>Name<input id="u_Name" /></label>
-          <label>Role<select id="u_Role"><option>Operator</option><option>BranchManager</option><option>Collector</option><option>Director</option><option>CEO</option><option>Admin</option></select></label>
+          <label>Role
+            <div style="display:flex;gap:6px">
+              <input id="u_Role" list="u_role_list" placeholder="select or type new role" style="flex:1" />
+              <datalist id="u_role_list">
+                <option value="Operator"></option>
+                <option value="BranchManager"></option>
+                <option value="Collector"></option>
+                <option value="Director"></option>
+                <option value="CEO"></option>
+                <option value="Admin"></option>
+              </datalist>
+            </div>
+          </label>
           <label>Branch<input id="u_Branch" /></label>
           <label>Temp password (8+)<input id="u_Pw" /></label>
         </div>
-        <div class="actions"><button id="u_add" class="primary">Add user</button><span id="u_msg" class="msg"></span></div></div>
+        <div class="actions"><button id="u_add" class="primary">Add user</button><span id="u_msg" class="msg"></span></div>
+      </div>
+      <!-- MODULE PERMISSIONS PER USER -->
+      <div class="card admin-only">
+        <div class="card-head"><h2>Module Permissions</h2>
+          <span style="font-size:12px;color:#6b7280">Override which modules a specific user can see</span>
+        </div>
+        <div class="grid" style="grid-template-columns:1fr 1fr;margin-bottom:10px">
+          <label>Select user<select id="mp_user"></select></label>
+          <label style="justify-content:flex-end;padding-top:18px">
+            <button class="ghost" id="mp_load" style="width:auto">Load permissions</button>
+          </label>
+        </div>
+        <div id="mp_perms"></div>
+        <div class="actions" id="mp_actions" style="display:none">
+          <button class="primary" id="mp_save">Save permissions</button>
+          <button class="ghost" id="mp_reset_perms">Reset to role defaults</button>
+          <span id="mp_msg" class="msg"></span>
+        </div>
+      </div>
       <div class="card admin-only"><div class="card-head"><h2>Users</h2><button class="ghost" data-refresh="users">Refresh</button></div><div id="u_list"></div></div>
-      <div class="card admin-only" class="danger-card">
+      <div class="card admin-only danger-card">
         <h2 style="color:#c0392b">⚠ Danger Zone — Reset All Data</h2>
-        <p style="color:#5b6472;font-size:13px">This permanently deletes <b>all transactions</b>: loans, deposits, repayments, members, savings, expenses, society ledger and branches. <b>User accounts are preserved.</b> This cannot be undone.</p>
+        <p style="color:#5b6472;font-size:13px">Permanently deletes <b>all transactions</b>. User accounts are preserved.</p>
         <div class="grid"><label>Type RESET to confirm<input id="reset_confirm" placeholder="type RESET" /></label></div>
         <div class="actions"><button id="reset_go" class="primary" style="background:#c0392b">Delete all data</button><span id="reset_msg" class="msg"></span></div></div>
     </section>
 
+    <!-- MY ACCOUNT -->
     <section class="view" id="view-account" hidden>
-      <div class="card narrow profile-card"><h2>My Profile</h2>
+      <div class="card narrow profile-card"><h2>My Profile &amp; Photo</h2>
+        <!-- Profile picture upload -->
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+          <div id="prof_avatar_wrap" style="flex-shrink:0"></div>
+          <div style="flex:1">
+            <label style="text-transform:none;font-size:12px;color:#6b7280;letter-spacing:0">
+              Profile photo
+              <input type="file" id="prof_photo" accept="image/*" style="margin-top:4px" />
+            </label>
+            <button class="ghost" id="prof_photo_save" style="margin-top:6px;width:auto">Upload photo</button>
+          </div>
+        </div>
         <label>Name<input id="prof_Name" /></label>
         <label>Display Name<input id="prof_DisplayName" /></label>
         <label>Phone<input id="prof_Phone" /></label>
@@ -345,29 +416,67 @@
         <label>Address<input id="prof_Address" /></label>
         <div class="actions"><button id="prof_save" class="primary">Save profile</button><span id="prof_msg" class="msg"></span></div></div>
       <div class="card narrow"><h2>Change password</h2>
-        <label>Current<input id="cp_Old" type="password" /></label>
-        <label>New (8+)<input id="cp_New" type="password" /></label>
+        <label>Current
+          <span class="pw-wrap">
+            <input id="cp_Old" type="password" />
+            <button type="button" class="pw-toggle" id="cpOldToggle" aria-label="Toggle">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+          </span>
+        </label>
+        <label>New (8+)
+          <span class="pw-wrap">
+            <input id="cp_New" type="password" />
+            <button type="button" class="pw-toggle" id="cpNewToggle" aria-label="Toggle">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+          </span>
+        </label>
         <div class="actions"><button id="cp_go" class="primary">Update password</button><span id="cp_msg" class="msg"></span></div></div>
     </section>
-  <div id="inactivity-toast" style="display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
-    background:#374151;color:#fff;padding:10px 22px;border-radius:50px;font-size:13px;z-index:300;
-    box-shadow:0 4px 16px rgba(0,0,0,.3)">Signed out due to inactivity</div>
 
+    <!-- LOAN APPROVALS -->
     <section class="view" id="view-approvals" hidden>
-      <div class="card approval-role add-only"><h2>Submit Loan for Approval</h2>
+      <div class="card approval-role add-only">
+        <div class="card-head">
+          <h2>Submit Loan for Approval</h2>
+          <button class="ghost" id="ap_clear">Clear</button>
+        </div>
         <div class="grid">
           <label>Loan ID<input id="ap_LoanId" placeholder="ECO00001" /></label>
+          <label>Send to
+            <select id="ap_SendTo">
+              <option value="CEO">CEO</option>
+              <option value="Director">Director</option>
+            </select>
+          </label>
           <label>Supporting Document<input id="ap_Doc" type="file" accept="image/*,application/pdf" /></label>
-          <label>Remarks<input id="ap_Remarks" /></label>
+          <label style="grid-column:1/-1">Remarks / Note<input id="ap_Remarks" placeholder="Add any remarks or notes for the reviewer" /></label>
         </div>
-        <div class="actions"><button id="ap_submit" class="primary">Submit for Approval</button><span id="ap_msg" class="msg"></span></div></div>
-      <div class="card approval-role"><div class="card-head"><h2>Approval Queue</h2><button class="ghost" data-refresh="approvals">Refresh</button></div>
-        <div id="ap_list"></div></div>
+        <div class="actions"><button id="ap_submit" class="primary">Submit for Approval</button><span id="ap_msg" class="msg"></span></div>
+      </div>
+      <div class="card approval-role">
+        <div class="card-head">
+          <h2>Approval Queue</h2>
+          <span style="display:flex;gap:8px">
+            <button class="ghost" data-refresh="approvals">Refresh</button>
+            <button class="ghost" id="ap_clearall">Clear view</button>
+          </span>
+        </div>
+        <div id="ap_list"></div>
+      </div>
     </section>
   </main>
 </div>
 
 <div id="modal" hidden><div class="modal-box"><div class="modal-head"><span id="modal_title"></span><button id="modal_close" class="ghost">Close</button></div><div id="modal_body"></div></div></div>
+<div id="inactivity-toast">Signed out due to inactivity</div>
 
 <script src="app.js"></script>
 </body>
