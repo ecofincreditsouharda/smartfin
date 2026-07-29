@@ -14,11 +14,16 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;
 const token = () => localStorage.getItem('coop_token') || '';
 
 async function api(action, payload = {}) {
-  const res = await fetch(WEB_APP_URL, { method:'POST', headers:{ 'Content-Type':'application/json' },
-    body: JSON.stringify(Object.assign({ action, token: token() }, payload)) });
-  const data = await res.json();
-  if (!data.ok) { if (/sign in/i.test(data.error||'')) logout(); throw new Error(data.error || 'Request failed'); }
-  return data;
+  try {
+    const res = await fetch(WEB_APP_URL, { method:'POST', headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify(Object.assign({ action, token: token() }, payload)) });
+    if (!res.ok) { throw new Error(`HTTP ${res.status}: ${res.statusText}`); }
+    const data = await res.json();
+    if (!data.ok) { if (/sign in/i.test(data.error||'')) logout(); throw new Error(data.error || 'Request failed'); }
+    return data;
+  } catch (err) {
+    throw new Error(err.message || 'Network error: Failed to connect to server');
+  }
 }
 const summaryHtml = (pairs) => pairs.map(([k, v]) => `<div><span>${esc(k)}</span><b>${v}</b></div>`).join('');
 const tableFrom = (rows) => {
