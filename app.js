@@ -111,11 +111,15 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('click', e => {
   const t = e.target, d = t.dataset || {};
-  if (d.pwtoggle) { const f = $(d.pwtoggle), show = f.type === 'password'; f.type = show ? 'text' : 'password';
-    // Toggle eye icon appearance (crossed out when password is visible)
-    const eyeSvg = t.querySelector('svg') || t.closest('button').querySelector('svg');
+   if (d.pwtoggle) { 
+    const f = $(d.pwtoggle), show = f.type === 'password'; 
+    f.type = show ? 'text' : 'password';
+    // Robustly find the SVG regardless of what was clicked
+    const eyeBtn = t.closest('button');
+    const eyeSvg = eyeBtn ? eyeBtn.querySelector('svg') : t.querySelector('svg');
     if (eyeSvg) eyeSvg.style.opacity = show ? '0.4' : '1';
-    return; }
+    return; 
+  }
   if (t.id === 'hamburger') return toggleNav();
   if (t.id === 'backdrop') return toggleNav(false);
   if (t.id === 'loginBtn') return login();
