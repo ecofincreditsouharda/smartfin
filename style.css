@@ -260,3 +260,29 @@ tbody tr:hover td{background:#fafbff}
 
 /* Disable pinch zoom on PWA */
 html { touch-action: manipulation; }
+
+/* #2: Login background image */
+#gate {
+  background: url('background.png') center center / cover no-repeat fixed;
+}
+#gate .card.auth {
+  backdrop-filter: blur(2px);
+  background: rgba(255,255,255,0.92);
+  box-shadow: 0 8px 40px rgba(0,0,0,.18);
+}
+.gate-bg { display: none; } /* override gradient when image is used */
+
+/* #7: Savings table - fix column alignment */
+#s_list table { table-layout: fixed; }
+#s_list table th:nth-child(1), #s_list table td:nth-child(1) { width: 100px; }
+#s_list table th:nth-child(2), #s_list table td:nth-child(2) { width: 90px; }
+#s_list table th:last-child,   #s_list table td:last-child   { width: 80px; }
+
+/* #11: Approval ribbon */
+.approval-ribbon {
+  background: linear-gradient(90deg, #1d4ed8, #2563eb);
+  color: #fff; padding: 8px 16px; border-radius: var(--r-sm);
+  font-size: 12px; font-weight: 600; margin-bottom: 14px;
+  animation: ribbonIn .4s ease;
+}
+@keyframes ribbonIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; } }
