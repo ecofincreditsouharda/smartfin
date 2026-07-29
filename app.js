@@ -1,4 +1,3 @@
-
 /* ── CONFIG ──────────────────────────────────────────────────── */
 const WEB_APP_URL = 'https://tgopjjtamvoftzdfvzuc.supabase.co/functions/v1/api';
 const IDLE_MS = 60 * 1000;
@@ -17,20 +16,29 @@ const isPWA = () => window.matchMedia('(display-mode: standalone)').matches || n
 /* ── API ─────────────────────────────────────────────────────── */
 async function api(action, payload={}) {
   try {
-    const ctrl = new AbortController();
-    const tid = setTimeout(()=>ctrl.abort(), 15000);
-    const res = await fetch(WEB_APP_URL,{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(Object.assign({action,token:token()},payload)),signal:ctrl.signal});
-    clearTimeout(tid);
-    if (!res.ok) throw new Error(`Server error (${res.status})`);
+    const res = await fetch(WEB_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ action, token: token() }, payload))
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(()=>'');
+      throw new Error(`HTTP ${res.status}: ${res.statusText||txt||'Server error'}`);
+    }
     const data = await res.json();
-    if (!data.ok){if(/sign in/i.test(data.error||''))logout();throw new Error(data.error||'Request failed');}
+    if (!data.ok) {
+      if (/sign in/i.test(data.error||'')) logout();
+      throw new Error(data.error || 'Request failed');
+    }
     return data;
   } catch(err) {
-    if (err.name==='AbortError') throw new Error('Request timeout (15s). Server may be slow.');
-    if (err instanceof SyntaxError) throw new Error('Server returned invalid response.');
-    if (err.message.includes('Failed to fetch')) throw new Error('Cannot reach server. Check connection.');
-    throw new Error(err.message||'Unknown error.');
+    // Log the real error so it appears in browser DevTools console
+    console.error('[API]', action, err);
+    const msg = err.message || '';
+    if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('Load failed') || msg.includes('fetch')) {
+      throw new Error('Cannot reach server.\n\nOpen browser DevTools (F12) → Console to see the real error.\n\nMost likely: re-deploy the Supabase function:\n  supabase functions deploy api');
+    }
+    throw err;
   }
 }
 const summaryHtml = pairs => pairs.map(([k,v])=>`<div><span>${esc(k)}</span><b>${v}</b></div>`).join('');
@@ -83,6 +91,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   setupPwToggle('loginPwToggle','loginPw');
   setupPwToggle('cpOldToggle','cp_Old');
   setupPwToggle('cpNewToggle','cp_New');
+  // Test connection button
+  const tcBtn=$('testConnBtn');
+  if(tcBtn) tcBtn.addEventListener('click', testConnection);
   // Show PDF button only in PWA
   if ($('r_pdf')) $('r_pdf').style.display = isPWA() ? 'inline-flex' : 'none';
   try{const{bankName}=await api('bank_info');if(bankName)BANK=bankName;}catch(e){}
@@ -93,7 +104,66 @@ window.addEventListener('DOMContentLoaded', async () => {
   setTimeout(()=>{$('splash').hidden=true;$('gate').hidden=false;},1600);
 });
 
-/* ── PASSWORD TOGGLE (Fix #1) ────────────────────────────────── */
+/* ── CONNECTION TEST ─────────────────────────────────────────── */
+/* ── CONNECTION TEST ─────────────────────────────────────────── */
+async function testConnection(){
+  const btn=$('testConnBtn'), msg=$('testConnMsg');
+  if(!btn||!msg){console.warn('testConn elements not found');return;}
+  btn.disabled=true;
+  msg.style.color='#374151';
+  msg.textContent='Testing…';
+
+  // Test 1: plain fetch (no AbortController, no token)
+  try{
+    const t0=Date.now();
+    const res=await fetch(WEB_APP_URL,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'bank_info'})
+    });
+    const ms=Date.now()-t0;
+    if(res.ok){
+      const d=await res.json().catch(()=>({}));
+      msg.style.color='#16a34a';
+      msg.textContent=`✅ Connected (${ms}ms)${d.bankName?' — '+d.bankName:''}`;
+    } else {
+      msg.style.color='#dc2626';
+      msg.textContent=`❌ HTTP ${res.status} — check Supabase function logs`;
+      console.error('[TestConn] HTTP error:', res.status, res.statusText);
+    }
+  }catch(fetchErr){
+    console.error('[TestConn] fetch failed:', fetchErr);
+    msg.style.color='#dc2626';
+    msg.textContent='❌ fetch failed: '+fetchErr.message+'\n\nTrying XHR…';
+
+    // Test 2: XMLHttpRequest fallback (bypasses some browser fetch restrictions)
+    try{
+      const xhrResult = await new Promise((resolve,reject)=>{
+        const x=new XMLHttpRequest();
+        x.open('POST', WEB_APP_URL, true);
+        x.setRequestHeader('Content-Type','application/json');
+        x.timeout=8000;
+        x.onload=()=>resolve({status:x.status,body:x.responseText});
+        x.onerror=()=>reject(new Error('XHR network error'));
+        x.ontimeout=()=>reject(new Error('XHR timeout'));
+        x.send(JSON.stringify({action:'bank_info'}));
+      });
+      if(xhrResult.status===200){
+        msg.style.color='#d97706';
+        msg.textContent='⚠ XHR works but fetch fails — possible browser/PWA fetch restriction. Try opening the app in a regular browser tab (not installed PWA).';
+      } else {
+        msg.style.color='#dc2626';
+        msg.textContent='❌ XHR also failed: HTTP '+xhrResult.status+' — Supabase function error. Check Dashboard → Functions → Logs.';
+      }
+    }catch(xhrErr){
+      msg.style.color='#dc2626';
+      msg.textContent='❌ Both fetch and XHR failed: '+xhrErr.message+'\n\nCheck: 1) Internet connection, 2) Supabase project status at supabase.com/dashboard';
+      console.error('[TestConn] XHR also failed:', xhrErr);
+    }
+  }finally{
+    btn.disabled=false;
+  }
+}
 function setupPwToggle(btnId, inputId) {
   const btn = $(btnId); if (!btn) return;
   btn.addEventListener('click', e => {
@@ -192,16 +262,17 @@ function toggleNav(open){const n=$('nav'),b=$('backdrop');
 
 /* ── AUTH ────────────────────────────────────────────────────── */
 async function login(){
-  const msg=$('loginMsg'); msg.textContent='Signing in…';
+  const msg=$('loginMsg');
+  if(msg){ msg.style.color='#6b7280'; msg.textContent='Signing in…'; }
   try{
     const{token:tk,user}=await api('login',{userId:val('loginId').trim(),password:val('loginPw')});
-    localStorage.setItem('coop_token',tk);$('loginPw').value='';msg.textContent='';
-    // Notify other open tabs/windows to log out (Fix #9)
+    localStorage.setItem('coop_token',tk); $('loginPw').value='';
+    if(msg){ msg.textContent=''; msg.style.color=''; }
     if(_sessionChannel) _sessionChannel.postMessage({type:'new_login',userId:user.userId});
     start(user);
   }catch(err){
-    msg.textContent=err.message||'Login failed.';
-    setTimeout(()=>{if(msg.textContent===err.message)msg.textContent='';},10000);
+    if(msg){ msg.style.color='#dc2626'; msg.textContent=err.message||'Login failed.'; }
+    console.error('[Login error]', err);
   }
 }
 function logout(){
