@@ -223,8 +223,15 @@ function start(user) {
   $('who').innerHTML =
     `<div style="text-align:right"><div style="font-size:13px;font-weight:600;color:#111827">${esc(user.name)}</div>` +
     `<div style="font-size:11px;color:#6b7280">${esc(roleLabel)}${branchLabel}</div>` +
-    lastLoginLine + `</div>` +
+    `</div>` +
     `<button id="logoutBtn" style="margin-left:8px">Sign out</button>`;
+  // Sidebar last-login block (PWA mobile only — shown via CSS @media)
+  if ($('nav_lastlogin')) {
+    $('nav_lastlogin').innerHTML =
+      `<div class="nl-name">${esc(user.name)}</div>` +
+      `<div class="nl-role">${esc(roleLabel)}${branchLabel}</div>` +
+      (user.lastLogin ? `<div class="nl-login">Last login: ${esc(user.lastLogin)}</div>` : '');
+  }
   document.querySelectorAll('.add-only').forEach(el    => el.style.display = canWrite    ? '' : 'none');
   document.querySelectorAll('.report-only').forEach(el => el.style.display = canReport   ? '' : 'none');
   document.querySelectorAll('.settings-only').forEach(el => el.style.display = canSettings ? '' : 'none');
@@ -244,7 +251,6 @@ function start(user) {
     if (!canApproval) { el.style.display = 'none'; return; }
     // Director cannot submit approvals — keep add-only items hidden for Director
     if (role === 'Director' && el.classList.contains('add-only')) { el.style.display = 'none'; return; }
-    // Use appropriate display value: buttons are inline-block, divs/sections are block
     el.style.display = (el.tagName === 'BUTTON') ? 'inline-block' : 'block';
   });
   // Nav bank name (#3)
@@ -536,7 +542,7 @@ function printSchedule() {
     '@page{size:A4;margin:1cm}',
     '.hd{text-align:center;display:block} .hd h2{font-size:18px} body{font-size:9pt} table{font-size:9pt} th,td{font-size:9pt;padding:3px 5px}');
 }
-/* In-place printing via a hidden iframe — no new tab (PWA-safe) */
+/* In-place printing via a hidden iframe — PWA-safe (srcdoc + onload) */
 function printDoc(inner, pageCss, extraCss) {
   const base = `body{font-family:Arial,sans-serif;color:#000}
     .hd{display:flex;align-items:center;gap:14px;border-bottom:2px solid #333;padding-bottom:8px;margin-bottom:12px}
@@ -548,13 +554,21 @@ function printDoc(inner, pageCss, extraCss) {
     table.meta td{border:0;text-align:left;padding:3px 6px}
     .sign{margin-top:44px;text-align:right;font-size:12px}
     .foot{margin-top:14px;border-top:1px solid #999;padding-top:6px;font-size:10px;color:#333;text-align:center}`;
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>@page{}${pageCss}${base}${extraCss||''}</style></head><body>${inner}</body></html>`;
   const frame = document.createElement('iframe');
-  frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+  frame.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0';
+  // Use srcdoc — works in PWA standalone without cross-origin iframe restrictions
+  frame.srcdoc = html;
+  let printed = false;
+  function doPrint() {
+    if (printed) return; printed = true;
+    try { frame.contentWindow.focus(); frame.contentWindow.print(); } catch(e) { console.warn('Print failed:', e); }
+    setTimeout(() => { try { frame.remove(); } catch(e){} }, 2000);
+  }
+  frame.onload = () => setTimeout(doPrint, 120); // small delay lets images render
   document.body.appendChild(frame);
-  const doc = frame.contentWindow.document;
-  doc.open(); doc.write(`<html><head><style>@page{${''}}${pageCss}${base}${extraCss||''}</style></head><body>${inner}</body></html>`); doc.close();
-  frame.contentWindow.focus();
-  setTimeout(() => { try { frame.contentWindow.print(); } catch(e){} setTimeout(() => frame.remove(), 1500); }, 450);
+  // Fallback: if onload never fires (some Android WebViews), trigger after 900ms
+  setTimeout(() => { if (!printed) doPrint(); }, 900);
 }
 
 /* --------------------------- REPAYMENTS ---------------------------- */
