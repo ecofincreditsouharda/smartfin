@@ -237,10 +237,16 @@ function start(user) {
   if (role === 'Director') {
     document.querySelectorAll('.no-director').forEach(el => el.style.display = 'none');
     document.querySelectorAll('.no-director-passbook').forEach(el => el.style.display = 'none');
-    document.querySelectorAll('.report-only').forEach(el => el.style.display = '');
+    document.querySelectorAll('.report-only').forEach(el => el.style.display = 'block');
   }
   const canApproval = ["Admin","CEO","BranchManager","Director"].includes(role);
-  document.querySelectorAll('.approval-role').forEach(el => el.style.display = canApproval ? '' : 'none');
+  document.querySelectorAll('.approval-role').forEach(el => {
+    if (!canApproval) { el.style.display = 'none'; return; }
+    // Director cannot submit approvals — keep add-only items hidden for Director
+    if (role === 'Director' && el.classList.contains('add-only')) { el.style.display = 'none'; return; }
+    // Use appropriate display value: buttons are inline-block, divs/sections are block
+    el.style.display = (el.tagName === 'BUTTON') ? 'inline-block' : 'block';
+  });
   // Nav bank name (#3)
   if ($('nav_bank')) $('nav_bank').textContent = BANK;
   populateBranchSelects(); populateCollectorSelect();
