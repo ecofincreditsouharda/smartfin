@@ -1,4 +1,3 @@
-
 /* ---- CONFIG ---- */
 const WEB_APP_URL = 'https://tgopjjtamvoftzdfvzuc.supabase.co/functions/v1/api';
 const IDLE_MS = 60 * 1000;   // auto-logout after inactivity (change if too aggressive)
@@ -15,14 +14,38 @@ const token = () => localStorage.getItem('coop_token') || '';
 
 async function api(action, payload = {}) {
   try {
-    const res = await fetch(WEB_APP_URL, { method:'POST', headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify(Object.assign({ action, token: token() }, payload)) });
-    if (!res.ok) { throw new Error(`HTTP ${res.status}: ${res.statusText}`); }
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+    
+    const res = await fetch(WEB_APP_URL, { 
+      method:'POST', 
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify(Object.assign({ action, token: token() }, payload)),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    
+    if (!res.ok) {
+      throw new Error(`Server error (${res.status}): ${res.statusText || 'Check network connection'}`);
+    }
+    
     const data = await res.json();
-    if (!data.ok) { if (/sign in/i.test(data.error||'')) logout(); throw new Error(data.error || 'Request failed'); }
+    if (!data.ok) { 
+      if (/sign in/i.test(data.error||'')) logout(); 
+      throw new Error(data.error || 'Request failed'); 
+    }
     return data;
   } catch (err) {
-    throw new Error(err.message || 'Network error: Failed to connect to server');
+    if (err.name === 'AbortError') {
+      throw new Error('Request timeout (15s). Server may be down or network is slow.');
+    }
+    if (err instanceof SyntaxError) {
+      throw new Error('Server returned invalid response. API may be down.');
+    }
+    if (err.message.includes('Failed to fetch')) {
+      throw new Error('Cannot reach server. Check: 1) API URL is correct, 2) Server is online, 3) No CORS issues');
+    }
+    throw new Error(err.message || 'Unknown error. Check browser console.');
   }
 }
 const summaryHtml = (pairs) => pairs.map(([k, v]) => `<div><span>${esc(k)}</span><b>${v}</b></div>`).join('');
@@ -58,7 +81,13 @@ window.addEventListener('DOMContentLoaded', async () => {
   if ($('loginMsg')) $('loginMsg').textContent = '';
   // #3: Always log out on page refresh — clear any stored token
   localStorage.removeItem('coop_token');
-  try { const { bankName } = await api('bank_info'); if (bankName) BANK = bankName; } catch (e) {}
+  try { 
+    const { bankName } = await api('bank_info'); 
+    if (bankName) BANK = bankName; 
+  } catch (e) { 
+    console.warn('Could not fetch bank info:', e.message);
+    // Continue with default BANK name
+  }
   applyBranding(BANK);
   setTimeout(() => { $('splash').hidden = true; $('gate').hidden = false; }, 1600);
 });
@@ -111,10 +140,10 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('click', e => {
   const t = e.target, d = t.dataset || {};
-   if (d.pwtoggle) { 
+  if (d.pwtoggle) { 
     const f = $(d.pwtoggle), show = f.type === 'password'; 
     f.type = show ? 'text' : 'password';
-    // Robustly find the SVG regardless of what was clicked
+    // Toggle eye icon appearance - works whether clicking button, text, or SVG
     const eyeBtn = t.closest('button');
     const eyeSvg = eyeBtn ? eyeBtn.querySelector('svg') : t.querySelector('svg');
     if (eyeSvg) eyeSvg.style.opacity = show ? '0.4' : '1';
@@ -154,11 +183,20 @@ function toggleNav(open) { const n = $('nav'), b = $('backdrop');
 
 /* ------------------------------ AUTH ------------------------------- */
 async function login() {
-  $('loginMsg').textContent = 'Signing in…';
-  try { const { token: tk, user } = await api('login', { userId: val('loginId').trim(), password: val('loginPw') });
-    localStorage.setItem('coop_token', tk); $('loginPw').value = '';
-    $('loginMsg').textContent = ''; start(user);
-  } catch (err) { $('loginMsg').textContent = err.message; }
+  const loginMsg = $('loginMsg');
+  loginMsg.textContent = 'Signing in…';
+  try { 
+    const { token: tk, user } = await api('login', { userId: val('loginId').trim(), password: val('loginPw') });
+    localStorage.setItem('coop_token', tk); 
+    $('loginPw').value = '';
+    loginMsg.textContent = ''; 
+    start(user);
+  } catch (err) { 
+    console.error('Login error:', err);
+    loginMsg.textContent = err.message || 'Login failed. Please try again.';
+    // Keep error visible for 10 seconds
+    setTimeout(() => { if (loginMsg.textContent === err.message) loginMsg.textContent = ''; }, 10000);
+  }
 }
 function logout(){
   clearTimeout(idleTimer); localStorage.removeItem('coop_token'); session = null;
