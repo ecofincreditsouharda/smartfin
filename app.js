@@ -4,7 +4,7 @@ const IDLE_MS = 60 * 1000;
 
 let session = null, lastSchedule = null, lastMeta = null, lastReceipt = null, curLoanId = '';
 let editing = { type:null, id:null }, lastVoucher = null, repLoans = [];
-let BANK = 'ECOSMART', LOGO_URL = 'logo.png';
+let BANK = 'ECOSMART', APP_NAME = 'ECOSMART', LOGO_URL = 'logo.png';
 const $ = id => document.getElementById(id);
 const val = id => ($(id) ? $(id).value : '');
 const rupee = n => (n===''||n==null||isNaN(Number(String(n).replace(/[^0-9.\-]/g,''))))
@@ -47,6 +47,25 @@ const schedTable = sch => {
 };
 const fileToB64 = f => new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=rej;r.readAsDataURL(f);});
 
+/* ── SINGLE SESSION (Fix #9) ─────────────────────────────────── */
+// BroadcastChannel forces logout on other tabs/windows when a new login happens
+const _sessionChannel = ('BroadcastChannel' in window) ? new BroadcastChannel('coop_session') : null;
+if(_sessionChannel){
+  _sessionChannel.onmessage = e => {
+    if(e.data && e.data.type === 'new_login' && session){
+      // Another window/tab just logged in — log out this one silently
+      clearTimeout(idleTimer);
+      localStorage.removeItem('coop_token');
+      session=null;
+      if($('app'))$('app').hidden=true;
+      if($('splash'))$('splash').hidden=false;
+      if($('gate'))$('gate').hidden=true;
+      if($('loginMsg'))$('loginMsg').textContent='⚠ Signed in from another device/tab.';
+      setTimeout(()=>{if($('splash'))$('splash').hidden=true;if($('gate'))$('gate').hidden=false;},1400);
+    }
+  };
+}
+
 /* ── IDLE AUTO-LOGOUT ────────────────────────────────────────── */
 let idleTimer=null;
 function resetIdle(){if(!session)return;clearTimeout(idleTimer);
@@ -65,8 +84,10 @@ window.addEventListener('DOMContentLoaded', async () => {
   setupPwToggle('cpNewToggle','cp_New');
   // Show PDF button only in PWA
   if ($('r_pdf')) $('r_pdf').style.display = isPWA() ? 'inline-flex' : 'none';
-  try{const{bankName}=await api('bank_info');if(bankName){BANK=bankName;applyBranding(BANK);}}catch(e){}
-  applyBranding(BANK);
+  try{const{bankName}=await api('bank_info');if(bankName)BANK=bankName;}catch(e){}
+  // Load appName from localStorage (set via Admin settings)
+  APP_NAME=localStorage.getItem('coop_app_name')||BANK;
+  applyBranding(APP_NAME,BANK);
   setTimeout(()=>{$('splash').hidden=true;$('gate').hidden=false;},1600);
 });
 
@@ -82,11 +103,15 @@ function setupPwToggle(btnId, inputId) {
   });
 }
 
-function applyBranding(name){
-  document.title=name;
-  if($('splashName'))$('splashName').textContent=name;
-  if($('loginName'))$('loginName').textContent=name;
-  if($('brandName'))$('brandName').textContent=name;
+function applyBranding(appName,bankName){
+  // appName used in UI, splash, nav, title; bankName used in prints/reports/receipts
+  APP_NAME=appName||BANK; BANK=bankName||APP_NAME;
+  document.title=APP_NAME;
+  if($('splashName'))$('splashName').textContent=APP_NAME;
+  if($('loginName'))$('loginName').textContent=APP_NAME;
+  if($('brandName'))$('brandName').textContent=APP_NAME;
+  if($('nav_bank'))$('nav_bank').textContent=APP_NAME;
+  if($('login_bankname'))$('login_bankname').textContent=BANK; // Fix 6: bank name under login
 }
 
 /* ── EVENTS ──────────────────────────────────────────────────── */
@@ -166,7 +191,10 @@ async function login(){
   const msg=$('loginMsg'); msg.textContent='Signing in…';
   try{
     const{token:tk,user}=await api('login',{userId:val('loginId').trim(),password:val('loginPw')});
-    localStorage.setItem('coop_token',tk);$('loginPw').value='';msg.textContent='';start(user);
+    localStorage.setItem('coop_token',tk);$('loginPw').value='';msg.textContent='';
+    // Notify other open tabs/windows to log out (Fix #9)
+    if(_sessionChannel) _sessionChannel.postMessage({type:'new_login',userId:user.userId});
+    start(user);
   }catch(err){
     msg.textContent=err.message||'Login failed.';
     setTimeout(()=>{if(msg.textContent===err.message)msg.textContent='';},10000);
@@ -206,7 +234,7 @@ function applyModulePerms(userId, role){
 
 /* ── START (after login) ─────────────────────────────────────── */
 function start(user){
-  session=user; if(user.bankName){BANK=user.bankName;applyBranding(BANK);}
+  session=user; if(user.bankName){BANK=user.bankName;APP_NAME=localStorage.getItem('coop_app_name')||BANK;applyBranding(APP_NAME,BANK);}
   $('gate').hidden=true;$('splash').hidden=true;$('app').hidden=false;resetIdle();
   const role=user.role;
   const canWrite    =['Admin','CEO','BranchManager','Operator','Collector'].includes(role);
@@ -689,24 +717,56 @@ async function savingsTxn(){
 async function loadPassbook(){
   const id=val('pb_SavingsID').trim();if(!id)return;
   try{const{passbook}=await api('savings_passbook',{savingsId:id});
-    $('pb_summary').innerHTML=summaryHtml([['Member',esc(passbook.account.Member)],['Balance',rupee(passbook.account.Balance)],['Minimum Balance',rupee(passbook.account.MinBalance)]]);
+    $('pb_summary').innerHTML=summaryHtml([['Member',esc(passbook.account.Member)],['Savings ID',esc(passbook.account.SavingsID||'')],['Balance',rupee(passbook.account.Balance)],['Min Balance',rupee(passbook.account.MinBalance)]]);
     const from=val('pb_from'),to=val('pb_to');
     let rows=passbook.rows;
     if(from)rows=rows.filter(r=>r.Date>=from);if(to)rows=rows.filter(r=>r.Date<=to);
     $('pb_rows').innerHTML=tableFrom(rows);
-    $('pb_rows').dataset.passbook=JSON.stringify({account:passbook.account,rows});
+    // Enrich account with branch from session if not returned
+    const acct=Object.assign({Branch:session?.branch||''},passbook.account);
+    $('pb_rows').dataset.passbook=JSON.stringify({account:acct,rows});
   }catch(err){alert(err.message);}
 }
 function printPassbook(){
   const raw=$('pb_rows').dataset.passbook;if(!raw){alert('Load a passbook first.');return;}
   const{account,rows}=JSON.parse(raw);
-  const hd=`<div style="text-align:center;margin-bottom:12px">`+
-    `<img src="${LOGO_URL}" style="width:56px;height:56px;object-fit:contain;display:block;margin:0 auto 6px" onerror="this.style.display='none'"/>`+
-    `<h2 style="margin:0;font-size:18px">${esc(BANK)}</h2><h3 style="margin:2px 0 0;font-weight:normal;font-size:13px">Savings Passbook</h3></div>`+
-    `<table class="meta" style="width:100%;margin-bottom:10px"><tr><td><b>Savings ID:</b> ${esc(account.SavingsID||'')}</td><td><b>Member:</b> ${esc(account.Member)}</td></tr></table>`;
-  let t='<table><tr><th>Txn No</th><th>Date</th><th>Type</th><th>Amount</th><th>Balance</th><th>Note</th></tr>';
-  rows.forEach(r=>t+=`<tr><td>${esc(r.TxnNo)}</td><td>${esc(r.Date)}</td><td>${esc(r.Type)}</td><td>${rupee(r.Amount)}</td><td>${rupee(r.Balance)}</td><td>${esc(r.Note)}</td></tr>`);
-  printDoc(hd+t+'</table>','@page{size:A4;margin:1.5cm}','body{font-size:10px}table.meta td{border:0;padding:3px 6px}');
+  // Format DOB nicely
+  const fmtDob=d=>{if(!d)return'—';try{const dt=new Date(d);const M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return`${String(dt.getDate()).padStart(2,'0')}-${M[dt.getMonth()]}-${dt.getFullYear()}`;}catch(e){return d;}};
+  const hd=
+    `<div class="pb-header">`+
+    `<img src="${LOGO_URL}" style="width:60px;height:60px;object-fit:contain;display:block;margin:0 auto 6px" onerror="this.style.display='none'"/>`+
+    `<h2 style="margin:0;font-size:20px;letter-spacing:-.5px">${esc(BANK)}</h2>`+
+    `<h3 style="margin:4px 0 0;font-weight:400;font-size:13px;color:#444">Savings Passbook</h3>`+
+    `</div>`+
+    `<table class="pb-meta">`+
+    `<tr><td class="lbl">Savings ID</td><td class="val">${esc(account.SavingsID||'—')}</td>`+
+    `    <td class="lbl">Member ID</td><td class="val">${esc(account.MemberID||'—')}</td></tr>`+
+    `<tr><td class="lbl">Member Name</td><td class="val" colspan="3">${esc(account.Member||'—')}</td></tr>`+
+    `<tr><td class="lbl">Date of Birth</td><td class="val">${fmtDob(account.DOB)}</td>`+
+    `    <td class="lbl">Branch</td><td class="val">${esc(account.Branch||session?.branch||'—')}</td></tr>`+
+    `<tr><td class="lbl">Address</td><td class="val" colspan="3">${esc(account.Address||'—')}</td></tr>`+
+    `<tr><td class="lbl">Phone</td><td class="val">${esc(account.Phone||'—')}</td>`+
+    `    <td class="lbl">Min Balance</td><td class="val">${rupee(account.MinBalance)}</td></tr>`+
+    `<tr><td class="lbl">Current Balance</td><td class="val" colspan="3" style="font-weight:700;font-size:13px">${rupee(account.Balance)}</td></tr>`+
+    `</table>`;
+  let t='<table class="pb-txn"><tr><th>Txn No</th><th>Date</th><th>Type</th><th>Amount (₹)</th><th>Balance (₹)</th><th>Note</th></tr>';
+  rows.forEach(r=>t+=`<tr><td>${esc(r.TxnNo)}</td><td>${esc(r.Date)}</td><td>${esc(r.Type)}</td><td style="text-align:right">${rupee(r.Amount)}</td><td style="text-align:right">${rupee(r.Balance)}</td><td>${esc(r.Note||'')}</td></tr>`);
+  t+='</table>';
+  const pbCss=
+    `@page{size:A4;margin:1.2cm}`+
+    `body{font-size:10px;font-family:Arial,sans-serif;color:#000;`+
+    `border:3px double #222;padding:16px;margin:0;min-height:calc(100vh - 2.4cm)}`+
+    `.pb-header{text-align:center;border-bottom:2px solid #333;padding-bottom:10px;margin-bottom:12px}`+
+    `table.pb-meta{width:100%;border-collapse:collapse;margin-bottom:14px}`+
+    `table.pb-meta td{padding:5px 8px;border:1px solid #ccc;font-size:10px;vertical-align:top}`+
+    `table.pb-meta td.lbl{background:#f5f5f5;font-weight:700;color:#333;width:100px}`+
+    `table.pb-meta td.val{min-width:120px}`+
+    `table.pb-txn{width:100%;border-collapse:collapse}`+
+    `table.pb-txn th{background:#e8eef8;color:#1a3a8f;font-size:9px;text-transform:uppercase;`+
+    `font-weight:700;padding:5px 6px;border:1px solid #bbb;text-align:left}`+
+    `table.pb-txn td{padding:4px 6px;border:1px solid #ddd;font-size:9.5px}`+
+    `table.pb-txn tr:nth-child(even) td{background:#fafbff}`;
+  printDoc(hd+t,pbCss,'');
 }
 
 /* ── TRANSFERS ───────────────────────────────────────────────── */
@@ -885,15 +945,21 @@ async function socTxn(){
 
 /* ── SETTINGS ────────────────────────────────────────────────── */
 async function loadSettings(){
+  // Populate app name field
+  if($('set_appname')) $('set_appname').value=localStorage.getItem('coop_app_name')||APP_NAME||'';
   try{const{settings}=await api('settings_get');
     $('set_form').innerHTML=settings.map(s=>`<label>${esc(s.label)}<input data-skey="${esc(s.key)}" type="${s.type==='date'?'date':(s.type==='number'?'number':'text')}" value="${esc(s.value)}"></label>`).join('');
   }catch(err){$('set_form').innerHTML=`<p class="err">${err.message}</p>`;}
 }
 async function saveSettings(){
   $('set_msg').textContent='Saving…';const values={};
-  document.querySelectorAll('#set_form input').forEach(i=>values[i.dataset.skey]=i.value);
+  document.querySelectorAll('#set_form input[data-skey]').forEach(i=>values[i.dataset.skey]=i.value);
+  // Save appName locally (not sent to backend — UI-only setting)
+  const appNameEl=$('set_appname');
+  if(appNameEl){APP_NAME=appNameEl.value.trim()||BANK;localStorage.setItem('coop_app_name',APP_NAME);}
   try{await api('settings_update',{values});$('set_msg').textContent='Saved.';
-    try{const{bankName}=await api('bank_info');if(bankName){BANK=bankName;applyBranding(BANK);}}catch(e){}
+    try{const{bankName}=await api('bank_info');if(bankName)BANK=bankName;}catch(e){}
+    applyBranding(APP_NAME,BANK);
   }catch(err){$('set_msg').textContent='';alert(err.message);}
 }
 
@@ -999,7 +1065,7 @@ async function loadUsers(){
   try{const{users}=await api('users_list');
     let h='<table><tr><th>User ID</th><th>Name / Last Login</th><th>Role</th><th>Branch</th><th>Active</th><th></th></tr>';
     users.forEach(u=>{
-      const ll=u.LastLogin?new Date(u.LastLogin).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):'Never';
+      const ll=u.LastLogin?new Date(u.LastLogin).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true}):'Never';
       const roleDisplay=esc(u.Role).replace(/([a-z])([A-Z])/g,'$1 $2');
       h+=`<tr><td>${esc(u.UserID)}</td><td><div style="font-weight:600">${esc(u.Name)}</div><div style="font-size:11px;color:#6b7280;margin-top:2px">\u23F0 ${ll}</div></td><td>${roleDisplay}</td><td>${esc(u.Branch)}</td><td><span style="color:${u.Active?'#16a34a':'#dc2626'};font-weight:600">${u.Active?'Active':'Inactive'}</span></td>`+
         `<td style="white-space:nowrap"><button class="ghost" data-edituser="${esc(u.UserID)}">Edit</button> <button class="ghost" data-reset="${esc(u.UserID)}">Reset PW</button> <button class="ghost" data-toggle="${esc(u.UserID)}" data-active="${u.Active}">${u.Active?'Disable':'Enable'}</button></td></tr>`;
@@ -1075,30 +1141,69 @@ async function saveProfile(){
     $('prof_msg').textContent='Profile saved.';
   }catch(err){$('prof_msg').textContent=err.message;}
 }
+// Live crop preview (#7)
+document.addEventListener('change', e=>{
+  if(e.target.id!=='prof_photo') return;
+  const f=e.target.files[0]; if(!f) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const img=new Image();
+    img.onload=()=>{
+      const prev=$('prof_crop_preview'); const canvas=$('prof_crop_canvas');
+      if(!prev||!canvas) return;
+      const sz=Math.min(img.width,img.height);
+      const ctx=canvas.getContext('2d');
+      ctx.clearRect(0,0,100,100);
+      const sx=(img.width-sz)/2, sy=(img.height-sz)/2;
+      ctx.drawImage(img,sx,sy,sz,sz,0,0,100,100);
+      prev.style.display='block';
+    };
+    img.src=ev.target.result;
+  };
+  reader.readAsDataURL(f);
+});
 async function saveProfilePhoto(){
   const f=$('prof_photo').files[0];if(!f){showToast('Please select a photo first.','warn');return;}
   const reader=new FileReader();
   reader.onload=e=>{
-    const dataUrl=e.target.result;
-    // Resize to max 200x200 via canvas
     const img=new Image();
     img.onload=()=>{
       const canvas=document.createElement('canvas');
-      const sz=Math.min(img.width,img.height,200);
-      canvas.width=sz;canvas.height=sz;
+      const OUTPUT=200; canvas.width=OUTPUT; canvas.height=OUTPUT;
       const ctx=canvas.getContext('2d');
-      const sx=(img.width-sz)/2,sy=(img.height-sz)/2;
-      ctx.drawImage(img,sx,sy,sz,sz,0,0,sz,sz);
-      const compressed=canvas.toDataURL('image/jpeg',0.8);
+      const sz=Math.min(img.width,img.height);
+      const sx=(img.width-sz)/2, sy=(img.height-sz)/2;
+      ctx.drawImage(img,sx,sy,sz,sz,0,0,OUTPUT,OUTPUT);
+      const compressed=canvas.toDataURL('image/jpeg',0.85);
       localStorage.setItem('avatar_'+session.userId,compressed);
       showToast('✅ Profile photo saved','ok');
+      // Hide preview
+      if($('prof_crop_preview'))$('prof_crop_preview').style.display='none';
+      if($('prof_photo'))$('prof_photo').value='';
       loadProfile();
-      // Refresh topbar avatar
-      start(session);
+      // Refresh topbar + sidebar avatar without full re-login
+      refreshAvatars();
     };
-    img.src=dataUrl;
+    img.src=e.target.result;
   };
   reader.readAsDataURL(f);
+}
+function refreshAvatars(){
+  if(!session) return;
+  const avatar=localStorage.getItem('avatar_'+session.userId);
+  const avatarHtml=avatar
+    ?`<img src="${avatar}" class="topbar-avatar" title="My profile" onclick="showView('account')" />`
+    :`<div class="topbar-avatar-placeholder" title="My profile" onclick="showView('account')">${esc((session.name||'?')[0].toUpperCase())}</div>`;
+  // Update topbar who area avatar
+  const whoEl=$('who'); if(whoEl){
+    const existing=whoEl.querySelector('.topbar-avatar,.topbar-avatar-placeholder');
+    if(existing){const newEl=document.createElement('div');newEl.innerHTML=avatarHtml;const newAvatar=newEl.firstChild;if(newAvatar)whoEl.replaceChild(newAvatar,existing);}
+  }
+  // Update sidebar
+  if($('nav_lastlogin')){
+    const avDiv=$('nav_lastlogin').querySelector('.nl-avatar,.nl-avatar-ph');
+    if(avDiv){const newEl=document.createElement('div');newEl.innerHTML=avatar?`<img src="${avatar}" class="nl-avatar" />`:`<div class="nl-avatar-ph">${esc((session.name||'?')[0].toUpperCase())}</div>`;if(newEl.firstChild)avDiv.replaceWith(newEl.firstChild);}
+  }
 }
 
 /* ── LOAN APPROVALS (#6 full workflow) ───────────────────────── */
@@ -1128,17 +1233,23 @@ async function loadApprovals(){
     if(!approvals.length){$('ap_list').innerHTML='<p class="msg">No approvals yet.</p>';return;}
     let h='';
     approvals.forEach(a=>{
-      const l=a.loan||{},statusClass=a.status==='Approved'?'approved':a.status==='Rejected'?'rejected':a.status==='Keep Pending'?'keepending':'';
-      const statusColor=a.status==='Approved'?'#16a34a':a.status==='Rejected'?'#dc2626':a.status==='Keep Pending'?'#7c3aed':'#d97706';
+      const l=a.loan||{};
+      // Detect Keep Pending (stored as Pending with [Keep Pending] prefix in comments)
+      const displayStatus=(a.status==='Pending'&&(a.comments||'').startsWith('[Keep Pending]'))?'Keep Pending':a.status;
+      const displayComments=(a.comments||'').replace(/^\[Keep Pending\]\s*/,'');
+      const statusClass=displayStatus==='Approved'?'approved':displayStatus==='Rejected'?'rejected':displayStatus==='Keep Pending'?'keepending':'';
+      const statusColor=displayStatus==='Approved'?'#16a34a':displayStatus==='Rejected'?'#dc2626':displayStatus==='Keep Pending'?'#7c3aed':'#d97706';
       h+=`<div class="card ap-card ${statusClass}" style="margin:10px 0">`;
-      h+=`<div class="card-head"><h2>Loan ${esc(a.loan_id)} — ${esc(l.borrower||'')}</h2><span style="color:${statusColor};font-weight:700">${esc(a.status)}</span></div>`;
-      h+=`<div class="summary">${summaryHtml([['Branch',esc(l.branch||'')],['Amount',rupee(l.amount||0)],['Type',esc(l.loan_type||'')],['Submitted by',esc(a.submitted_by_name||'')],['Sent to',esc(a.next_role||'')],['Submitted at',esc(a.submitted_at?new Date(a.submitted_at).toLocaleString('en-IN'):'-')],['Remarks',esc(a.remarks||'—')],['Reviewed by',esc(a.reviewed_by||'—')],['Decision notes',esc(a.comments||'—')]])}</div>`;
+      h+=`<div class="card-head"><h2>Loan ${esc(a.loan_id)} — ${esc(l.borrower||'')}</h2><span style="color:${statusColor};font-weight:700">${esc(displayStatus)}</span></div>`;
+      const submittedAt=a.submitted_at?new Date(a.submitted_at).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true}):'-';
+      h+=`<div class="summary">${summaryHtml([['Branch',esc(l.branch||'')],['Amount',rupee(l.amount||0)],['Type',esc(l.loan_type||'')],['Submitted by',esc(a.submitted_by_name||'')],['Pending with',esc(a.next_role||'')],['Submitted at',submittedAt],['Remarks',esc(a.remarks||'—')],['Reviewed by',esc(a.reviewed_by||'—')],['Decision notes',esc(displayComments||'—')]])}</div>`;
       if(a.doc_url) h+=`<div style="margin:8px 0"><a href="${esc(a.doc_url)}" target="_blank" class="ghost" style="padding:6px 12px;border-radius:8px;background:#eaf1fb;color:#2c4a7c;text-decoration:none;font-size:12px">📎 View Document${a.doc_name?' — '+esc(a.doc_name):''}</a></div>`;
       // Notification banners
       if(notifs.length) h+=`<div style="background:#fef3c7;border-radius:6px;padding:6px 10px;font-size:12px;margin:6px 0">${notifs.map(n=>`🔔 ${esc(n.msg)}`).join('<br>')}</div>`;
       // Action controls for reviewers (CEO approves/rejects BM submissions; Director has 3 options)
       const role=session.role;
-      const canReview=(role==='CEO'&&a.next_role==='CEO')||(role==='Director'&&a.next_role==='Director')||(role==='Admin');
+      const canReview=(role==='CEO'&&(a.next_role==='CEO'||a.next_role==='Director'&&a.status==='Approved'))||
+        (role==='Director'&&a.next_role==='Director')||(role==='Admin');
       if(canReview){
         const opts=role==='Director'
           ?`<option value="Approved">✅ Approve</option><option value="Rejected">❌ Reject</option><option value="Keep Pending">⏳ Keep Pending</option>`
@@ -1173,26 +1284,44 @@ async function submitApproval(){
   const loanId=val('ap_LoanId').trim();
   if(!loanId){$('ap_msg').textContent='Loan ID required.';return;}
   const f=$('ap_Doc').files[0];
-  const payload={loanId,remarks:val('ap_Remarks'),nextRole:val('ap_SendTo')};
+  const payload={loanId,remarks:val('ap_Remarks')};
   if(f){payload.docBase64=await fileToB64(f);payload.docMime=f.type;payload.docName=f.name;}
   try{const{nextRole}=await api('approval_submit',payload);
-    $('ap_msg').textContent='';clearApprovalForm();showToast('✅ Submitted to '+nextRole,'ok');
-    // Notify the target role (stored client-side; in production this would be server push)
-    // Find CEO/Director users and notify them — stored by role
+    $('ap_msg').textContent='';
+    // Show detailed success popup (Fix #3)
+    const nowIST=new Date().toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true});
+    showApprovalConfirm(loanId,nextRole,nowIST);
     notifyRoleUsers(nextRole,'New loan approval submitted: Loan '+loanId+' from '+session.name);
+    clearApprovalForm();
     loadApprovals();
   }catch(err){$('ap_msg').textContent='';showToast('⚠ '+err.message,'err');}
 }
+function showApprovalConfirm(loanId,nextRole,timeStr){
+  openModal('✅ Loan Submitted for Approval',
+    `<div style="text-align:center;padding:8px 0">`+
+    `<div style="font-size:40px;margin-bottom:8px">✅</div>`+
+    `<h3 style="margin:0 0 12px;font-size:16px;color:#16a34a">Submitted Successfully</h3>`+
+    `<table class="meta" style="width:100%;text-align:left"><tr><td style="padding:6px 8px;color:#6b7280;font-size:12px">Loan ID</td><td style="padding:6px 8px;font-weight:700">${esc(loanId)}</td></tr>`+
+    `<tr style="background:#f9fafb"><td style="padding:6px 8px;color:#6b7280;font-size:12px">Submitted to</td><td style="padding:6px 8px;font-weight:700;color:#2563eb">${esc(nextRole)}</td></tr>`+
+    `<tr><td style="padding:6px 8px;color:#6b7280;font-size:12px">Submitted at</td><td style="padding:6px 8px;font-weight:600">${esc(timeStr)}</td></tr>`+
+    `<tr style="background:#f9fafb"><td style="padding:6px 8px;color:#6b7280;font-size:12px">Submitted by</td><td style="padding:6px 8px">${esc(session?.name||'')}</td></tr>`+
+    `</table>`+
+    `<p style="margin:14px 0 0;font-size:12px;color:#6b7280">The ${esc(nextRole)} will review and take action. You will be notified of the decision.</p>`+
+    `<button class="primary" onclick="closeModal()" style="margin-top:16px;width:100%">OK</button>`+
+    `</div>`);
+}
 async function handleApprovalAction(action,loanId){
-  const status=$(`ap_status_${loanId}`)?.value||'Pending';
+  const statusRaw=$(`ap_status_${loanId}`)?.value||'Pending';
   const comments=$(`ap_comment_${loanId}`)?.value||'';
-  if((status==='Rejected'||status==='Keep Pending')&&!comments.trim()){
+  if((statusRaw==='Rejected'||statusRaw==='Keep Pending')&&!comments.trim()){
     alert('Please add a note when rejecting or keeping pending.');return;
   }
-  try{await api('approval_update',{loanId,status,comments});
-    showToast('✅ Decision saved: '+status,'ok');
-    // Notify BM and CEO
-    notifyAboutDecision(loanId,status,comments);
+  // Backend only accepts Approved/Rejected/Pending — map Keep Pending → Pending with note prefix
+  const statusForApi=statusRaw==='Keep Pending'?'Pending':statusRaw;
+  const commentsForApi=statusRaw==='Keep Pending'?('[Keep Pending] '+comments):comments;
+  try{await api('approval_update',{loanId,status:statusForApi,comments:commentsForApi});
+    showToast('✅ Decision saved: '+statusRaw,'ok');
+    notifyAboutDecision(loanId,statusRaw,comments);
     loadApprovals();
   }catch(err){showToast('⚠ '+err.message,'err');}
 }
