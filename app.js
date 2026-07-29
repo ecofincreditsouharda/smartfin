@@ -85,9 +85,10 @@ window.addEventListener('DOMContentLoaded', async () => {
   // Show PDF button only in PWA
   if ($('r_pdf')) $('r_pdf').style.display = isPWA() ? 'inline-flex' : 'none';
   try{const{bankName}=await api('bank_info');if(bankName)BANK=bankName;}catch(e){}
-  // Load appName from localStorage (set via Admin settings)
-  APP_NAME=localStorage.getItem('coop_app_name')||BANK;
-  applyBranding(APP_NAME,BANK);
+  // APP_NAME = stored custom name; falls back to 'ECOSMART' (not bank name)
+  // BANK stays as the bank name for printed documents only
+  APP_NAME = localStorage.getItem('coop_app_name') || 'ECOSMART';
+  applyBranding(APP_NAME, BANK);
   setTimeout(()=>{$('splash').hidden=true;$('gate').hidden=false;},1600);
 });
 
@@ -103,15 +104,17 @@ function setupPwToggle(btnId, inputId) {
   });
 }
 
-function applyBranding(appName,bankName){
-  // appName used in UI, splash, nav, title; bankName used in prints/reports/receipts
-  APP_NAME=appName||BANK; BANK=bankName||APP_NAME;
-  document.title=APP_NAME;
-  if($('splashName'))$('splashName').textContent=APP_NAME;
-  if($('loginName'))$('loginName').textContent=APP_NAME;
-  if($('brandName'))$('brandName').textContent=APP_NAME;
-  if($('nav_bank'))$('nav_bank').textContent=APP_NAME;
-  if($('login_bankname'))$('login_bankname').textContent=BANK; // Fix 6: bank name under login
+function applyBranding(appName, bankName){
+  // APP_NAME = application/UI name shown in splash, login header, topbar, nav
+  // BANK     = cooperative/bank name used ONLY in printed docs (receipts, passbooks, vouchers, reports)
+  if(appName) APP_NAME = appName;
+  if(bankName) BANK = bankName;
+  document.title = APP_NAME;
+  if($('splashName'))    $('splashName').textContent    = APP_NAME;
+  if($('loginName'))     $('loginName').textContent     = APP_NAME;
+  if($('brandName'))     $('brandName').textContent     = APP_NAME;
+  if($('nav_bank'))      $('nav_bank').textContent      = APP_NAME; // nav shows app name
+  if($('login_bankname'))$('login_bankname').textContent= BANK;     // login footer shows bank name
 }
 
 /* ── EVENTS ──────────────────────────────────────────────────── */
@@ -234,7 +237,10 @@ function applyModulePerms(userId, role){
 
 /* ── START (after login) ─────────────────────────────────────── */
 function start(user){
-  session=user; if(user.bankName){BANK=user.bankName;APP_NAME=localStorage.getItem('coop_app_name')||BANK;applyBranding(APP_NAME,BANK);}
+  session=user;
+  if(user.bankName){ BANK=user.bankName; }
+  APP_NAME = localStorage.getItem('coop_app_name') || 'ECOSMART';
+  applyBranding(APP_NAME, BANK);
   $('gate').hidden=true;$('splash').hidden=true;$('app').hidden=false;resetIdle();
   const role=user.role;
   const canWrite    =['Admin','CEO','BranchManager','Operator','Collector'].includes(role);
@@ -292,7 +298,7 @@ function start(user){
   applyModulePerms(user.userId, role);
   // Show PDF button in PWA
   if($('r_pdf')) $('r_pdf').style.display=isPWA()?'inline-flex':'none';
-  if($('nav_bank')) $('nav_bank').textContent=BANK;
+  // applyBranding already sets nav_bank to APP_NAME — no need to repeat here
   populateBranchSelects(); populateCollectorSelect();
   loadProfile();
   checkApprovalNotifications();
@@ -956,7 +962,10 @@ async function saveSettings(){
   document.querySelectorAll('#set_form input[data-skey]').forEach(i=>values[i.dataset.skey]=i.value);
   // Save appName locally (not sent to backend — UI-only setting)
   const appNameEl=$('set_appname');
-  if(appNameEl){APP_NAME=appNameEl.value.trim()||BANK;localStorage.setItem('coop_app_name',APP_NAME);}
+  if(appNameEl && appNameEl.value.trim()){
+    APP_NAME = appNameEl.value.trim();
+    localStorage.setItem('coop_app_name', APP_NAME);
+  }
   try{await api('settings_update',{values});$('set_msg').textContent='Saved.';
     try{const{bankName}=await api('bank_info');if(bankName)BANK=bankName;}catch(e){}
     applyBranding(APP_NAME,BANK);
@@ -1063,12 +1072,32 @@ async function addUser(){
 }
 async function loadUsers(){
   try{const{users}=await api('users_list');
-    let h='<table><tr><th>User ID</th><th>Name / Last Login</th><th>Role</th><th>Branch</th><th>Active</th><th></th></tr>';
+    let h='<table><tr><th>User ID</th><th>Name</th><th>Role</th><th>Branch</th><th>Active</th><th>Last Login (IST)</th><th></th></tr>';
     users.forEach(u=>{
-      const ll=u.LastLogin?new Date(u.LastLogin).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true}):'Never';
+      // LastLogin is now an ISO string from backend; parse and format in IST
+      let ll='Never';
+      if(u.LastLogin){
+        try{
+          ll=new Date(u.LastLogin).toLocaleString('en-IN',{
+            timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric',
+            hour:'2-digit',minute:'2-digit',hour12:true
+          });
+        }catch(e){ ll=String(u.LastLogin); }
+      }
       const roleDisplay=esc(u.Role).replace(/([a-z])([A-Z])/g,'$1 $2');
-      h+=`<tr><td>${esc(u.UserID)}</td><td><div style="font-weight:600">${esc(u.Name)}</div><div style="font-size:11px;color:#6b7280;margin-top:2px">\u23F0 ${ll}</div></td><td>${roleDisplay}</td><td>${esc(u.Branch)}</td><td><span style="color:${u.Active?'#16a34a':'#dc2626'};font-weight:600">${u.Active?'Active':'Inactive'}</span></td>`+
-        `<td style="white-space:nowrap"><button class="ghost" data-edituser="${esc(u.UserID)}">Edit</button> <button class="ghost" data-reset="${esc(u.UserID)}">Reset PW</button> <button class="ghost" data-toggle="${esc(u.UserID)}" data-active="${u.Active}">${u.Active?'Disable':'Enable'}</button></td></tr>`;
+      h+=`<tr>
+        <td>${esc(u.UserID)}</td>
+        <td style="font-weight:600">${esc(u.Name)}</td>
+        <td>${roleDisplay}</td>
+        <td>${esc(u.Branch)}</td>
+        <td><span style="color:${u.Active?'#16a34a':'#dc2626'};font-weight:600">${u.Active?'Active':'Inactive'}</span></td>
+        <td style="font-size:12px;color:#6b7280">${ll}</td>
+        <td style="white-space:nowrap">
+          <button class="ghost" data-edituser="${esc(u.UserID)}">Edit</button>
+          <button class="ghost" data-reset="${esc(u.UserID)}">Reset PW</button>
+          <button class="ghost" data-toggle="${esc(u.UserID)}" data-active="${u.Active}">${u.Active?'Disable':'Enable'}</button>
+          <button class="ghost" onclick="showUserActivity('${esc(u.UserID)}','${esc(u.Name)}')">Activity</button>
+        </td></tr>`;
     });
     $('u_list').innerHTML=h+'</table>';
   }catch(err){$('u_list').innerHTML=`<p class="err">${err.message}</p>`;}
@@ -1112,6 +1141,38 @@ function resetModulePerms(){
 }
 async function toggleUser(userId,active){try{await api('users_update',{userId,active:!active});loadUsers();}catch(e){alert(e.message);}}
 async function resetUser(userId){try{const{tempPassword}=await api('users_reset_pw',{userId});alert('New temp password for '+userId+':\n\n'+tempPassword);}catch(e){alert(e.message);}}
+
+/* ── USER ACTIVITY MODAL (#4) ────────────────────────────────── */
+async function showUserActivity(userId, userName){
+  openModal('Recent Activity — '+userName,
+    `<div id="ua_loading" style="text-align:center;padding:20px;color:#6b7280">Loading activity…</div>`);
+  try{
+    const{activity}=await api('user_activity',{userId});
+    if(!activity||!activity.length){
+      $('ua_loading').innerHTML='<p style="color:#6b7280;text-align:center">No recorded activity for this user.</p>';
+      return;
+    }
+    const TYPE_COLORS={
+      'Repayment':'#16a34a','Loan Added':'#2563eb','Expense':'#dc2626',
+      'Savings Txn':'#7c3aed','Deposit':'#d97706','Member Added':'#0891b2'
+    };
+    let h='<div style="max-height:60vh;overflow-y:auto">';
+    h+='<table><tr><th style="text-align:left">Type</th><th style="text-align:left">Ref</th><th style="text-align:left">Detail</th><th style="text-align:left">Date / Time (IST)</th></tr>';
+    activity.forEach(a=>{
+      const color=TYPE_COLORS[a.type]||'#374151';
+      let ts='—';
+      if(a.at){try{ts=new Date(a.at).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true});}catch(e){ts=a.at;}}
+      h+=`<tr><td><span style="background:${color}18;color:${color};padding:2px 7px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap">${esc(a.type)}</span></td>`+
+         `<td style="font-size:12px;font-weight:600">${esc(a.ref||'')}</td>`+
+         `<td style="font-size:12px;max-width:200px">${esc(a.detail||'')}</td>`+
+         `<td style="font-size:11px;color:#6b7280;white-space:nowrap">${ts}</td></tr>`;
+    });
+    h+='</table></div>';
+    $('ua_loading').outerHTML=h;
+  }catch(err){
+    if($('ua_loading'))$('ua_loading').innerHTML=`<p style="color:#dc2626">${esc(err.message)}</p>`;
+  }
+}
 
 /* ── PASSWORD CHANGE ─────────────────────────────────────────── */
 async function changePw(){
@@ -1234,9 +1295,9 @@ async function loadApprovals(){
     let h='';
     approvals.forEach(a=>{
       const l=a.loan||{};
-      // Detect Keep Pending (stored as Pending with [Keep Pending] prefix in comments)
-      const displayStatus=(a.status==='Pending'&&(a.comments||'').startsWith('[Keep Pending]'))?'Keep Pending':a.status;
-      const displayComments=(a.comments||'').replace(/^\[Keep Pending\]\s*/,'');
+      // Detect Keep Pending (stored as Pending with [Keep Pending] prefix in review_note)
+      const displayStatus=(a.status==='Pending'&&(a.review_note||'').startsWith('[Keep Pending]'))?'Keep Pending':a.status;
+      const displayComments=(a.review_note||'').replace(/^\[Keep Pending\]\s*/,'');
       const statusClass=displayStatus==='Approved'?'approved':displayStatus==='Rejected'?'rejected':displayStatus==='Keep Pending'?'keepending':'';
       const statusColor=displayStatus==='Approved'?'#16a34a':displayStatus==='Rejected'?'#dc2626':displayStatus==='Keep Pending'?'#7c3aed':'#d97706';
       h+=`<div class="card ap-card ${statusClass}" style="margin:10px 0">`;
@@ -1266,7 +1327,7 @@ async function loadApprovals(){
       const canResubmit=(role==='BranchManager'||role==='CEO')&&a.status==='Rejected'&&a.next_role==='CEO';
       if(canResubmit){
         h+=`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">`;
-        h+=`<p style="font-size:12px;color:#dc2626;margin:0 0 8px">Returned with note: <b>${esc(a.comments||'—')}</b></p>`;
+        h+=`<p style="font-size:12px;color:#dc2626;margin:0 0 8px">Returned with note: <b>${esc(a.review_note||'—')}</b></p>`;
         h+=`<div class="grid" style="grid-template-columns:1fr;margin-bottom:8px">`;
         h+=`<label>Updated remarks / attachment<input id="ap_resub_remarks_${esc(a.loan_id)}" value="${esc(a.remarks||'')}" /></label>`;
         h+=`<label>Updated document<input type="file" id="ap_resub_doc_${esc(a.loan_id)}" accept="image/*,application/pdf" /></label>`;
