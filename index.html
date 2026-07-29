@@ -49,7 +49,6 @@
   </header>
 
   <nav id="nav">
-    <div id="nav-brand" style="padding:8px 12px 6px;font-size:11px;font-weight:700;color:#e07a61;letter-spacing:.05em;text-transform:uppercase;border-bottom:1px solid #fad4cd;margin-bottom:6px"></div>
     <div id="nav_bank" style="font-size:11px;font-weight:700;color:#c0392b;letter-spacing:.04em;text-transform:uppercase;padding:6px 12px 2px;opacity:.7"></div>
     <button class="navbtn" data-view="dashboard">Dashboard</button>
     <button class="navbtn" data-view="members">Members</button>
@@ -151,8 +150,8 @@
           <label>Mode<select id="r_Mode"><option>Cash</option><option>UPI</option></select></label>
           <label id="r_UtrWrap" hidden>UTR Number<input id="r_Utr" /></label>
           <label>Note<input id="r_Note" /></label>
-        <label>Penalty Amount (₹)<input id="r_Penalty" type="number" value="0" /></label>
-          <label>Penalty Type<select id="r_PenaltyType"><option value="">None</option><option>Late Payment</option><option>Overdue</option></select></label>
+          <label>Penalty (₹)<input id="r_Penalty" type="number" value="0" /></label>
+          <label>Penalty Type<select id="r_PenaltyType"><option value="">None</option><option value="Late Payment">Late Payment</option><option value="Overdue">Overdue</option></select></label>
         </div>
         <div class="actions"><button id="r_add" class="primary">Add receipt</button><span id="r_msg" class="msg"></span></div>
         <div id="r_receiptBox" hidden><div id="r_receiptView" class="summary"></div>
