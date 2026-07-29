@@ -71,17 +71,17 @@ document.addEventListener('change', e => { if (e.target.id === 'r_Mode') $('r_Ut
 document.addEventListener('blur', async e => {
   if (e.target.id === 'l_Borrower' && val('l_Borrower').trim() && !val('l_MemberID').trim()) {
     const m = await autofillMember(val('l_Borrower').trim(), null, 'l_MemberID');
-    if (m && m.Branch && $('l_Branch') && !$('l_Branch').disabled) { setV('l_Branch', m.Branch); loadCollectorsForBranch(m.Branch); }
+    if (m && m.Branch && $('l_Branch') && !$('l_Branch').disabled) { setSelectValue('l_Branch', m.Branch); loadCollectorsForBranch(m.Branch); }
   }
   if (e.target.id === 'l_MemberID' && val('l_MemberID').trim() && !val('l_Borrower').trim()) {
     const m = await autofillMember(val('l_MemberID').trim(), 'l_Borrower', null);
-    if (m && m.Branch && $('l_Branch') && !$('l_Branch').disabled) { setV('l_Branch', m.Branch); loadCollectorsForBranch(m.Branch); }
+    if (m && m.Branch && $('l_Branch') && !$('l_Branch').disabled) { setSelectValue('l_Branch', m.Branch); loadCollectorsForBranch(m.Branch); }
   }
   if (e.target.id === 's_MemberID' && val('s_MemberID').trim())
     await autofillMember(val('s_MemberID').trim(), 's_MemberName', null);
-  if (e.target.id === 'l_G1MemberID' && val('l_G1MemberID').trim() && !val('l_G1Name').trim())
+  if (e.target.id === 'l_G1MemberID' && val('l_G1MemberID').trim())
     await autofillMember(val('l_G1MemberID').trim(), 'l_G1Name', null);
-  if (e.target.id === 'l_G2MemberID' && val('l_G2MemberID').trim() && !val('l_G2Name').trim())
+  if (e.target.id === 'l_G2MemberID' && val('l_G2MemberID').trim())
     await autofillMember(val('l_G2MemberID').trim(), 'l_G2Name', null);
   // #1 FD depositor autofill from member ID
   if (e.target.id === 'd_MemberID' && val('d_MemberID').trim())
@@ -382,12 +382,21 @@ async function loadCollectorsForBranch(branch) { await populateCollectorSelect(b
 
 /* ---- Member autofill (used by loans + savings open) ---- */
 async function autofillMember(query, nameId, memberIdId) {
-  if (!query) return;
+  if (!query) return null;
   try { const { member } = await api('member_lookup', { query });
-    if (nameId && $(nameId)) $(nameId).value = member.FullName;
-    if (memberIdId && $(memberIdId)) $(memberIdId).value = member.MemberID;
+    if (nameId && $(nameId)) $(nameId).value = member.FullName || '';
+    if (memberIdId && $(memberIdId)) $(memberIdId).value = member.MemberID || '';
     return member;
   } catch (e) { return null; }
+}
+function setSelectValue(sel_id, value) {
+  const sel = $(sel_id); if (!sel || !value) return;
+  sel.value = value;
+  if (sel.value !== value) {
+    const opt = document.createElement('option');
+    opt.value = value; opt.textContent = value;
+    sel.appendChild(opt); sel.value = value;
+  }
 }
 
 /* ---- Client-side list search ---- */
