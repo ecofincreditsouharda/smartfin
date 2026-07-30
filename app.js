@@ -4,11 +4,12 @@ const IDLE_MS = 60 * 1000;
 
 let session = null, lastSchedule = null, lastMeta = null, lastReceipt = null, curLoanId = '';
 let editing = { type:null, id:null }, lastVoucher = null, repLoans = [];
-let BANK = 'ECOSMART', APP_NAME = 'ECOFINACLE', LOGO_URL = 'logo.png';
+let BANK = 'ECOSMART', APP_NAME = 'ECOSMART', LOGO_URL = 'logo.png';
+let HQ_ADDRESS = '', HQ_PHONE = '', COMMON_EMAIL = '';
 const $ = id => document.getElementById(id);
 const val = id => ($(id) ? $(id).value : '');
 const rupee = n => (n===''||n==null||isNaN(Number(String(n).replace(/[^0-9.\-]/g,''))))
-  ? (n||'') : '₹ '+Number(String(n).replace(/[^0-9.\-]/g,'')).toLocaleString('en-IN',{maximumFractionDigits:2});
+  ? (n||'') : '\u20b9\u00a0'+Number(String(n).replace(/[^0-9.\-]/g,'')).toLocaleString('en-IN',{maximumFractionDigits:2});
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const token = () => localStorage.getItem('coop_token') || '';
 const isPWA = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
@@ -69,7 +70,7 @@ if(_sessionChannel){
       if($('app'))$('app').hidden=true;
       if($('splash'))$('splash').hidden=false;
       if($('gate'))$('gate').hidden=true;
-      if($('loginMsg'))$('loginMsg').textContent='⚠ Signed in from another device/tab.';
+      if($('loginMsg'))$('loginMsg').textContent='Signed in from another device/tab.';
       setTimeout(()=>{if($('splash'))$('splash').hidden=true;if($('gate'))$('gate').hidden=false;},1400);
     }
   };
@@ -101,6 +102,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   // BANK stays as the bank name for printed documents only
   APP_NAME = localStorage.getItem('coop_app_name') || 'ECOSMART';
   applyBranding(APP_NAME, BANK);
+  // Apply app name immediately to login page (Fix 2)
+  if($('loginName')) $('loginName').textContent = APP_NAME;
+  if($('splashName')) $('splashName').textContent = APP_NAME;
   setTimeout(()=>{$('splash').hidden=true;$('gate').hidden=false;},1600);
 });
 
@@ -450,7 +454,11 @@ async function loadList(action,target,linkKind,editKey){
   try{const{rows}=await api(action);
     if(action==='loans_list')    allLoans=rows;
     if(action==='deposits_list') allDeposits=rows;
-    if(action==='savings_list')  allSavings=rows;
+    if(action==='savings_list'){
+      allSavings=rows;
+      // Format Rate as % for display (stored as decimal e.g. 0.04 → 4.00%)
+      rows.forEach(r=>{ if(r.Rate!==undefined) r.Rate=(Number(r.Rate)*100).toFixed(2)+'%'; });
+    }
     if(action==='members_list')  allMembers=rows;
     renderListHtml(rows,target,linkKind,editKey);
   }catch(err){$(target).innerHTML=`<p class="err">${err.message}</p>`;}
@@ -568,8 +576,8 @@ async function loadLedger(){
       ['Balance Remaining',rupee(s.balanceRemaining)],['Scheduled Due To-Date',rupee(s.scheduledDueToDate)],
       ['Arrears / (Advance)',rupee(s.arrears)],['Next Due',s.nextDueDate+' · '+rupee(s.nextDueAmount)]]);
     $('r_addCard').hidden=(session.role==='Director');$('r_receiptBox').hidden=true;
-    let rh='<table><tr><th>Receipt</th><th>Date</th><th>Amount</th><th>Mode</th><th>Note</th><th></th></tr>';
-    ledger.receipts.forEach(x=>rh+=`<tr><td>${esc(x.Receipt)}</td><td>${esc(x.Date)}</td><td>${rupee(x.Amount)}</td>`+
+    let rh='<table><tr><th style="text-align:left">Receipt</th><th style="text-align:left">Date</th><th style="text-align:right">Amount</th><th style="text-align:left">Mode</th><th style="text-align:left">Note</th><th></th></tr>';
+    ledger.receipts.forEach(x=>rh+=`<tr><td>${esc(x.Receipt)}</td><td>${esc(x.Date)}</td><td style="text-align:right">${rupee(x.Amount)}</td>`+
       `<td>${esc(x.Mode)}</td><td>${esc(x.Note)}</td><td><button class="ghost" data-rprint="${esc(x.Receipt)}">Print</button></td></tr>`);
     $('r_recCard').hidden=false;$('r_receipts').innerHTML=rh+'</table>';
     $('r_schedCard').hidden=false;$('r_sched').innerHTML=schedTable(ledger.schedule);
@@ -880,12 +888,12 @@ async function addMember(){
       $('m_msg').textContent='Updated '+editing.id;$('m_Photo').value='';clearEdit();return loadList('members_list','m_list','member','member');}
     const{memberId,photoUrl,idProofUrl,warning}=await api('members_add',{member});
     $('m_Photo').value='';if($('m_IdProof'))$('m_IdProof').value='';
-    let msg='✅ Member saved — '+memberId;
+    let msg='Member saved — '+memberId;
     if(photoUrl)   msg+=' · 📷 Photo uploaded';
     if(idProofUrl) msg+=' · 📄 ID Proof uploaded';
     if(warning)    msg+='\n⚠ '+warning;
     $('m_msg').textContent=msg;
-    showToast(photoUrl||idProofUrl?'✅ Files uploaded to Google Drive':(warning?'⚠ '+warning:'✅ Member saved'),warning?'warn':'ok');
+    showToast(photoUrl||idProofUrl?'Files uploaded to Google Drive':(warning?'⚠ '+warning:'Member saved'),warning?'warn':'ok');
     loadList('members_list','m_list','member','member');
   }catch(err){$('m_msg').textContent='';alert(err.message);}
   finally{if(btn){btn.disabled=false;btn.textContent=editing.type==='member'?'Update':'Add member';}}
@@ -899,7 +907,7 @@ async function uploadMemberFile(memberId,type){
     const member=type==='photo'?{PhotoBase64:b64,PhotoMime:f.type}:{IdProofBase64:b64,IdProofMime:f.type,IdProofName:f.name};
     const{photoUrl,idProofUrl,warning}=await api('member_update_files',{memberId,member});
     if(warning&&!photoUrl&&!idProofUrl){if(msgEl)msgEl.textContent='⚠ '+warning;showToast('⚠ '+warning,'warn');}
-    else{if(msgEl)msgEl.textContent='✅ Uploaded';showToast('✅ File uploaded','ok');setTimeout(()=>showMember(memberId),800);}
+    else{if(msgEl)msgEl.textContent='Uploaded';showToast('File uploaded','ok');setTimeout(()=>showMember(memberId),800);}
   }catch(err){if(msgEl)msgEl.textContent='⚠ '+err.message;}
 }
 let currentMemberId=null;
@@ -935,7 +943,7 @@ async function deleteMember(){
   if(!currentMemberId){alert('Open a member first.');return;}
   if(!confirm(`Delete member ${currentMemberId}?`))return;
   try{await api('member_delete',{memberId:currentMemberId});
-    showToast('✅ Member deleted','ok');$('m_card').hidden=true;currentMemberId=null;
+    showToast('Member deleted','ok');$('m_card').hidden=true;currentMemberId=null;
     loadList('members_list','m_list','member','member');
   }catch(err){showToast('⚠ '+err.message,'err');}
 }
@@ -992,9 +1000,10 @@ function printReport(){
   const from=val('rep_from'),to=val('rep_to');
   const fmtD=d=>{if(!d)return'';const dt=new Date(d);const M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return dt.getDate()+'-'+M[dt.getMonth()]+'-'+dt.getFullYear();};
   const tl=from&&to?`<div class="tl">Period: <b>${fmtD(from)}</b> &nbsp;to&nbsp; <b>${fmtD(to)}</b></div>`:'';
+  const hqFoot=HQ_ADDRESS?`<div style="font-size:7px;color:#666;text-align:center;border-top:1px solid #ccc;padding-top:4px;margin-top:8px">${esc(HQ_ADDRESS)}${HQ_PHONE?' | Tel: '+esc(HQ_PHONE):''}${COMMON_EMAIL?' | '+esc(COMMON_EMAIL):''}</div>`:'';
   const hdr=`<div class="rh"><img src="${LOGO_URL}" class="rl" onerror="this.style.display='none'"/><h1>${esc(BANK)}</h1><h2>${esc(lastReportName||'Report')}</h2>${tl}</div>`;
   const css=`body{font-size:8.5px;font-family:Arial,sans-serif;color:#000}.rh{text-align:center;border-bottom:2px solid #222;padding-bottom:8px;margin-bottom:10px}.rl{width:44px;height:44px;object-fit:contain;display:block;margin:0 auto 4px}h1{margin:0;font-size:16px;text-align:center}h2{margin:2px 0 0;font-size:11px;font-weight:600;text-align:center;color:#444}.tl{font-size:9px;color:#333;margin-top:5px;text-align:center;background:#f5f5f5;padding:3px 8px;border-radius:3px;display:inline-block}table{width:100%;border-collapse:collapse;margin-top:8px;table-layout:fixed}th{background:#e8eef8;color:#1a3a8f;font-size:7.5px;padding:4px 5px;text-align:right;border:1px solid #bbb;text-transform:uppercase;font-weight:700}th:first-child,th:nth-child(2){text-align:left}td{padding:3px 5px;text-align:right;border:1px solid #ddd;font-size:8.5px;word-break:break-word}td:first-child,td:nth-child(2){text-align:left}tr:nth-child(even) td{background:#fafbff}`;
-  printDoc(hdr+grid,'@page{size:A4 landscape;margin:1cm}',css);
+  printDoc(hdr+grid+hqFoot,'@page{size:A4 landscape;margin:1cm}',css);
 }
 
 /* ── SOCIETY ─────────────────────────────────────────────────── */
@@ -1040,6 +1049,8 @@ async function saveSettings(){
   }
   try{await api('settings_update',{values});$('set_msg').textContent='Saved.';
     try{const{bankName}=await api('bank_info');if(bankName)BANK=bankName;}catch(e){}
+    // Cache common email for report footer
+    try{const{settings}=await api('settings_get');const em=(settings||[]).find(s=>s.key==='commonEmail');if(em)COMMON_EMAIL=em.value||'';}catch(e){}
     applyBranding(APP_NAME,BANK);
   }catch(err){$('set_msg').textContent='';alert(err.message);}
 }
@@ -1079,7 +1090,7 @@ function renderHierarchy(levels){
 function saveHierarchy(){
   const el=$('hier_tree');if(!el||!el._levels)return;
   localStorage.setItem('coop_hierarchy',JSON.stringify(el._levels));
-  if($('hier_msg'))$('hier_msg').textContent='Saved.';showToast('✅ Hierarchy saved','ok');
+  if($('hier_msg'))$('hier_msg').textContent='Saved.';showToast('Hierarchy saved','ok');
 }
 function resetHierarchy(){
   localStorage.removeItem('coop_hierarchy');loadHierarchy();
@@ -1090,9 +1101,12 @@ function resetHierarchy(){
 let branchRows=[];
 async function loadBranches(){
   try{const{branches}=await api('branches_list');branchRows=branches||[];
+    // Store HQ info for report footer
+    const hq=(branches||[]).find(b=>/head.?quarter/i.test(b.Branch||''))||(branches||[])[0];
+    if(hq){HQ_ADDRESS=hq.Address||'';HQ_PHONE=hq.Phone||'';}
     if(!branchRows.length){$('br_list').innerHTML='<p class="msg">No branches yet.</p>';return;}
-    let h='<table><tr><th>Branch</th><th>Address</th><th>Phone</th><th></th></tr>';
-    branchRows.forEach((b,i)=>h+=`<tr><td>${esc(b.Branch)}</td><td>${esc(b.Address)}</td><td>${esc(b.Phone)}</td><td><button class="ghost" data-bredit="${i}">Edit</button></td></tr>`);
+    let h='<table><tr><th style="text-align:left">Branch</th><th style="text-align:left">Address</th><th style="text-align:left">Phone</th><th></th></tr>';
+    branchRows.forEach((b,i)=>h+=`<tr><td>${esc(b.Branch)}</td><td style="text-align:left">${esc(b.Address)}</td><td style="text-align:left">${esc(b.Phone)}</td><td><button class="ghost" data-bredit="${i}">Edit</button></td></tr>`);
     $('br_list').innerHTML=h+'</table>';
   }catch(err){$('br_list').innerHTML=`<p class="err">${err.message}</p>`;}
 }
@@ -1204,7 +1218,7 @@ function saveModulePerms(){
   const allowed=ALL_MODULES.filter(m=>{const cb=$('mp_'+m);return cb&&cb.checked;});
   setModulePerms(userId,allowed);
   if($('mp_msg'))$('mp_msg').textContent='Saved.';
-  showToast('✅ Module permissions saved','ok');
+  showToast('Module permissions saved','ok');
 }
 function resetModulePerms(){
   const userId=val('mp_user');if(!userId)return;
@@ -1260,6 +1274,8 @@ async function loadProfile(){
     setV('prof_Name',profile.name);setV('prof_DisplayName',profile.displayName);
     setV('prof_Phone',profile.phone);setV('prof_Email',profile.email);setV('prof_Address',profile.address);
   }catch(e){}
+  // Always refresh avatars after profile loads (Fix 1: sync PWA+desktop)
+  refreshAvatars();
   // Show current avatar in profile page
   if(session){
     const avatar=localStorage.getItem('avatar_'+session.userId);
@@ -1309,7 +1325,7 @@ async function saveProfilePhoto(){
       ctx.drawImage(img,sx,sy,sz,sz,0,0,OUTPUT,OUTPUT);
       const compressed=canvas.toDataURL('image/jpeg',0.85);
       localStorage.setItem('avatar_'+session.userId,compressed);
-      showToast('✅ Profile photo saved','ok');
+      showToast('Profile photo saved','ok');
       // Hide preview
       if($('prof_crop_preview'))$('prof_crop_preview').style.display='none';
       if($('prof_photo'))$('prof_photo').value='';
@@ -1430,9 +1446,9 @@ async function submitApproval(){
   }catch(err){$('ap_msg').textContent='';showToast('⚠ '+err.message,'err');}
 }
 function showApprovalConfirm(loanId,nextRole,timeStr){
-  openModal('✅ Loan Submitted for Approval',
+  openModal('Loan Submitted for Approval',
     `<div style="text-align:center;padding:8px 0">`+
-    `<div style="font-size:40px;margin-bottom:8px">✅</div>`+
+    `<div style="font-size:40px;margin-bottom:8px;color:#16a34a">&#10003;</div>`+
     `<h3 style="margin:0 0 12px;font-size:16px;color:#16a34a">Submitted Successfully</h3>`+
     `<table class="meta" style="width:100%;text-align:left"><tr><td style="padding:6px 8px;color:#6b7280;font-size:12px">Loan ID</td><td style="padding:6px 8px;font-weight:700">${esc(loanId)}</td></tr>`+
     `<tr style="background:#f9fafb"><td style="padding:6px 8px;color:#6b7280;font-size:12px">Submitted to</td><td style="padding:6px 8px;font-weight:700;color:#2563eb">${esc(nextRole)}</td></tr>`+
@@ -1453,7 +1469,7 @@ async function handleApprovalAction(action,loanId){
   const statusForApi=statusRaw==='Keep Pending'?'Pending':statusRaw;
   const commentsForApi=statusRaw==='Keep Pending'?('[Keep Pending] '+comments):comments;
   try{await api('approval_update',{loanId,status:statusForApi,comments:commentsForApi});
-    showToast('✅ Decision saved: '+statusRaw,'ok');
+    showToast('Decision saved: '+statusRaw,'ok');
     notifyAboutDecision(loanId,statusRaw,comments);
     loadApprovals();
   }catch(err){showToast('⚠ '+err.message,'err');}
@@ -1464,7 +1480,7 @@ async function resubmitApproval(loanId){
   const payload={loanId,remarks,nextRole:'CEO'};
   if(docInput&&docInput.files[0]){const f=docInput.files[0];payload.docBase64=await fileToB64(f);payload.docMime=f.type;payload.docName=f.name;}
   try{await api('approval_submit',payload);
-    showToast('✅ Re-submitted to CEO','ok');
+    showToast('Re-submitted to CEO','ok');
     notifyRoleUsers('CEO','Loan '+loanId+' re-submitted by '+session.name+' with updated documents.');
     loadApprovals();
   }catch(err){showToast('⚠ '+err.message,'err');}
