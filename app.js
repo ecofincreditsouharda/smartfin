@@ -4,7 +4,7 @@ const IDLE_MS = 60 * 1000;
 
 let session = null, lastSchedule = null, lastMeta = null, lastReceipt = null, curLoanId = '';
 let editing = { type:null, id:null }, lastVoucher = null, repLoans = [];
-let BANK = 'ECOSMART', APP_NAME = 'ECOSMART', LOGO_URL = 'logo.png';
+let BANK = 'ECOFINACLE', APP_NAME = 'ECOFINACLE', LOGO_URL = 'logo.png';
 let HQ_ADDRESS = '', HQ_PHONE = '', COMMON_EMAIL = '';
 const $ = id => document.getElementById(id);
 const val = id => ($(id) ? $(id).value : '');
