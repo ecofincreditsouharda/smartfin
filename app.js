@@ -4,7 +4,7 @@ const IDLE_MS = 60 * 1000;
 
 let session = null, lastSchedule = null, lastMeta = null, lastReceipt = null, curLoanId = '';
 let editing = { type:null, id:null }, lastVoucher = null, repLoans = [];
-let BANK = 'ECOSMART', APP_NAME = 'ECOSMART', LOGO_URL = 'logo.png';
+let BANK = 'ECOSMART', APP_NAME = 'ECOFINACLE', LOGO_URL = 'logo.png';
 const $ = id => document.getElementById(id);
 const val = id => ($(id) ? $(id).value : '');
 const rupee = n => (n===''||n==null||isNaN(Number(String(n).replace(/[^0-9.\-]/g,''))))
