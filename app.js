@@ -4,7 +4,7 @@ const IDLE_MS = 60 * 1000;
 
 let session = null, lastSchedule = null, lastMeta = null, lastReceipt = null, curLoanId = '';
 let editing = { type:null, id:null }, lastVoucher = null, repLoans = [];
-let BANK = 'ECOFINACLE', APP_NAME = 'ECOFINACLE', LOGO_URL = 'logo.png';
+let BANK = 'ECOSMART', APP_NAME = 'ECOSMART', LOGO_URL = 'logo.png';
 let HQ_ADDRESS = '', HQ_PHONE = '', COMMON_EMAIL = '';
 const $ = id => document.getElementById(id);
 const val = id => ($(id) ? $(id).value : '');
@@ -92,9 +92,6 @@ window.addEventListener('DOMContentLoaded', async () => {
   setupPwToggle('loginPwToggle','loginPw');
   setupPwToggle('cpOldToggle','cp_Old');
   setupPwToggle('cpNewToggle','cp_New');
-  // Test connection button
-  const tcBtn=$('testConnBtn');
-  if(tcBtn) tcBtn.addEventListener('click', testConnection);
   // Show PDF button only in PWA
   if ($('r_pdf')) $('r_pdf').style.display = isPWA() ? 'inline-flex' : 'none';
   try{
@@ -110,66 +107,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   setTimeout(()=>{$('splash').hidden=true;$('gate').hidden=false;},1600);
 });
 
-/* ── CONNECTION TEST ─────────────────────────────────────────── */
-/* ── CONNECTION TEST ─────────────────────────────────────────── */
-async function testConnection(){
-  const btn=$('testConnBtn'), msg=$('testConnMsg');
-  if(!btn||!msg){console.warn('testConn elements not found');return;}
-  btn.disabled=true;
-  msg.style.color='#374151';
-  msg.textContent='Testing…';
 
-  // Test 1: plain fetch (no AbortController, no token)
-  try{
-    const t0=Date.now();
-    const res=await fetch(WEB_APP_URL,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({action:'bank_info'})
-    });
-    const ms=Date.now()-t0;
-    if(res.ok){
-      const d=await res.json().catch(()=>({}));
-      msg.style.color='#16a34a';
-      msg.textContent=`✅ Connected (${ms}ms)${d.bankName?' — '+d.bankName:''}`;
-    } else {
-      msg.style.color='#dc2626';
-      msg.textContent=`❌ HTTP ${res.status} — check Supabase function logs`;
-      console.error('[TestConn] HTTP error:', res.status, res.statusText);
-    }
-  }catch(fetchErr){
-    console.error('[TestConn] fetch failed:', fetchErr);
-    msg.style.color='#dc2626';
-    msg.textContent='❌ fetch failed: '+fetchErr.message+'\n\nTrying XHR…';
-
-    // Test 2: XMLHttpRequest fallback (bypasses some browser fetch restrictions)
-    try{
-      const xhrResult = await new Promise((resolve,reject)=>{
-        const x=new XMLHttpRequest();
-        x.open('POST', WEB_APP_URL, true);
-        x.setRequestHeader('Content-Type','application/json');
-        x.timeout=8000;
-        x.onload=()=>resolve({status:x.status,body:x.responseText});
-        x.onerror=()=>reject(new Error('XHR network error'));
-        x.ontimeout=()=>reject(new Error('XHR timeout'));
-        x.send(JSON.stringify({action:'bank_info'}));
-      });
-      if(xhrResult.status===200){
-        msg.style.color='#d97706';
-        msg.textContent='⚠ XHR works but fetch fails — possible browser/PWA fetch restriction. Try opening the app in a regular browser tab (not installed PWA).';
-      } else {
-        msg.style.color='#dc2626';
-        msg.textContent='❌ XHR also failed: HTTP '+xhrResult.status+' — Supabase function error. Check Dashboard → Functions → Logs.';
-      }
-    }catch(xhrErr){
-      msg.style.color='#dc2626';
-      msg.textContent='❌ Both fetch and XHR failed: '+xhrErr.message+'\n\nCheck: 1) Internet connection, 2) Supabase project status at supabase.com/dashboard';
-      console.error('[TestConn] XHR also failed:', xhrErr);
-    }
-  }finally{
-    btn.disabled=false;
-  }
-}
 function setupPwToggle(btnId, inputId) {
   const btn = $(btnId); if (!btn) return;
   btn.addEventListener('click', e => {
