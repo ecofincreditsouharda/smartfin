@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#ffe3df" />
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="logo.png" />
-<title>ECOFINACLE</title>
+<title>ECOSMART</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -24,7 +24,7 @@
 <div id="gate" hidden>
   <section class="card auth">
     <img src="logo.png" alt="Logo" class="logo-lg" onerror="this.style.display='none'" />
-    <h1 id="loginName">ECOFINACLE</h1>
+    <h1 id="loginName">ECOSMART</h1>
     <label>User ID<input id="loginId" autocomplete="username" /></label>
     <label>Password
       <span class="pw-wrap">
@@ -40,12 +40,12 @@
     <button id="loginBtn" class="primary block">Sign in</button>
     <div id="loginMsg" style="font-size:12px;color:#dc2626;margin-top:8px;white-space:pre-line;text-align:left;line-height:1.5;min-height:16px"></div>
     <div id="login_bankname" style="margin-top:6px;font-size:11px;color:#9ca3af;letter-spacing:.01em"></div>
-   <div id="testConnectionSection" style="display:none;margin-top:12px;border-top:1px solid #f0f0f0;padding-top:10px">
-  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-    <button type="button" id="testConnBtn" style="background:transparent;border:1px solid #e5e7eb;border-radius:6px;font-size:11px;color:#6b7280;padding:5px 12px;cursor:pointer">&#128299; Test connection</button>
-    <span id="testConnMsg" style="font-size:11px;white-space:pre-line;line-height:1.5"></span>
-  </div>
-</div>
+    <div style="margin-top:12px;border-top:1px solid #f0f0f0;padding-top:10px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <button type="button" id="testConnBtn" style="background:transparent;border:1px solid #e5e7eb;border-radius:6px;font-size:11px;color:#6b7280;padding:5px 12px;cursor:pointer">&#128299; Test connection</button>
+        <span id="testConnMsg" style="font-size:11px;white-space:pre-line;line-height:1.5"></span>
+      </div>
+    </div>
   </section>
 </div>
 
@@ -54,7 +54,7 @@
   <header id="topbar">
     <button id="hamburger" aria-label="Menu">☰</button>
     <img src="logo.png" alt="" class="logo-sm" onerror="this.style.display='none'" />
-    <span id="brandName" class="brand-name">ECOFINACLE</span>
+    <span id="brandName" class="brand-name">ECOSMART</span>
     <span id="who"></span>
   </header>
 
@@ -102,10 +102,11 @@
           <label>IFSC Code<input id="m_IFSC" /></label>
           <label>Photo<input id="m_Photo" type="file" accept="image/*" /></label>
           <label>ID Proof (jpeg/png/pdf)<input id="m_IdProof" type="file" accept="image/jpeg,image/png,application/pdf" /></label>
+          <label>Member Type<select id="m_MemberType"><option value="Original Member">Original Member</option><option value="Associate Member">Associate Member</option><option value="Nominal/Sympathizer Member">Nominal/Sympathizer Member</option></select></label>
           <label>Share Capital Member<select id="m_ShareCapitalMember"><option value="No">No</option><option value="Yes">Yes</option></select></label>
           <label>Share Capital Collected (₹)<input id="m_ShareCapitalCollected" type="number" value="0" /></label>
         </div>
-        <div class="actions"><button id="m_add" class="primary">Add member</button><button type="button" class="ghost" data-clear="members">Clear</button><span id="m_msg" class="msg"></span></div>
+        <div class="actions"><button id="m_add" class="primary">Add member</button><button type="button" class="ghost" data-clear="members">Clear</button><button type="button" class="ghost" id="m_cancel_edit" style="display:none;color:#dc2626" onclick="cancelEdit('member')">Cancel edit</button><span id="m_msg" class="msg"></span></div>
       </div>
       <div class="card"><div class="card-head"><h2>Members</h2><button class="ghost" data-refresh="members">Refresh</button></div>
         <div class="grid" style="margin-bottom:10px"><label>Search members<input id="m_search" placeholder="name · member ID · phone" /></label></div>
@@ -139,7 +140,7 @@
           <label id="l_NewIdWrap" style="display:none">Change Loan ID (edit only)<input id="l_NewId" placeholder="leave blank to keep current" /></label>
         </div>
         <div class="actions"><button id="l_preview" class="ghost">Preview</button>
-          <button id="l_add" class="primary" hidden>Confirm &amp; Save</button><button type="button" class="ghost" data-clear="loans">Clear</button><span id="l_msg" class="msg"></span></div>
+          <button id="l_add" class="primary" hidden>Confirm &amp; Save</button><button type="button" class="ghost" data-clear="loans">Clear</button><button type="button" class="ghost" id="l_cancel_edit" style="display:none;color:#dc2626" onclick="cancelEdit('loans')">Cancel edit</button><span id="l_msg" class="msg"></span></div>
       </div>
       <div class="card" id="l_schedCard" hidden>
         <div class="card-head"><h2 id="l_schedTitle">Schedule</h2>
@@ -198,7 +199,7 @@
           <label>Nominee<input id="d_Nominee" /></label>
         </div>
         <div class="actions"><button id="d_preview" class="ghost">Preview maturity</button>
-          <button id="d_add" class="primary" hidden>Confirm &amp; Save</button><button type="button" class="ghost" data-clear="deposits">Clear</button><span id="d_msg" class="msg"></span></div>
+          <button id="d_add" class="primary" hidden>Confirm &amp; Save</button><button type="button" class="ghost" data-clear="deposits">Clear</button><button type="button" class="ghost" id="d_cancel_edit" style="display:none;color:#dc2626" onclick="cancelEdit('deposits')">Cancel edit</button><span id="d_msg" class="msg"></span></div>
         <div id="d_prev" class="summary"></div></div>
       <div class="card"><div class="card-head"><h2>Fixed Deposits</h2><button class="ghost" data-refresh="deposits">Refresh</button></div>
         <div class="grid" style="margin-bottom:10px"><label>Search deposits<input id="d_search" placeholder="name · member ID · phone" /></label></div>
@@ -247,7 +248,9 @@
           <label>To Date<input id="pb_to" type="date" /></label>
         </div>
         <div class="actions"><button id="pb_load" class="primary">Load passbook</button>
-          <button id="pb_print" class="ghost">Print passbook</button><button type="button" class="ghost" data-clear="passbook">Clear</button></div>
+          <button id="pb_print" class="ghost">Print passbook</button>
+          <button class="ghost" id="pb_min" onclick="toggleSection('pb_rows',this)">Minimise</button>
+          <button type="button" class="ghost" data-clear="passbook">Clear</button></div>
         <div id="pb_summary" class="summary"></div><div id="pb_rows" class="scrolly"></div></div>
     </section>
 
@@ -328,7 +331,7 @@
           <label>Note<input id="soc_Note" /></label>
         </div>
         <div class="actions"><button id="soc_txn" class="primary">Post transaction</button><span id="soc_tmsg" class="msg"></span></div></div>
-      <div class="card"><div class="card-head"><h2>Transactions</h2><button class="ghost" data-refresh="society">Refresh</button></div><div id="soc_list"></div></div>
+      <div class="card"><div class="card-head"><h2>Transactions</h2><span style="display:flex;gap:8px"><button class="ghost" id="soc_min" onclick="toggleSection('soc_list',this)">Minimise</button><button class="ghost" data-refresh="society">Refresh</button></span></div><div id="soc_list"></div></div>
     </section>
 
     <!-- SETTINGS -->
@@ -338,7 +341,7 @@
         <!-- Application Name (Admin only, stored locally) -->
         <div class="admin-only" style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
           <label style="max-width:320px">Application Name <small style="font-weight:400;text-transform:none;color:#6b7280">(UI display name — shown instead of bank name in nav &amp; splash)</small>
-            <input id="set_appname" placeholder="e.g. ECOFINACLE Cooperative" />
+            <input id="set_appname" placeholder="e.g. ECOSMART Cooperative" />
           </label>
           <p style="font-size:11px;color:#9ca3af;margin:6px 0 0">Bank Name (from settings below) appears on printed documents: receipts, passbooks, vouchers, reports.</p>
         </div>
