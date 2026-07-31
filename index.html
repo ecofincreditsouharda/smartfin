@@ -40,12 +40,6 @@
     <button id="loginBtn" class="primary block">Sign in</button>
     <div id="loginMsg" style="font-size:12px;color:#dc2626;margin-top:8px;white-space:pre-line;text-align:left;line-height:1.5;min-height:16px"></div>
     <div id="login_bankname" style="margin-top:6px;font-size:11px;color:#9ca3af;letter-spacing:.01em"></div>
-    <div style="margin-top:12px;border-top:1px solid #f0f0f0;padding-top:10px">
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <button type="button" id="testConnBtn" style="background:transparent;border:1px solid #e5e7eb;border-radius:6px;font-size:11px;color:#6b7280;padding:5px 12px;cursor:pointer">&#128299; Test connection</button>
-        <span id="testConnMsg" style="font-size:11px;white-space:pre-line;line-height:1.5"></span>
-      </div>
-    </div>
   </section>
 </div>
 
@@ -105,6 +99,7 @@
           <label>Member Type<select id="m_MemberType"><option value="Original Member">Original Member</option><option value="Associate Member">Associate Member</option><option value="Nominal/Sympathizer Member">Nominal/Sympathizer Member</option></select></label>
           <label>Share Capital Member<select id="m_ShareCapitalMember"><option value="No">No</option><option value="Yes">Yes</option></select></label>
           <label>Share Capital Collected (₹)<input id="m_ShareCapitalCollected" type="number" value="0" /></label>
+          <label id="m_NewIdWrap" style="display:none">Change Member ID <small style="color:#6b7280">(Admin/CEO only)</small><input id="m_NewId" placeholder="leave blank to keep current" /></label>
         </div>
         <div class="actions"><button id="m_add" class="primary">Add member</button><button type="button" class="ghost" data-clear="members">Clear</button><button type="button" class="ghost" id="m_cancel_edit" style="display:none;color:#dc2626" onclick="cancelEdit('member')">Cancel edit</button><span id="m_msg" class="msg"></span></div>
       </div>
