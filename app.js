@@ -97,10 +97,12 @@ window.addEventListener('DOMContentLoaded', async () => {
   if(tcBtn) tcBtn.addEventListener('click', testConnection);
   // Show PDF button only in PWA
   if ($('r_pdf')) $('r_pdf').style.display = isPWA() ? 'inline-flex' : 'none';
-  try{const{bankName}=await api('bank_info');if(bankName)BANK=bankName;}catch(e){}
-  // APP_NAME = stored custom name; falls back to 'ECOSMART' (not bank name)
-  // BANK stays as the bank name for printed documents only
-  APP_NAME = localStorage.getItem('coop_app_name') || 'ECOSMART';
+  try{
+    const bi=await api('bank_info');
+    if(bi.bankName) BANK=bi.bankName;
+    if(bi.appName){APP_NAME=bi.appName;localStorage.setItem('coop_app_name',APP_NAME);}
+    else{APP_NAME=localStorage.getItem('coop_app_name')||'ECOSMART';}
+  }catch(e){APP_NAME=localStorage.getItem('coop_app_name')||'ECOSMART';}
   applyBranding(APP_NAME, BANK);
   // Apply app name immediately to login page (Fix 2)
   if($('loginName')) $('loginName').textContent = APP_NAME;
@@ -260,6 +262,12 @@ document.addEventListener('click',e=>{
   if(d.reset)  return resetUser(d.reset);
   if(d.toggle) return toggleUser(d.toggle, d.active==='true');
 });
+function toggleSection(id,btn){
+  const el=$(id);if(!el)return;
+  const hidden=el.style.display==='none';
+  el.style.display=hidden?'':'none';
+  if(btn)btn.textContent=hidden?'Minimise':'Expand';
+}
 function toggleNav(open){const n=$('nav'),b=$('backdrop');
   const show=open===undefined?!n.classList.contains('open'):open;
   n.classList.toggle('open',show);b.classList.toggle('show',show);}
@@ -312,10 +320,14 @@ function applyModulePerms(userId, role){
 }
 
 /* ── START (after login) ─────────────────────────────────────── */
-function start(user){
+async function start(user){
   session=user;
   if(user.bankName){ BANK=user.bankName; }
-  APP_NAME = localStorage.getItem('coop_app_name') || 'ECOSMART';
+  try{
+    const bi2=await api('bank_info');
+    if(bi2.appName){APP_NAME=bi2.appName;localStorage.setItem('coop_app_name',APP_NAME);}
+    else{APP_NAME=localStorage.getItem('coop_app_name')||'ECOSMART';}
+  }catch(e){APP_NAME=localStorage.getItem('coop_app_name')||'ECOSMART';}
   applyBranding(APP_NAME, BANK);
   $('gate').hidden=true;$('splash').hidden=true;$('app').hidden=false;resetIdle();
   const role=user.role;
@@ -511,6 +523,12 @@ function clearEdit(){
   setText('e_add','Add expense');setText('m_add','Add member');
   if($('l_NewIdWrap'))$('l_NewIdWrap').style.display='none';
 }
+function cancelEdit(section){
+  clearForm(section);
+  clearEdit();
+  const msgs={loans:'l_msg',deposits:'d_msg',expenses:'e_msg',member:'m_msg'};
+  const msgEl=$(msgs[section]);if(msgEl)msgEl.textContent='';
+}
 function setText(id,t){if($(id))$(id).textContent=t;}
 async function startEdit(key,id){
   try{
@@ -520,6 +538,8 @@ async function startEdit(key,id){
     editing={type:key,id};
     const btn=EDIT_BTN[key];$(btn).hidden=false;setText(btn,'Update');
     $(EDIT_MSG[key]).textContent='Editing '+id+' — change fields, then Update.';
+    const cBtnId={loans:'l_cancel_edit',deposits:'d_cancel_edit',expenses:'e_cancel_edit',member:'m_cancel_edit'}[key];
+    const cBtn=$(cBtnId);if(cBtn)cBtn.style.display='inline-flex';
   }catch(err){alert(err.message);}
 }
 function fillReg(key,f,id){
@@ -546,7 +566,9 @@ function fillMember(m){setV('m_FullName',m.FullName);setV('m_DOB',m.DOB&&m.DOB.l
   setV('m_Branch',m.Branch);setV('m_Address',m.Address);setV('m_Aadhaar','');$('m_Aadhaar').placeholder='unchanged ('+(m.Aadhaar||'')+') — type to replace';
   setV('m_PAN',m.PAN);setV('m_BankName',m.BankName);setV('m_BankAccount',m.BankAccount);setV('m_IFSC',m.IFSC);
   setV('m_ShareCapitalCollected',m.ShareCapitalCollected||0);
-  if($('m_ShareCapitalMember'))$('m_ShareCapitalMember').value=m.ShareCapitalMember||'No';}
+  if($('m_ShareCapitalMember'))$('m_ShareCapitalMember').value=m.ShareCapitalMember||'No';
+  if(['Admin','CEO'].includes(session.role)){if($('m_NewIdWrap'))$('m_NewIdWrap').style.display='';setV('m_NewId','');}
+  else{if($('m_NewIdWrap'))$('m_NewIdWrap').style.display='none';}}
 function setV(id,v){if($(id))$(id).value=(v==null?'':v);}
 function setSelectValue(sid,value){const sel=$(sid);if(!sel||!value)return;sel.value=value;if(sel.value!==value){const o=document.createElement('option');o.value=value;o.textContent=value;sel.appendChild(o);sel.value=value;}}
 
@@ -881,11 +903,17 @@ async function addMember(){
   $('m_msg').textContent='Saving…';
   try{const member={FullName:val('m_FullName'),DOB:val('m_DOB'),Phone:val('m_Phone'),Address:val('m_Address'),
     Aadhaar:val('m_Aadhaar'),PAN:val('m_PAN'),BankName:val('m_BankName'),BankAccount:val('m_BankAccount'),
-    IFSC:val('m_IFSC'),Branch:val('m_Branch'),ShareCapitalMember:val('m_ShareCapitalMember'),ShareCapitalCollected:val('m_ShareCapitalCollected')};
+    IFSC:val('m_IFSC'),Branch:val('m_Branch'),MemberType:val('m_MemberType'),ShareCapitalMember:val('m_ShareCapitalMember'),ShareCapitalCollected:val('m_ShareCapitalCollected')};
     const f=$('m_Photo').files[0];if(f){member.PhotoBase64=await fileToB64(f);member.PhotoMime=f.type;}
     const idp=$('m_IdProof').files[0];if(idp){member.IdProofBase64=await fileToB64(idp);member.IdProofMime=idp.type;member.IdProofName=idp.name;}
-    if(editing.type==='member'){await api('member_edit',{memberId:editing.id,member});
-      $('m_msg').textContent='Updated '+editing.id;$('m_Photo').value='';clearEdit();return loadList('members_list','m_list','member','member');}
+    if(editing.type==='member'){
+      const newMId=val('m_NewId').trim();
+      const mPay={memberId:editing.id,member};
+      if(newMId)mPay.newMemberId=newMId;
+      const mRes=await api('member_edit',mPay);
+      $('m_msg').textContent='Updated '+(mRes.memberId||editing.id);
+      $('m_Photo').value='';if($('m_NewId'))$('m_NewId').value='';clearEdit();
+      return loadList('members_list','m_list','member','member');}
     const{memberId,photoUrl,idProofUrl,warning}=await api('members_add',{member});
     $('m_Photo').value='';if($('m_IdProof'))$('m_IdProof').value='';
     let msg='Member saved — '+memberId;
@@ -917,7 +945,7 @@ async function showMember(id){
     const pairs=[['Member ID',member.MemberID],['Full Name',member.FullName],['DOB',member.DOB],['Phone',member.Phone],
       ['Address',member.Address],['Aadhaar',member.Aadhaar],['PAN',member.PAN],['Bank Name',member.BankName],
       ['Bank A/C',member.BankAccount],['IFSC',member.IFSC],['Branch',member.Branch],
-      ['Share Capital Member',member.ShareCapitalMember],['Share Capital Collected',rupee(member.ShareCapitalCollected)]];
+      ['Member Type',member.MemberType||'Original Member'],['Share Capital Member',member.ShareCapitalMember],['Share Capital Collected',rupee(member.ShareCapitalCollected)]];
     let h='<div class="summary">'+pairs.map(([k,v])=>`<div><span>${esc(k)} :</span><b>${esc(v)}</b></div>`).join('')+'</div>';
     h+=`<div style="margin-top:12px">`;
     if(member.PhotoUrl)h+=`<button class="ghost" data-photo="${esc(member.PhotoUrl)}" style="margin-bottom:6px">📷 View current photo</button><br>`;
@@ -1013,7 +1041,8 @@ async function loadSociety(){
     $('soc_Addr').value=society.address||'';$('soc_Open').value=society.openingBalance||0;
     $('soc_bal').innerHTML=summaryHtml([['Current Balance',rupee(society.balance)]]);
     let h='<table><tr><th>Txn No</th><th>Date</th><th>Direction</th><th>Amount</th><th>Party</th><th>Ref</th><th>Note</th></tr>';
-    society.txns.forEach(t=>h+=`<tr><td>${esc(t.TxnNo)}</td><td>${esc(t.Date)}</td><td>${esc(t.Direction)}</td><td>${rupee(t.Amount)}</td><td>${esc(t.Party)}</td><td>${esc(t.Ref)}</td><td>${esc(t.Note)}</td></tr>`);
+    const cleanStr=s=>(s||'').replace(/\uFFFD/g,'-').replace(/[\u2013\u2014]/g,'-');
+    society.txns.forEach(t=>h+=`<tr><td>${esc(t.TxnNo)}</td><td>${esc(t.Date)}</td><td>${esc(t.Direction)}</td><td>${rupee(t.Amount)}</td><td>${esc(t.Party)}</td><td>${esc(t.Ref)}</td><td>${esc(cleanStr(t.Note))}</td></tr>`);
     $('soc_list').innerHTML=h+'</table>';
   }catch(err){$('soc_list').innerHTML=`<p class="err">${err.message}</p>`;}
 }
@@ -1046,6 +1075,7 @@ async function saveSettings(){
   if(appNameEl && appNameEl.value.trim()){
     APP_NAME = appNameEl.value.trim();
     localStorage.setItem('coop_app_name', APP_NAME);
+    values['appName'] = APP_NAME;
   }
   try{await api('settings_update',{values});$('set_msg').textContent='Saved.';
     try{const{bankName}=await api('bank_info');if(bankName)BANK=bankName;}catch(e){}
@@ -1384,8 +1414,9 @@ async function loadApprovals(){
     approvals.forEach(a=>{
       const l=a.loan||{};
       // Detect Keep Pending (stored as Pending with [Keep Pending] prefix in comments)
-      const displayStatus=(a.status==='Pending'&&(a.comments||'').startsWith('[Keep Pending]'))?'Keep Pending':a.status;
-      const displayComments=(a.comments||'').replace(/^\[Keep Pending\]\s*/,'');
+      const rawRemark=a.remarks||'';
+      const displayStatus=(a.status==='Pending'&&rawRemark.startsWith('[Keep Pending]'))?'Keep Pending':a.status;
+      const displayComments=rawRemark.replace(/^\[Review\]\s*/,'').replace(/^\[Keep Pending\]\s*/,'');
       const statusClass=displayStatus==='Approved'?'approved':displayStatus==='Rejected'?'rejected':displayStatus==='Keep Pending'?'keepending':'';
       const statusColor=displayStatus==='Approved'?'#16a34a':displayStatus==='Rejected'?'#dc2626':displayStatus==='Keep Pending'?'#7c3aed':'#d97706';
       h+=`<div class="card ap-card ${statusClass}" style="margin:10px 0">`;
@@ -1415,7 +1446,7 @@ async function loadApprovals(){
       const canResubmit=(role==='BranchManager'||role==='CEO')&&a.status==='Rejected'&&a.next_role==='CEO';
       if(canResubmit){
         h+=`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">`;
-        h+=`<p style="font-size:12px;color:#dc2626;margin:0 0 8px">Returned with note: <b>${esc(a.comments||'—')}</b></p>`;
+        h+=`<p style="font-size:12px;color:#dc2626;margin:0 0 8px">Returned with note: <b>${esc(displayComments||'—')}</b></p>`;
         h+=`<div class="grid" style="grid-template-columns:1fr;margin-bottom:8px">`;
         h+=`<label>Updated remarks / attachment<input id="ap_resub_remarks_${esc(a.loan_id)}" value="${esc(a.remarks||'')}" /></label>`;
         h+=`<label>Updated document<input type="file" id="ap_resub_doc_${esc(a.loan_id)}" accept="image/*,application/pdf" /></label>`;
@@ -1467,7 +1498,7 @@ async function handleApprovalAction(action,loanId){
   }
   // Backend only accepts Approved/Rejected/Pending — map Keep Pending → Pending with note prefix
   const statusForApi=statusRaw==='Keep Pending'?'Pending':statusRaw;
-  const commentsForApi=statusRaw==='Keep Pending'?('[Keep Pending] '+comments):comments;
+  const commentsForApi=statusRaw==='Keep Pending'?('[Keep Pending] '+comments):('[Review] '+comments);
   try{await api('approval_update',{loanId,status:statusForApi,comments:commentsForApi});
     showToast('Decision saved: '+statusRaw,'ok');
     notifyAboutDecision(loanId,statusRaw,comments);
