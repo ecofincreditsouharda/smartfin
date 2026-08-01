@@ -99,7 +99,8 @@
           <label>Member Type<select id="m_MemberType"><option value="Original Member">Original Member</option><option value="Associate Member">Associate Member</option><option value="Nominal/Sympathizer Member">Nominal/Sympathizer Member</option></select></label>
           <label>Share Capital Member<select id="m_ShareCapitalMember"><option value="No">No</option><option value="Yes">Yes</option></select></label>
           <label>Share Capital Collected (₹)<input id="m_ShareCapitalCollected" type="number" value="0" /></label>
-          <label id="m_NewIdWrap" style="display:none">Change Member ID <small style="color:#6b7280">(Admin/CEO only)</small><input id="m_NewId" placeholder="leave blank to keep current" /></label>
+          <label id="m_CurIdWrap" style="display:none">Current Member ID<input id="m_CurId" readonly style="background:#f8f9fb;color:#6b7280;border-style:dashed" /></label>
+          <label id="m_NewIdWrap" style="display:none">New Member ID <small style="color:#6b7280">(Admin/CEO only — leave blank to keep current)</small><input id="m_NewId" /></label>
         </div>
         <div class="actions"><button id="m_add" class="primary">Add member</button><button type="button" class="ghost" data-clear="members">Clear</button><button type="button" class="ghost" id="m_cancel_edit" style="display:none;color:#dc2626" onclick="cancelEdit('member')">Cancel edit</button><span id="m_msg" class="msg"></span></div>
       </div>
