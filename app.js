@@ -443,7 +443,10 @@ function renderListHtml(rows,target,linkKind,editKey){
   let h='<table><tr>'+cols.map(c=>`<th>${esc(c)}</th>`).join('')+(hasBtn?'<th></th>':'')+' </tr>';
   rows.forEach(r=>{const id=r[cols[0]];h+='<tr>'+cols.map(c=>`<td>${money.test(c)?rupee(r[c]):esc(r[c])}</td>`).join('');
     if(hasBtn){h+='<td>';
-      if(linkKind==='loan')   h+=`<button class="ghost" data-loan="${esc(id)}">Schedule</button> `;
+      if(linkKind==='loan'){
+        h+=`<button class="ghost" data-loan="${esc(id)}">Schedule</button> `;
+        if(['Admin','CEO'].includes(session.role)) h+=`<button class="ghost" style="color:#dc2626" onclick="deleteLoan('${esc(id)}')">Delete</button> `;
+      }
       if(linkKind==='member') h+=`<button class="ghost" data-member="${esc(id)}">View</button> `;
       if(editKey==='expenses') h+=`<button class="ghost" data-voucher="${esc(id)}">Voucher</button> `;
       if(editKey) h+=`<button class="ghost" data-edit="${esc(editKey)}:${esc(id)}">Edit</button>`;
@@ -724,6 +727,14 @@ async function addLoan(){
     if($('ap_LoanId'))$('ap_LoanId').value=id;
   }catch(err){$('l_msg').textContent='';alert(err.message);}
 }
+async function deleteLoan(id){
+  if(!confirm(`Delete loan ${id}?\nThis will also delete all repayments for this loan.`))return;
+  try{
+    await api('loan_delete',{id});
+    showToast('Loan '+id+' deleted','ok');
+    loadList('loans_list','l_list','loan','loans');
+  }catch(err){showToast('Error: '+err.message,'err');}
+}
 async function showSchedule(id){
   try{const{result,meta}=await api('loan_schedule',{loanId:id});renderSchedule(id,result,meta);}
   catch(err){alert(err.message);}
@@ -938,8 +949,10 @@ async function showMember(id){
 }
 async function deleteMember(){
   if(!currentMemberId){alert('Open a member first.');return;}
-  if(!confirm(`Delete member ${currentMemberId}?`))return;
-  try{await api('member_delete',{memberId:currentMemberId});
+  const isPriv=['Admin','CEO'].includes(session.role);
+  const msg=isPriv?`Delete member ${currentMemberId}?\nThis will also delete all linked loans, repayments and savings.`:`Delete member ${currentMemberId}? (Only if no loans or savings linked.)`;
+  if(!confirm(msg))return;
+  try{await api('member_delete',{memberId:currentMemberId,force:isPriv});
     showToast('Member deleted','ok');$('m_card').hidden=true;currentMemberId=null;
     loadList('members_list','m_list','member','member');
   }catch(err){showToast('⚠ '+err.message,'err');}
@@ -1105,11 +1118,28 @@ async function loadBranches(){
     if(hq){HQ_ADDRESS=hq.Address||'';HQ_PHONE=hq.Phone||'';}
     if(!branchRows.length){$('br_list').innerHTML='<p class="msg">No branches yet.</p>';return;}
     let h='<table><tr><th style="text-align:left">Branch</th><th style="text-align:left">Address</th><th style="text-align:left">Phone</th><th></th></tr>';
-    branchRows.forEach((b,i)=>h+=`<tr><td>${esc(b.Branch)}</td><td style="text-align:left">${esc(b.Address)}</td><td style="text-align:left">${esc(b.Phone)}</td><td><button class="ghost" data-bredit="${i}">Edit</button></td></tr>`);
+    branchRows.forEach((b,i)=>{
+      const canAdmin=['Admin','CEO'].includes(session.role);
+      h+=`<tr><td>${esc(b.Branch)}</td><td style="text-align:left">${esc(b.Address)}</td><td style="text-align:left">${esc(b.Phone)}</td><td style="white-space:nowrap"><button class="ghost" data-bredit="${i}">Edit</button>${canAdmin?` <button class="ghost" style="color:#dc2626" onclick="deleteBranch('${esc(b.Branch)}')">Delete</button>`:''}</td></tr>`;
+    });
     $('br_list').innerHTML=h+'</table>';
   }catch(err){$('br_list').innerHTML=`<p class="err">${err.message}</p>`;}
 }
-function fillBranch(i){const b=branchRows[i];if(!b)return;setV('br_Branch',b.Branch);setV('br_Address',b.Address);setV('br_Phone',b.Phone);$('br_msg').textContent='Editing '+b.Branch;}
+function fillBranch(i){
+  const b=branchRows[i];if(!b)return;
+  setV('br_Branch',b.Branch);setV('br_Address',b.Address);setV('br_Phone',b.Phone);
+  $('br_msg').textContent='Editing '+b.Branch;
+  const brInput=$('br_Branch');
+  if(brInput) brInput.readOnly=!['Admin','CEO'].includes(session.role);
+}
+async function deleteBranch(branch){
+  if(!confirm(`Delete branch "${branch}"? This cannot be undone.`))return;
+  try{
+    await api('branch_delete',{branch});
+    showToast('Branch deleted','ok');
+    loadBranches();populateBranchSelects();
+  }catch(err){showToast('Error: '+err.message,'err');}
+}
 async function branchSave(){
   $('br_msg').textContent='Saving…';
   try{await api('branch_save',{branch:{Branch:val('br_Branch'),Address:val('br_Address'),Phone:val('br_Phone')}});
@@ -1402,7 +1432,11 @@ async function loadApprovals(){
       const apRows=[['Branch',esc(l.branch||'')],['Amount',rupee(l.amount||0)],['Loan Type',esc(l.loan_type||'')],['Submitted at',submittedAt],['BM Remarks',esc(a.bm_remarks||'—')]];
       const ceoNote=(a.ceo_remarks||'').replace(/^\[TO_DIRECTOR\]\s*/,'');
       if(ceoNote) apRows.push(['CEO Note',esc(ceoNote)]);
-      if(a.director_name) apRows.push(['Director',esc(a.director_name)],['Director Decision',esc(a.director_action||'—')],['Director Note',esc(a.director_remarks||'—')]);
+      if(a.director_name) apRows.push(['Director Decision by',esc(a.director_name)],['Decision',esc(a.director_action||'—')],['Director Note',esc(a.director_remarks||'—')]);
+      if(a.all_directors&&a.all_directors.length>1){
+        const pending=(a.director_pending||[]);
+        if(pending.length) apRows.push(['Still awaiting',esc(pending.join(', '))]);
+      }
       h+=`<table class="ap-detail-table">${apRows.map(([k,v])=>`<tr><td class="ap-k">${k}</td><td class="ap-v">${v}</td></tr>`).join('')}</table>`;
       if(a.doc_url) h+=`<div style="margin:8px 0"><a href="${esc(a.doc_url)}" target="_blank" class="ghost" style="padding:6px 12px;border-radius:8px;background:#eaf1fb;color:#2c4a7c;text-decoration:none;font-size:12px">View Document${a.doc_name?' — '+esc(a.doc_name):''}</a></div>`;
       if(notifs.length) h+=`<div style="background:#fef3c7;border-radius:6px;padding:6px 10px;font-size:12px;margin:6px 0">${notifs.map(n=>`${esc(n.msg)}`).join('<br>')}</div>`;
