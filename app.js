@@ -45,9 +45,16 @@ async function api(action, payload={}) {
 const summaryHtml = pairs => pairs.map(([k,v])=>`<div><span>${esc(k)}</span><b>${v}</b></div>`).join('');
 const tableFrom = rows => {
   if (!rows||!rows.length) return '<p class="msg">Nothing to show.</p>';
-  const cols=Object.keys(rows[0]); const money=/amount|emi|repayable|value|paid|balance|arrears|due|payout|instal|min/i;
-  let h='<table><tr>'+cols.map(c=>`<th>${esc(c)}</th>`).join('')+'</tr>';
-  rows.forEach(r=>h+='<tr>'+cols.map(c=>`<td>${money.test(c)?rupee(r[c]):esc(r[c])}</td>`).join('')+'</tr>');
+  const cols=Object.keys(rows[0]);
+  const money=/amount|emi|repayable|value|paid|balance|arrears|due|payout|instal|min|rate/i;
+  const right=/amount|emi|repayable|value|paid|balance|arrears|due|payout|instal|min/i;
+  const left=/id|name|branch|date|type|mode|note|ref|status|member|borrower|depositor|collector|category|description|address|phone|nominee|method|freq/i;
+  let h='<table><tr>'+cols.map(c=>`<th style="text-align:${left.test(c.toLowerCase())?'left':'right'}">${esc(c)}</th>`).join('')+'</tr>';
+  rows.forEach(r=>h+='<tr>'+cols.map(c=>{
+    const isRight=right.test(c)&&!left.test(c.toLowerCase());
+    const val=money.test(c)?rupee(r[c]):esc(r[c]);
+    return `<td${isRight?' style="text-align:right"':''}>${val}</td>`;
+  }).join('')+'</tr>');
   return h+'</table>';
 };
 const schedTable = sch => {
@@ -353,7 +360,7 @@ function showView(v){
 }
 function refresh(v){
   if(v==='dashboard')   loadDashboard();
-  if(v==='members')     loadList('members_list','m_list','member','member');
+  if(v==='members'){loadList('members_list','m_list','member','member').then(()=>showToast('Members refreshed','ok'));}
   if(v==='loans')       loadList('loans_list','l_list','loan','loans');
   if(v==='deposits')    loadList('deposits_list','d_list',null,'deposits');
   if(v==='savings')     loadList('savings_list','s_list');
@@ -394,8 +401,10 @@ async function loadDashboard(){
       .map(([l,v,c])=>`<div class="stat ${c}"><span>${l}</span><b>${v}</b></div>`).join('');
     $('dash').innerHTML=html;
     $('dash_overdue').innerHTML=overdue&&overdue.length?tableFrom(overdue):'<p class="msg">No missed EMIs.</p>';
-    if(extraStats&&extraStats.newLoansDetail&&extraStats.newLoansDetail.length)
-      $('dash_overdue').innerHTML+='<h3 style="margin-top:16px">New Loans This Month</h3>'+tableFrom(extraStats.newLoansDetail);
+    if(extraStats&&extraStats.newLoansDetail&&extraStats.newLoansDetail.length){
+      let nt='<table><tr><th style="text-align:left">Loan ID</th><th style="text-align:left">Borrower</th><th style="text-align:right">Amount</th><th style="text-align:left">Date</th></tr>';
+      extraStats.newLoansDetail.forEach(r=>nt+=`<tr><td>${esc(r['Loan ID']||r.loan_id||'')}</td><td>${esc(r.Borrower||r.borrower||'')}</td><td style="text-align:right">${rupee(r.Amount||r.amount)}</td><td style="text-align:left">${esc(r.Date||r.date||'')}</td></tr>`);
+      $('dash_overdue').innerHTML+='<h3 style="margin-top:16px">New Loans This Month</h3>'+nt+'</table>';}
   }catch(err){$('dash').innerHTML=`<p class="err">${err.message}</p>`;}
 }
 
@@ -504,9 +513,13 @@ function fillMember(m){setV('m_FullName',m.FullName);setV('m_DOB',m.DOB&&m.DOB.l
   setV('m_Branch',m.Branch);setV('m_Address',m.Address);setV('m_Aadhaar','');$('m_Aadhaar').placeholder='unchanged ('+(m.Aadhaar||'')+') — type to replace';
   setV('m_PAN',m.PAN);setV('m_BankName',m.BankName);setV('m_BankAccount',m.BankAccount);setV('m_IFSC',m.IFSC);
   setV('m_ShareCapitalCollected',m.ShareCapitalCollected||0);
+  if($('m_MemberType'))$('m_MemberType').value=m.MemberType||'Original Member';
   if($('m_ShareCapitalMember'))$('m_ShareCapitalMember').value=m.ShareCapitalMember||'No';
-  if(['Admin','CEO'].includes(session.role)){if($('m_NewIdWrap'))$('m_NewIdWrap').style.display='';setV('m_NewId','');}
-  else{if($('m_NewIdWrap'))$('m_NewIdWrap').style.display='none';}}
+  // Show current Member ID as read-only, and Change ID field for Admin/CEO (Issue 1)
+  const curIdWrap=$('m_CurIdWrap');if(curIdWrap){curIdWrap.style.display='';$('m_CurId')&&($('m_CurId').value=m.MemberID||'');}
+  if(['Admin','CEO'].includes(session.role)){if($('m_NewIdWrap'))$('m_NewIdWrap').style.display='';setV('m_NewId','');if($('m_NewId'))$('m_NewId').placeholder='leave blank to keep '+m.MemberID;}
+  else{if($('m_NewIdWrap'))$('m_NewIdWrap').style.display='none';}
+  if(curIdWrap)curIdWrap.style.display='';}
 function setV(id,v){if($(id))$(id).value=(v==null?'':v);}
 function setSelectValue(sid,value){const sel=$(sid);if(!sel||!value)return;sel.value=value;if(sel.value!==value){const o=document.createElement('option');o.value=value;o.textContent=value;sel.appendChild(o);sel.value=value;}}
 
@@ -1402,7 +1415,7 @@ async function submitApproval(){
   const loanId=val('ap_LoanId').trim();
   if(!loanId){$('ap_msg').textContent='Loan ID required.';return;}
   const f=$('ap_Doc').files[0];
-  const payload={loanId,remarks:val('ap_Remarks')};
+  const payload={loanId,remarks:val('ap_Remarks'),nextRole:val('ap_SendTo')||'CEO'};
   if(f){payload.docBase64=await fileToB64(f);payload.docMime=f.type;payload.docName=f.name;}
   try{const{nextRole}=await api('approval_submit',payload);
     $('ap_msg').textContent='';
