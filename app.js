@@ -466,14 +466,21 @@ function clearEdit(){
   editing={type:null,id:null};
   setText('l_add','Confirm & Save');$('l_add').hidden=true;
   setText('d_add','Confirm & Save');$('d_add').hidden=true;
-  setText('e_add','Add expense');setText('m_add','Add member');
-  if($('l_NewIdWrap'))$('l_NewIdWrap').style.display='none';
+  setText('e_add','Add expense');
+  setText('m_add','Add member');
+  // Hide all edit-mode UI elements
+  ['l_NewIdWrap','m_NewIdWrap','m_CurIdWrap'].forEach(id=>{const el=$(id);if(el)el.style.display='none';});
+  if($('m_NewId'))$('m_NewId').value='';
+  ['l_cancel_edit','d_cancel_edit','m_cancel_edit'].forEach(id=>{const el=$(id);if(el)el.style.display='none';});
 }
 function cancelEdit(section){
   clearForm(section);
   clearEdit();
   const msgs={loans:'l_msg',deposits:'d_msg',expenses:'e_msg',member:'m_msg'};
   const msgEl=$(msgs[section]);if(msgEl)msgEl.textContent='';
+  const viewId={loans:'loans',deposits:'deposits',expenses:'expenses',member:'members'}[section];
+  const formCard=document.querySelector('#view-'+viewId+' .card.add-only');
+  if(formCard)formCard.scrollIntoView({behavior:'smooth',block:'start'});
 }
 function setText(id,t){if($(id))$(id).textContent=t;}
 async function startEdit(key,id){
@@ -482,7 +489,8 @@ async function startEdit(key,id){
     if(key==='member'){const{member}=await api('member_get',{memberId:id});fillMember(member);}
     else{const{fields}=await api('reg_get',{key,id});fillReg(key,fields,id);}
     editing={type:key,id};
-    const btn=EDIT_BTN[key];$(btn).hidden=false;setText(btn,'Update');
+    const btn=EDIT_BTN[key];
+    if(key==='member'){setText(btn,'Update member');}else{$(btn).hidden=false;setText(btn,'Update');}
     $(EDIT_MSG[key]).textContent='Editing '+id+' — change fields, then Update.';
     const cBtnId={loans:'l_cancel_edit',deposits:'d_cancel_edit',expenses:'e_cancel_edit',member:'m_cancel_edit'}[key];
     const cBtn=$(cBtnId);if(cBtn)cBtn.style.display='inline-flex';
@@ -862,19 +870,21 @@ async function addMember(){
       if(newMId)mPay.newMemberId=newMId;
       const mRes=await api('member_edit',mPay);
       $('m_msg').textContent='Updated '+(mRes.memberId||editing.id);
-      $('m_Photo').value='';if($('m_NewId'))$('m_NewId').value='';clearEdit();
+      clearForm('members');clearEdit();
+      $('m_msg').textContent='Member updated.';
       return loadList('members_list','m_list','member','member');}
     const{memberId,photoUrl,idProofUrl,warning}=await api('members_add',{member});
     $('m_Photo').value='';if($('m_IdProof'))$('m_IdProof').value='';
     let msg='Member saved — '+memberId;
-    if(photoUrl)   msg+=' · 📷 Photo uploaded';
-    if(idProofUrl) msg+=' · 📄 ID Proof uploaded';
+    if(photoUrl)   msg+=' · Photo uploaded';
+    if(idProofUrl) msg+=' · ID Proof uploaded';
     if(warning)    msg+='\n⚠ '+warning;
     $('m_msg').textContent=msg;
     showToast(photoUrl||idProofUrl?'Files uploaded to Google Drive':(warning?'⚠ '+warning:'Member saved'),warning?'warn':'ok');
+    clearForm('members');  // clear all fields after save
     loadList('members_list','m_list','member','member');
   }catch(err){$('m_msg').textContent='';alert(err.message);}
-  finally{if(btn){btn.disabled=false;btn.textContent=editing.type==='member'?'Update':'Add member';}}
+  finally{if(btn){btn.disabled=false;btn.textContent=editing.type==='member'?'Update member':'Add member';}}
 }
 async function uploadMemberFile(memberId,type){
   const fi=type==='photo'?$('mu_Photo_'+memberId):$('mu_IdProof_'+memberId);
