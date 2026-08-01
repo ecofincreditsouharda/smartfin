@@ -1373,27 +1373,30 @@ async function loadApprovals(){
     let h='';
     approvals.forEach(a=>{
       const l=a.loan||{};
-      // Detect Keep Pending (stored as Pending with [Keep Pending] prefix in comments)
-      const rawRemark=a.remarks||'';
-      const displayStatus=(a.status==='Pending'&&rawRemark.startsWith('[Keep Pending]'))?'Keep Pending':a.status;
-      const displayComments=rawRemark.replace(/^\[Review\]\s*/,'').replace(/^\[Keep Pending\]\s*/,'');
-      const statusClass=displayStatus==='Approved'?'approved':displayStatus==='Rejected'?'rejected':displayStatus==='Keep Pending'?'keepending':'';
-      const statusColor=displayStatus==='Approved'?'#16a34a':displayStatus==='Rejected'?'#dc2626':displayStatus==='Keep Pending'?'#7c3aed':'#d97706';
+      // Status display mapping for actual DB values
+      const statusLabels={'Pending':'Pending (with CEO)','CEO_Approved':'CEO Approved — Awaiting Director','Approved':'Approved','Rejected':'Rejected'};
+      const displayStatus=statusLabels[a.status]||a.status;
+      const isApproved=a.status==='Approved';
+      const isRejected=a.status==='Rejected';
+      const isCEOApproved=a.status==='CEO_Approved';
+      const statusClass=isApproved?'approved':isRejected?'rejected':isCEOApproved?'approved':'';
+      const statusColor=isApproved?'#16a34a':isRejected?'#dc2626':isCEOApproved?'#2563eb':'#d97706';
       h+=`<div class="card ap-card ${statusClass}" style="margin:10px 0">`;
       h+=`<div class="card-head"><h2>Loan ${esc(a.loan_id)} — ${esc(l.borrower||'')}</h2><span style="color:${statusColor};font-weight:700">${esc(displayStatus)}</span></div>`;
       const submittedAt=a.submitted_at?new Date(a.submitted_at).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true}):'-';
-      h+=`<div class="summary">${summaryHtml([['Branch',esc(l.branch||'')],['Amount',rupee(l.amount||0)],['Type',esc(l.loan_type||'')],['Submitted by',esc(a.submitted_by_name||'')],['Pending with',esc(a.next_role||'')],['Submitted at',submittedAt],['Remarks',esc(a.remarks||'—')],['Reviewed by',esc(a.reviewed_by||'—')],['Decision notes',esc(displayComments||'—')]])}</div>`;
-      if(a.doc_url) h+=`<div style="margin:8px 0"><a href="${esc(a.doc_url)}" target="_blank" class="ghost" style="padding:6px 12px;border-radius:8px;background:#eaf1fb;color:#2c4a7c;text-decoration:none;font-size:12px">📎 View Document${a.doc_name?' — '+esc(a.doc_name):''}</a></div>`;
-      // Notification banners
-      if(notifs.length) h+=`<div style="background:#fef3c7;border-radius:6px;padding:6px 10px;font-size:12px;margin:6px 0">${notifs.map(n=>`🔔 ${esc(n.msg)}`).join('<br>')}</div>`;
-      // Action controls for reviewers (CEO approves/rejects BM submissions; Director has 3 options)
+      const pairs=[['Branch',esc(l.branch||'')],['Amount',rupee(l.amount||0)],['Type',esc(l.loan_type||'')],['Submitted at',submittedAt],['BM Remarks',esc(a.bm_remarks||'—')]];
+      if(a.ceo_remarks) pairs.push(['CEO Note',esc(a.ceo_remarks)]);
+      if(a.director_name) pairs.push(['Director',esc(a.director_name)],['Director Decision',esc(a.director_action||'—')],['Director Note',esc(a.director_remarks||'—')]);
+      h+=`<div class="summary">${summaryHtml(pairs)}</div>`;
+      if(a.doc_url) h+=`<div style="margin:8px 0"><a href="${esc(a.doc_url)}" target="_blank" class="ghost" style="padding:6px 12px;border-radius:8px;background:#eaf1fb;color:#2c4a7c;text-decoration:none;font-size:12px">View Document${a.doc_name?' — '+esc(a.doc_name):''}</a></div>`;
+      if(notifs.length) h+=`<div style="background:#fef3c7;border-radius:6px;padding:6px 10px;font-size:12px;margin:6px 0">${notifs.map(n=>`${esc(n.msg)}`).join('<br>')}</div>`;
       const role=session.role;
-      const canReview=(role==='CEO'&&(a.next_role==='CEO'||a.next_role==='Director'&&a.status==='Approved'))||
-        (role==='Director'&&a.next_role==='Director')||(role==='Admin');
+      // CEO can act on Pending; Director can act on CEO_Approved; Admin can act on anything
+      const canReview=(role==='CEO'&&a.status==='Pending')||(role==='Director'&&a.status==='CEO_Approved')||(role==='Admin');
       if(canReview){
         const opts=role==='Director'
-          ?`<option value="Approved">✅ Approve</option><option value="Rejected">❌ Reject</option><option value="Keep Pending">⏳ Keep Pending</option>`
-          :`<option value="Approved">✅ Approve</option><option value="Rejected">❌ Reject back to BM</option>`;
+          ?`<option value="Approved">Approve</option><option value="Rejected">Reject</option><option value="Keep Pending">Keep Pending</option>`
+          :`<option value="Approved">Approve (send to Director)</option><option value="Rejected">Reject (return to BM)</option>`;
         h+=`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">`;
         h+=`<div class="grid" style="grid-template-columns:1fr 1fr;margin-bottom:10px">`;
         h+=`<label>Decision<select id="ap_status_${esc(a.loan_id)}">${opts}</select></label>`;
@@ -1403,10 +1406,10 @@ async function loadApprovals(){
         h+=`</div>`;
       }
       // Re-submit button for BM when CEO sends back
-      const canResubmit=(role==='BranchManager'||role==='CEO')&&a.status==='Rejected'&&a.next_role==='CEO';
+      const canResubmit=(role==='BranchManager')&&a.status==='Rejected';
       if(canResubmit){
         h+=`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">`;
-        h+=`<p style="font-size:12px;color:#dc2626;margin:0 0 8px">Returned with note: <b>${esc(displayComments||'—')}</b></p>`;
+        h+=`<p style="font-size:12px;color:#dc2626;margin:0 0 8px">Returned by CEO with note: <b>${esc(a.ceo_remarks||'—')}</b></p>`;
         h+=`<div class="grid" style="grid-template-columns:1fr;margin-bottom:8px">`;
         h+=`<label>Updated remarks / attachment<input id="ap_resub_remarks_${esc(a.loan_id)}" value="${esc(a.remarks||'')}" /></label>`;
         h+=`<label>Updated document<input type="file" id="ap_resub_doc_${esc(a.loan_id)}" accept="image/*,application/pdf" /></label>`;
@@ -1458,7 +1461,7 @@ async function handleApprovalAction(action,loanId){
   }
   // Backend only accepts Approved/Rejected/Pending — map Keep Pending → Pending with note prefix
   const statusForApi=statusRaw==='Keep Pending'?'Pending':statusRaw;
-  const commentsForApi=statusRaw==='Keep Pending'?('[Keep Pending] '+comments):('[Review] '+comments);
+  const commentsForApi=comments;
   try{await api('approval_update',{loanId,status:statusForApi,comments:commentsForApi});
     showToast('Decision saved: '+statusRaw,'ok');
     notifyAboutDecision(loanId,statusRaw,comments);
