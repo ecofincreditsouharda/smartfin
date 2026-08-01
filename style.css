@@ -168,6 +168,16 @@ tbody tr:hover td{background:#fafbff}
 
 /* ── STAT CARDS ───────────────────────────────────────────────── */
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+/* Dashboard fixed-layout table */
+.dash-tbl{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px;margin-top:6px}
+.dash-tbl colgroup col{min-width:60px}
+.dash-tbl thead th{background:var(--chip-bg);color:var(--chip-fg);font-size:11px;font-weight:700;
+  letter-spacing:.04em;text-transform:uppercase;padding:8px 6px;text-align:center;
+  border-bottom:2px solid var(--border);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dash-tbl tbody td{padding:8px 6px;text-align:center;border-bottom:1px solid var(--border);
+  color:var(--ink);vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dash-tbl tbody tr:last-child td{border-bottom:none}
+.dash-tbl tbody tr:hover td{background:#fafbff}
 .stat{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);
   padding:16px;display:flex;flex-direction:column;gap:4px;border-top:3px solid var(--blue)}
 .stat span{font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:600;letter-spacing:.04em}
@@ -255,6 +265,14 @@ tbody tr:hover td{background:#fafbff}
 .danger-card{border:1.5px solid #fca5a5!important;background:#fff8f8!important}
 
 /* ── APPROVAL ─────────────────────────────────────────────────── */
+/* Approval detail table — no overlap, clean key-value layout */
+.ap-detail-table{width:100%;border-collapse:collapse;margin:8px 0 10px}
+.ap-detail-table tr{border-bottom:1px solid var(--border)}
+.ap-detail-table tr:last-child{border-bottom:none}
+.ap-detail-table td{padding:5px 8px;font-size:13px;vertical-align:top}
+.ap-detail-table td.ap-k{width:130px;color:var(--muted);font-weight:600;font-size:11px;
+  text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+.ap-detail-table td.ap-v{color:var(--head);word-break:break-word}
 .approval-role{display:none}
 .approval-ribbon{background:linear-gradient(90deg,#1d4ed8,#2563eb);color:#fff;
   padding:8px 16px;border-radius:var(--r-sm);font-size:12px;font-weight:600;
