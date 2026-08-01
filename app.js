@@ -43,6 +43,17 @@ async function api(action, payload={}) {
   }
 }
 const summaryHtml = pairs => pairs.map(([k,v])=>`<div><span>${esc(k)}</span><b>${v}</b></div>`).join('');
+/* Dashboard table: fixed equal columns, content centred */
+const dashTable = rows => {
+  if(!rows||!rows.length) return '<p class="msg">Nothing to show.</p>';
+  const cols=Object.keys(rows[0]);
+  const isNum=c=>/^(amount|emi|balance|paid|arrears|payout)/i.test(c.trim());
+  const pct=Math.floor(100/cols.length)+'%';
+  let h='<table class="dash-tbl"><colgroup>'+cols.map(()=>`<col style="width:${pct}">`).join('')+'</colgroup>';
+  h+='<thead><tr>'+cols.map(c=>`<th>${esc(c)}</th>`).join('')+'</tr></thead><tbody>';
+  rows.forEach(r=>h+='<tr>'+cols.map(c=>`<td>${isNum(c)?rupee(r[c]):esc(r[c])}</td>`).join('')+'</tr>');
+  return h+'</tbody></table>';
+};
 const tableFrom = rows => {
   if (!rows||!rows.length) return '<p class="msg">Nothing to show.</p>';
   const cols=Object.keys(rows[0]);
@@ -399,11 +410,9 @@ async function loadDashboard(){
       ['New Loans This Month',extraStats.newLoansThisMonth,'']]
       .map(([l,v,c])=>`<div class="stat ${c}"><span>${l}</span><b>${v}</b></div>`).join('');
     $('dash').innerHTML=html;
-    $('dash_overdue').innerHTML=overdue&&overdue.length?tableFrom(overdue):'<p class="msg">No missed EMIs.</p>';
+    $('dash_overdue').innerHTML=overdue&&overdue.length?dashTable(overdue):'<p class="msg">No missed EMIs.</p>';
     if(extraStats&&extraStats.newLoansDetail&&extraStats.newLoansDetail.length){
-      let nt='<table><thead><tr><th>Loan ID</th><th>Borrower</th><th class="num">Amount</th><th>Date</th></tr></thead><tbody>';
-      extraStats.newLoansDetail.forEach(r=>nt+=`<tr><td>${esc(r['Loan ID']||r.loan_id||'')}</td><td>${esc(r.Borrower||r.borrower||'')}</td><td class="num">${rupee(r.Amount||r.amount)}</td><td>${esc(r.Date||r.date||'')}</td></tr>`);
-      $('dash_overdue').innerHTML+='<h3 style="margin-top:16px">New Loans This Month</h3>'+nt+'</tbody></table>';}
+      $('dash_overdue').innerHTML+='<h3 style="margin-top:16px">New Loans This Month</h3>'+dashTable(extraStats.newLoansDetail);}
   }catch(err){$('dash').innerHTML=`<p class="err">${err.message}</p>`;}
 }
 
@@ -1374,25 +1383,32 @@ async function loadApprovals(){
     approvals.forEach(a=>{
       const l=a.loan||{};
       // Status display mapping for actual DB values
-      const statusLabels={'Pending':'Pending (with CEO)','CEO_Approved':'CEO Approved — Awaiting Director','Approved':'Approved','Rejected':'Rejected'};
-      const displayStatus=statusLabels[a.status]||a.status;
-      const isApproved=a.status==='Approved';
+      // Determine display status from routing prefix and director action
+      let displayStatus='Pending (with CEO)';
+      if(a.status==='Approved'&&a.director_action) displayStatus='Approved by Director';
+      else if(a.status==='Rejected'&&a.director_action) displayStatus='Rejected by Director';
+      else if(a.status==='Approved') displayStatus='Approved';
+      else if(a.status==='Rejected') displayStatus='Rejected by CEO';
+      else if((a.ceo_remarks||'').startsWith('[TO_DIRECTOR]')&&!a.director_name) displayStatus='CEO Approved — Awaiting Director';
+      const isFullyApproved=a.status==='Approved'&&!!a.director_action;
       const isRejected=a.status==='Rejected';
-      const isCEOApproved=a.status==='CEO_Approved';
-      const statusClass=isApproved?'approved':isRejected?'rejected':isCEOApproved?'approved':'';
-      const statusColor=isApproved?'#16a34a':isRejected?'#dc2626':isCEOApproved?'#2563eb':'#d97706';
+      const isCEORouted=(a.ceo_remarks||'').startsWith('[TO_DIRECTOR]')&&!a.director_name;
+      const statusClass=isFullyApproved?'approved':isRejected?'rejected':isCEORouted?'approved':'';
+      const statusColor=isFullyApproved?'#16a34a':isRejected?'#dc2626':isCEORouted?'#2563eb':'#d97706';
       h+=`<div class="card ap-card ${statusClass}" style="margin:10px 0">`;
       h+=`<div class="card-head"><h2>Loan ${esc(a.loan_id)} — ${esc(l.borrower||'')}</h2><span style="color:${statusColor};font-weight:700">${esc(displayStatus)}</span></div>`;
       const submittedAt=a.submitted_at?new Date(a.submitted_at).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true}):'-';
-      const pairs=[['Branch',esc(l.branch||'')],['Amount',rupee(l.amount||0)],['Type',esc(l.loan_type||'')],['Submitted at',submittedAt],['BM Remarks',esc(a.bm_remarks||'—')]];
-      if(a.ceo_remarks) pairs.push(['CEO Note',esc(a.ceo_remarks)]);
-      if(a.director_name) pairs.push(['Director',esc(a.director_name)],['Director Decision',esc(a.director_action||'—')],['Director Note',esc(a.director_remarks||'—')]);
-      h+=`<div class="summary">${summaryHtml(pairs)}</div>`;
+      // Build approval detail table — avoids overlap with long values
+      const apRows=[['Branch',esc(l.branch||'')],['Amount',rupee(l.amount||0)],['Loan Type',esc(l.loan_type||'')],['Submitted at',submittedAt],['BM Remarks',esc(a.bm_remarks||'—')]];
+      const ceoNote=(a.ceo_remarks||'').replace(/^\[TO_DIRECTOR\]\s*/,'');
+      if(ceoNote) apRows.push(['CEO Note',esc(ceoNote)]);
+      if(a.director_name) apRows.push(['Director',esc(a.director_name)],['Director Decision',esc(a.director_action||'—')],['Director Note',esc(a.director_remarks||'—')]);
+      h+=`<table class="ap-detail-table">${apRows.map(([k,v])=>`<tr><td class="ap-k">${k}</td><td class="ap-v">${v}</td></tr>`).join('')}</table>`;
       if(a.doc_url) h+=`<div style="margin:8px 0"><a href="${esc(a.doc_url)}" target="_blank" class="ghost" style="padding:6px 12px;border-radius:8px;background:#eaf1fb;color:#2c4a7c;text-decoration:none;font-size:12px">View Document${a.doc_name?' — '+esc(a.doc_name):''}</a></div>`;
       if(notifs.length) h+=`<div style="background:#fef3c7;border-radius:6px;padding:6px 10px;font-size:12px;margin:6px 0">${notifs.map(n=>`${esc(n.msg)}`).join('<br>')}</div>`;
       const role=session.role;
       // CEO can act on Pending; Director can act on CEO_Approved; Admin can act on anything
-      const canReview=(role==='CEO'&&a.status==='Pending')||(role==='Director'&&a.status==='CEO_Approved')||(role==='Admin');
+      const canReview=(role==='CEO'&&a.status==='Pending'&&!isCEORouted)||(role==='Director'&&isCEORouted)||(role==='Admin');
       if(canReview){
         const opts=role==='Director'
           ?`<option value="Approved">Approve</option><option value="Rejected">Reject</option><option value="Keep Pending">Keep Pending</option>`
@@ -1406,7 +1422,7 @@ async function loadApprovals(){
         h+=`</div>`;
       }
       // Re-submit button for BM when CEO sends back
-      const canResubmit=(role==='BranchManager')&&a.status==='Rejected';
+      const canResubmit=(role==='BranchManager')&&a.status==='Rejected'&&!a.director_action;
       if(canResubmit){
         h+=`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">`;
         h+=`<p style="font-size:12px;color:#dc2626;margin:0 0 8px">Returned by CEO with note: <b>${esc(a.ceo_remarks||'—')}</b></p>`;
