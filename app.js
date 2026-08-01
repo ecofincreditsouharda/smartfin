@@ -46,16 +46,15 @@ const summaryHtml = pairs => pairs.map(([k,v])=>`<div><span>${esc(k)}</span><b>$
 const tableFrom = rows => {
   if (!rows||!rows.length) return '<p class="msg">Nothing to show.</p>';
   const cols=Object.keys(rows[0]);
-  const money=/amount|emi|repayable|value|paid|balance|arrears|due|payout|instal|min|rate/i;
-  const right=/amount|emi|repayable|value|paid|balance|arrears|due|payout|instal|min/i;
-  const left=/id|name|branch|date|type|mode|note|ref|status|member|borrower|depositor|collector|category|description|address|phone|nominee|method|freq/i;
-  let h='<table><tr>'+cols.map(c=>`<th style="text-align:${left.test(c.toLowerCase())?'left':'right'}">${esc(c)}</th>`).join('')+'</tr>';
+  // Right-align only clear money/numeric columns; everything else left-aligned
+  const isNum=c=>/^(amount|emi|repayable|value|paid|balance|arrears|payout|instalment|principal|interest|closing|opening|rate|min.?bal|outstanding)/i.test(c.trim());
+  let h='<table><thead><tr>'+cols.map(c=>`<th${isNum(c)?' class="num"':''}>${esc(c)}</th>`).join('')+'</tr></thead><tbody>';
   rows.forEach(r=>h+='<tr>'+cols.map(c=>{
-    const isRight=right.test(c)&&!left.test(c.toLowerCase());
-    const val=money.test(c)?rupee(r[c]):esc(r[c]);
-    return `<td${isRight?' style="text-align:right"':''}>${val}</td>`;
+    const num=isNum(c);
+    const v=num?rupee(r[c]):esc(r[c]);
+    return `<td${num?' class="num"':''}>${v}</td>`;
   }).join('')+'</tr>');
-  return h+'</table>';
+  return h+'</tbody></table>';
 };
 const schedTable = sch => {
   let h='<table><tr><th>#</th><th>Date</th><th>Opening</th><th>Interest</th><th>Principal</th><th>Instalment</th><th>Closing</th></tr>';
@@ -174,7 +173,7 @@ document.addEventListener('click',e=>{
   if(t.id==='backdrop')  return toggleNav(false);
   if(t.id==='loginBtn')  return login();
   if(d.view)    return showView(d.view);
-  if(d.refresh) return refresh(d.refresh);
+  if(d.refresh) return refresh(d.refresh, true);  // manual = show toast
   if(d.clear)   return clearForm(d.clear);
   if(d.edituser) return startUserEdit(d.edituser);
   if(d.rprint)  return printPastReceipt(d.rprint);
@@ -358,9 +357,9 @@ function showView(v){
   document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
   toggleNav(false); refresh(v);
 }
-function refresh(v){
+function refresh(v, manual=false){
   if(v==='dashboard')   loadDashboard();
-  if(v==='members'){loadList('members_list','m_list','member','member').then(()=>showToast('Members refreshed','ok'));}
+  if(v==='members'){loadList('members_list','m_list','member','member').then(()=>{if(manual)showToast('Members refreshed','ok');});}
   if(v==='loans')       loadList('loans_list','l_list','loan','loans');
   if(v==='deposits')    loadList('deposits_list','d_list',null,'deposits');
   if(v==='savings')     loadList('savings_list','s_list');
@@ -402,9 +401,9 @@ async function loadDashboard(){
     $('dash').innerHTML=html;
     $('dash_overdue').innerHTML=overdue&&overdue.length?tableFrom(overdue):'<p class="msg">No missed EMIs.</p>';
     if(extraStats&&extraStats.newLoansDetail&&extraStats.newLoansDetail.length){
-      let nt='<table><tr><th style="text-align:left">Loan ID</th><th style="text-align:left">Borrower</th><th style="text-align:right">Amount</th><th style="text-align:left">Date</th></tr>';
-      extraStats.newLoansDetail.forEach(r=>nt+=`<tr><td>${esc(r['Loan ID']||r.loan_id||'')}</td><td>${esc(r.Borrower||r.borrower||'')}</td><td style="text-align:right">${rupee(r.Amount||r.amount)}</td><td style="text-align:left">${esc(r.Date||r.date||'')}</td></tr>`);
-      $('dash_overdue').innerHTML+='<h3 style="margin-top:16px">New Loans This Month</h3>'+nt+'</table>';}
+      let nt='<table><thead><tr><th>Loan ID</th><th>Borrower</th><th class="num">Amount</th><th>Date</th></tr></thead><tbody>';
+      extraStats.newLoansDetail.forEach(r=>nt+=`<tr><td>${esc(r['Loan ID']||r.loan_id||'')}</td><td>${esc(r.Borrower||r.borrower||'')}</td><td class="num">${rupee(r.Amount||r.amount)}</td><td>${esc(r.Date||r.date||'')}</td></tr>`);
+      $('dash_overdue').innerHTML+='<h3 style="margin-top:16px">New Loans This Month</h3>'+nt+'</tbody></table>';}
   }catch(err){$('dash').innerHTML=`<p class="err">${err.message}</p>`;}
 }
 
