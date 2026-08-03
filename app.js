@@ -386,7 +386,7 @@ function refresh(v, manual=false){
     }
   }
   if(v==='users'&&session.role==='Admin'){loadUsers();loadUserDropdown();}
-  if(v==='settings'&&['Admin','BranchManager'].includes(session.role)){loadSettings();loadBranches();if(session.role==='Admin')loadHierarchy();}
+  if(v==='settings'&&['Admin','CEO','BranchManager'].includes(session.role)){loadSettings();loadBranches();if(session.role==='Admin')loadHierarchy();}
 }
 
 /* ── TOAST ───────────────────────────────────────────────────── */
@@ -405,10 +405,20 @@ async function loadDashboard(){
       ['Due This Month',rupee(stats.dueThisMonth),''],['Members in Arrears',stats.overdueCount,stats.overdueCount?'warn':''],
       ['Total Arrears',rupee(stats.totalArrears),stats.totalArrears>0?'warn':'']]
       .map(([l,v,c])=>`<div class="stat ${c}"><span>${l}</span><b>${v}</b></div>`).join('');
-    if(extraStats) html+=[['Interest Due This Month',rupee(extraStats.interestDueMonth),''],
-      ['Principal Due This Month',rupee(extraStats.principalDueMonth),''],
-      ['New Loans This Month',extraStats.newLoansThisMonth,'']]
-      .map(([l,v,c])=>`<div class="stat ${c}"><span>${l}</span><b>${v}</b></div>`).join('');
+    if(extraStats){
+      html+=[
+        ['Interest Due This Month',rupee(extraStats.interestDueMonth),''],
+        ['Principal Due This Month',rupee(extraStats.principalDueMonth),''],
+        ['New Loans This Month',extraStats.newLoansThisMonth,''],
+        ['FDs Held (active)',rupee(extraStats.totalFDHeld),''],
+        ['Total Savings Balance',rupee(extraStats.totalSavingsBalance),''],
+        ['Share Capital Collected',rupee(extraStats.totalShareCapital),''],
+      ].map(([l,v,c])=>`<div class="stat ${c}"><span>${l}</span><b>${v}</b></div>`).join('');
+      if(extraStats.expiringFDs&&extraStats.expiringFDs.length)
+        $('dash_overdue').innerHTML+=
+          '<h3 style="margin-top:16px;color:#d97706">FDs Expiring in Next 30 Days ('+extraStats.expiringFDs.length+')</h3>'+
+          dashTable(extraStats.expiringFDs);
+    }
     $('dash').innerHTML=html;
     $('dash_overdue').innerHTML=overdue&&overdue.length?dashTable(overdue):'<p class="msg">No missed EMIs.</p>';
     if(extraStats&&extraStats.newLoansDetail&&extraStats.newLoansDetail.length){
@@ -418,7 +428,7 @@ async function loadDashboard(){
 
 /* ── GENERIC LIST ────────────────────────────────────────────── */
 async function loadList(action,target,linkKind,editKey){
-  try{const{rows}=await api(action);
+  try{const _r=await api(action);const rows=_r.rows||_r.data||[];
     if(action==='loans_list')    allLoans=rows;
     if(action==='deposits_list') allDeposits=rows;
     if(action==='savings_list'){
@@ -728,12 +738,23 @@ async function addLoan(){
   }catch(err){$('l_msg').textContent='';alert(err.message);}
 }
 async function deleteLoan(id){
-  if(!confirm(`Delete loan ${id}?\nThis will also delete all repayments for this loan.`))return;
-  try{
-    await api('loan_delete',{id});
-    showToast('Loan '+id+' deleted','ok');
-    loadList('loans_list','l_list','loan','loans');
-  }catch(err){showToast('Error: '+err.message,'err');}
+  const safeId=esc(id);
+  openModal('Delete Loan',
+    `<div style="padding:8px 0">
+      <p style="font-size:14px;color:#374151;margin:0 0 8px">Delete loan <b>${safeId}</b>?</p>
+      <p style="font-size:12px;color:#dc2626;background:#fef2f2;padding:8px 12px;border-radius:6px;margin:0 0 16px">
+        This permanently deletes the loan and all repayment records. Cannot be undone.
+      </p>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="ghost" onclick="closeModal()">Cancel</button>
+        <button class="primary" style="background:#dc2626" onclick="confirmDeleteLoan('${safeId}')">Delete permanently</button>
+      </div></div>`
+  );
+}
+async function confirmDeleteLoan(id){
+  closeModal();
+  try{await api('loan_delete',{id});showToast('Loan '+id+' deleted','ok');loadList('loans_list','l_list','loan','loans');}
+  catch(err){showToast('Error: '+err.message,'err');}
 }
 async function showSchedule(id){
   try{const{result,meta}=await api('loan_schedule',{loanId:id});renderSchedule(id,result,meta);}
@@ -891,8 +912,8 @@ async function addMember(){
       const mRes=await api('member_edit',mPay);
       $('m_msg').textContent='Updated '+(mRes.memberId||editing.id);
       clearForm('members');clearEdit();
-      $('m_msg').textContent='Member updated.';
-      return loadList('members_list','m_list','member','member');}
+      showToast('Member updated.','ok');
+      await loadList('members_list','m_list','member','member');return;}
     const{memberId,photoUrl,idProofUrl,warning}=await api('members_add',{member});
     $('m_Photo').value='';if($('m_IdProof'))$('m_IdProof').value='';
     let msg='Member saved — '+memberId;
@@ -1069,6 +1090,7 @@ async function saveSettings(){
 
 /* ── HIERARCHY (#4) ──────────────────────────────────────────── */
 const DEFAULT_HIERARCHY=['Admin','CEO','BranchManager','Director','Operator','Collector'];
+let currentHierarchyLevels=[...DEFAULT_HIERARCHY];
 function loadHierarchy(){
   const stored=localStorage.getItem('coop_hierarchy');
   let levels=stored?JSON.parse(stored):DEFAULT_HIERARCHY.slice();
@@ -1097,11 +1119,11 @@ function renderHierarchy(levels){
     });
     el.appendChild(node);
   });
-  el._levels=levels;
+  currentHierarchyLevels=[...levels];
 }
 function saveHierarchy(){
-  const el=$('hier_tree');if(!el||!el._levels)return;
-  localStorage.setItem('coop_hierarchy',JSON.stringify(el._levels));
+  if(!currentHierarchyLevels.length)return;
+  localStorage.setItem('coop_hierarchy',JSON.stringify(currentHierarchyLevels));
   if($('hier_msg'))$('hier_msg').textContent='Saved.';showToast('Hierarchy saved','ok');
 }
 function resetHierarchy(){
@@ -1144,7 +1166,9 @@ async function branchSave(){
   $('br_msg').textContent='Saving…';
   try{await api('branch_save',{branch:{Branch:val('br_Branch'),Address:val('br_Address'),Phone:val('br_Phone')}});
     $('br_msg').textContent='Saved.';setV('br_Branch','');setV('br_Address','');setV('br_Phone','');
-    loadBranches();populateBranchSelects();
+    if($('br_Branch'))$('br_Branch').readOnly=false;
+    await loadBranches();await populateBranchSelects();
+    showToast('Branch saved.','ok');
   }catch(err){$('br_msg').textContent='';alert(err.message);}
 }
 
@@ -1430,9 +1454,14 @@ async function loadApprovals(){
       const submittedAt=a.submitted_at?new Date(a.submitted_at).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true}):'-';
       // Build approval detail table — avoids overlap with long values
       const apRows=[['Branch',esc(l.branch||'')],['Amount',rupee(l.amount||0)],['Loan Type',esc(l.loan_type||'')],['Submitted at',submittedAt],['BM Remarks',esc(a.bm_remarks||'—')]];
-      const ceoNote=(a.ceo_remarks||'').replace(/^\[TO_DIRECTOR\]\s*/,'');
-      if(ceoNote) apRows.push(['CEO Note',esc(ceoNote)]);
-      if(a.director_name) apRows.push(['Director Decision by',esc(a.director_name)],['Decision',esc(a.director_action||'—')],['Director Note',esc(a.director_remarks||'—')]);
+      const ceoRaw=a.ceo_remarks||'';
+      const ceoClean=ceoRaw.replace(/^\[TO_DIRECTOR\]\s*/,'');
+      const ceoMsgM=ceoClean.match(/\| Message to Director: (.+)$/);
+      const ceoMain=ceoClean.replace(/\| Message to Director:.+$/,'').trim();
+      if(ceoMain) apRows.push(['CEO Note',esc(ceoMain)]);
+      if(ceoMsgM) apRows.push(['CEO Message to Director',`<b style="color:#2563eb">${esc(ceoMsgM[1])}</b>`]);
+      if(a.director_name) apRows.push(['Director',esc(a.director_name)],['Director Decision',esc(a.director_action||'—')]);
+      if(a.director_remarks) apRows.push(['Director Reply',`<b>${esc(a.director_remarks)}</b>`]);
       if(a.all_directors&&a.all_directors.length>1){
         const pending=(a.director_pending||[]);
         if(pending.length) apRows.push(['Still awaiting',esc(pending.join(', '))]);
@@ -1446,11 +1475,14 @@ async function loadApprovals(){
       if(canReview){
         const opts=role==='Director'
           ?`<option value="Approved">Approve</option><option value="Rejected">Reject</option><option value="Keep Pending">Keep Pending</option>`
-          :`<option value="Approved">Approve (send to Director)</option><option value="Rejected">Reject (return to BM)</option>`;
+          :`<option value="Approved">Approve — send to Director</option><option value="Rejected">Reject — return to BM</option>`;
         h+=`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">`;
+        const ceoMsgField=(role==='CEO'||role==='Admin')?`<label style="grid-column:1/-1">Message to Director (optional)<input id="ap_dirmsg_${esc(a.loan_id)}" placeholder="Instructions for the Director…" /></label>`:'';
+        const dirReplyField=role==='Director'?`<label style="grid-column:1/-1">Reply to CEO and Branch Manager<input id="ap_reply_${esc(a.loan_id)}" placeholder="Your remarks visible to CEO and BM…" /></label>`:'';
         h+=`<div class="grid" style="grid-template-columns:1fr 1fr;margin-bottom:10px">`;
         h+=`<label>Decision<select id="ap_status_${esc(a.loan_id)}">${opts}</select></label>`;
-        h+=`<label>Note / Comment<input id="ap_comment_${esc(a.loan_id)}" placeholder="Add your note (required for Reject / Keep Pending)" /></label>`;
+        h+=`<label>Note / Comment<input id="ap_comment_${esc(a.loan_id)}" placeholder="Add your note" /></label>`;
+        h+=ceoMsgField+dirReplyField;
         h+=`</div>`;
         h+=`<button class="primary" data-approveaction="save" data-loanid="${esc(a.loan_id)}">Save decision</button>`;
         h+=`</div>`;
@@ -1504,15 +1536,16 @@ function showApprovalConfirm(loanId,nextRole,timeStr){
     `</div>`);
 }
 async function handleApprovalAction(action,loanId){
-  const statusRaw=$(`ap_status_${loanId}`)?.value||'Pending';
-  const comments=$(`ap_comment_${loanId}`)?.value||'';
+  const statusRaw=document.getElementById(`ap_status_${loanId}`)?.value||'Pending';
+  const comments=document.getElementById(`ap_comment_${loanId}`)?.value||'';
+  const dirMsg=document.getElementById(`ap_dirmsg_${loanId}`)?.value||'';
+  const dirReply=document.getElementById(`ap_reply_${loanId}`)?.value||'';
   if((statusRaw==='Rejected'||statusRaw==='Keep Pending')&&!comments.trim()){
     alert('Please add a note when rejecting or keeping pending.');return;
   }
-  // Backend only accepts Approved/Rejected/Pending — map Keep Pending → Pending with note prefix
   const statusForApi=statusRaw==='Keep Pending'?'Pending':statusRaw;
-  const commentsForApi=comments;
-  try{await api('approval_update',{loanId,status:statusForApi,comments:commentsForApi});
+  const commentsForApi=dirReply||comments;
+  try{await api('approval_update',{loanId,status:statusForApi,comments:commentsForApi,directorMessage:dirMsg});
     showToast('Decision saved: '+statusRaw,'ok');
     notifyAboutDecision(loanId,statusRaw,comments);
     loadApprovals();
