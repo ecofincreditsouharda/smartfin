@@ -100,6 +100,7 @@ button.primary:hover{background:var(--prim-dk);transform:translateY(-1px)}
 button.primary:active{transform:translateY(0)}
 button.ghost{background:var(--chip-bg);color:var(--chip-fg);padding:7px 13px;font-weight:500}
 button.ghost:hover{background:#dbeafe;color:var(--blue)}
+button.ghost:active{transform:scale(.95);background:#bfdbfe}
 button:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
 .err{color:var(--danger);font-size:12px}
 
@@ -138,6 +139,7 @@ button:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
   padding:8px 12px;border-radius:var(--r-sm);font-size:13px;font-weight:500;
   border:0;width:100%;cursor:pointer;transition:all .12s}
 .navbtn:hover{background:var(--sbar-h);color:var(--head)}
+.navbtn:active{transform:scale(.96)}
 .navbtn.active{background:var(--panel);color:var(--head);font-weight:700;
   box-shadow:var(--shadow-sm);border-left:3px solid var(--primary);padding-left:9px}
 #backdrop{display:none}
