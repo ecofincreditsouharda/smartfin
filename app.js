@@ -200,7 +200,7 @@ document.addEventListener('click',e=>{
     l_preview:previewLoan, l_add:addLoan, l_print:printSchedule, l_min:()=>{$('l_schedCard').hidden=true;},
     d_preview:previewDeposit, d_add:addDeposit, w_go:fdWithdraw, s_open:savingsOpen, st_go:savingsTxn,
     pb_load:loadPassbook, pb_print:printPassbook, tf_go:doTransfer, m_add:addMember,
-    e_add:addExpense, e_print:()=>printVoucher(lastVoucher), m_close:()=>{$('m_card').hidden=true;},
+    e_add:addExpense, e_print:()=>printVoucher(lastVoucher), m_print_detail:printMemberDetail, m_close:()=>{$('m_card').hidden=true;},
     m_delete:deleteMember, ap_submit:submitApproval, ap_clear:clearApprovalForm, ap_clearall:clearApprovalView,
     r_load:()=>openLedger(val('r_LoanId').trim()), r_add:addReceipt,
     r_print:()=>printReceiptObj(lastReceipt), r_pdf:()=>pdfReceiptObj(lastReceipt),
@@ -539,7 +539,7 @@ function fillReg(key,f,id){
     $('e_ToWrap').hidden=(f.Category!=='External Expenses');}
 }
 function fillMember(m){setV('m_FullName',m.FullName);setV('m_DOB',m.DOB&&m.DOB.length>10?'':m.DOB);setV('m_Phone',m.Phone);
-  setV('m_Branch',m.Branch);setV('m_Address',m.Address);setV('m_Aadhaar','');$('m_Aadhaar').placeholder='unchanged ('+(m.Aadhaar||'')+') — type to replace';
+  setSelectValue('m_Branch',m.Branch);setV('m_Address',m.Address);setV('m_Aadhaar','');$('m_Aadhaar').placeholder='unchanged ('+(m.Aadhaar||'')+') — type to replace';
   setV('m_PAN',m.PAN);setV('m_BankName',m.BankName);setV('m_BankAccount',m.BankAccount);setV('m_IFSC',m.IFSC);
   setV('m_ShareCapitalCollected',m.ShareCapitalCollected||0);
   if($('m_MemberType'))$('m_MemberType').value=m.MemberType||'Original Member';
@@ -913,7 +913,9 @@ async function addMember(){
       $('m_msg').textContent='Updated '+(mRes.memberId||editing.id);
       clearForm('members');clearEdit();
       showToast('Member updated.','ok');
-      await loadList('members_list','m_list','member','member');return;}
+      await loadList('members_list','m_list','member','member');
+      if(currentMemberId)await showMember(mRes.memberId||editing.id);
+      return;}
     const{memberId,photoUrl,idProofUrl,warning}=await api('members_add',{member});
     $('m_Photo').value='';if($('m_IdProof'))$('m_IdProof').value='';
     let msg='Member saved — '+memberId;
@@ -943,10 +945,11 @@ let currentMemberId=null;
 async function showMember(id){
   currentMemberId=id;
   try{const{member}=await api('member_get',{memberId:id});$('m_card').hidden=false;
+    window._lastMember=member;
     const pairs=[['Member ID',member.MemberID],['Full Name',member.FullName],['DOB',member.DOB],['Phone',member.Phone],
       ['Address',member.Address],['Aadhaar',member.Aadhaar],['PAN',member.PAN],['Bank Name',member.BankName],
       ['Bank A/C',member.BankAccount],['IFSC',member.IFSC],['Branch',member.Branch],
-      ['Member Type',member.MemberType||'Original Member'],['Share Capital Member',member.ShareCapitalMember],['Share Capital Collected',rupee(member.ShareCapitalCollected)]];
+      ['Member Type',member.MemberType||'Original Member'],['Nominee',member.Nominee||'—'],['Share Capital Member',member.ShareCapitalMember],['Share Capital Collected',rupee(member.ShareCapitalCollected)]];
     let h='<div class="summary">'+pairs.map(([k,v])=>`<div><span>${esc(k)} :</span><b>${esc(v)}</b></div>`).join('')+'</div>';
     h+=`<div style="margin-top:12px">`;
     if(member.PhotoUrl)h+=`<button class="ghost" data-photo="${esc(member.PhotoUrl)}" style="margin-bottom:6px">📷 View current photo</button><br>`;
@@ -967,6 +970,50 @@ async function showMember(id){
     }else h+=`<p style="margin-top:8px;color:#7b8794;font-size:13px">No savings accounts linked.</p>`;
     $('m_detail').innerHTML=h;$('m_card').scrollIntoView({behavior:'smooth'});
   }catch(err){alert(err.message);}
+}
+function printMemberDetail(){
+  if(!currentMemberId){alert('Open a member first.');return;}
+  const member=window._lastMember;
+  if(!member){alert('Please open a member card first.');return;}
+  const fv=v=>v&&String(v).trim()&&v!=='—'?esc(String(v)):'—';
+  const body=
+    `<div class="mb-hd">`+
+      `<img src="${LOGO_URL}" class="mb-logo" onerror="this.style.display='none'"/>`+
+      `<div><div class="mb-bname">${esc(BANK)}</div><div class="mb-title">Member Details</div></div>`+
+    `</div>`+
+    `<table class="mb-tbl">`+
+      `<tr><td class="k">Member ID</td><td class="v">${fv(member.MemberID)}</td><td class="k">Member Type</td><td class="v">${fv(member.MemberType)}</td></tr>`+
+      `<tr><td class="k">Full Name</td><td class="v" colspan="3" style="font-weight:700;font-size:13px">${fv(member.FullName)}</td></tr>`+
+      `<tr><td class="k">Date of Birth</td><td class="v">${fv(member.DOB)}</td><td class="k">Phone</td><td class="v">${fv(member.Phone)}</td></tr>`+
+      `<tr><td class="k">Address</td><td class="v" colspan="3">${fv(member.Address)}</td></tr>`+
+      `<tr><td class="k">Branch</td><td class="v">${fv(member.Branch)}</td><td class="k">Nominee</td><td class="v">${fv(member.Nominee)}</td></tr>`+
+      `<tr><td class="k">Aadhaar No.</td><td class="v">${fv(member.Aadhaar)}</td><td class="k">PAN No.</td><td class="v">${fv(member.PAN)}</td></tr>`+
+      `<tr><td class="k">Bank Name</td><td class="v">${fv(member.BankName)}</td><td class="k">Bank Account</td><td class="v">${fv(member.BankAccount)}</td></tr>`+
+      `<tr><td class="k">IFSC Code</td><td class="v">${fv(member.IFSC)}</td><td class="k">Member Since</td><td class="v">${fv(member.CreatedAt)}</td></tr>`+
+      `<tr><td class="k">Share Capital Member</td><td class="v">${fv(member.ShareCapitalMember)}</td><td class="k">Share Capital Collected</td><td class="v" style="font-weight:700">${rupee(member.ShareCapitalCollected||0)}</td></tr>`+
+    `</table>`+
+    `<div class="mb-sign">`+
+      `<div><div class="mb-line"></div>Member Signature</div>`+
+      `<div><div class="mb-line"></div>Branch Manager Signature</div>`+
+      `<div><div class="mb-line"></div>Authorised Signatory</div>`+
+    `</div>`+
+    `<div class="mb-foot">Computer generated member record of ${esc(BANK)}</div>`;
+  const css=
+    `@page{size:A4;margin:1.5cm}`+
+    `*{box-sizing:border-box}`+
+    `body{font-family:Arial,sans-serif;font-size:11px;color:#000;border:3px double #111;padding:20px;margin:0}`+
+    `.mb-hd{display:flex;align-items:center;gap:16px;border-bottom:2px solid #111;padding-bottom:12px;margin-bottom:14px}`+
+    `.mb-logo{width:64px;height:64px;object-fit:contain;flex-shrink:0}`+
+    `.mb-bname{font-size:20px;font-weight:700;letter-spacing:-.3px}`+
+    `.mb-title{font-size:13px;color:#555;margin-top:2px}`+
+    `.mb-tbl{width:100%;border-collapse:collapse;margin-bottom:20px}`+
+    `.mb-tbl td{padding:7px 10px;border:1px solid #ccc;vertical-align:top}`+
+    `.mb-tbl td.k{background:#f0f0f0;font-weight:700;color:#333;width:22%;font-size:10px;text-transform:uppercase;letter-spacing:.03em}`+
+    `.mb-tbl td.v{width:28%}`+
+    `.mb-sign{display:flex;justify-content:space-between;margin-top:60px;font-size:11px;text-align:center}`+
+    `.mb-line{border-top:1px solid #333;width:160px;margin:0 auto 5px}`+
+    `.mb-foot{margin-top:24px;border-top:1px solid #aaa;padding-top:6px;font-size:9px;color:#777;text-align:center}`;
+  printDoc(body,css,'');
 }
 async function deleteMember(){
   if(!currentMemberId){alert('Open a member first.');return;}
