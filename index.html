@@ -99,8 +99,8 @@
           <label>Photo<input id="m_Photo" type="file" accept="image/*" /></label>
           <label>ID Proof (jpeg/png/pdf)<input id="m_IdProof" type="file" accept="image/jpeg,image/png,application/pdf" /></label>
           <label>Member Type<select id="m_MemberType"><option value="Original Member">Original Member</option><option value="Associate Member">Associate Member</option><option value="Nominal/Sympathizer Member">Nominal/Sympathizer Member</option></select></label>
-          <label>Share Capital Member<select id="m_ShareCapitalMember"><option value="No">No</option><option value="Yes">Yes</option></select></label>
-          <label>Share Capital Collected (₹)<input id="m_ShareCapitalCollected" type="number" value="0" /></label>
+          <label>Share Capital Member<select id="m_ShareCapitalMember" onchange="toggleShareCapital(this.value)"><option value="No">No</option><option value="Yes">Yes</option></select></label>
+          <label id="m_ShareCapitalCollectedWrap" style="display:none">Share Capital Collected (₹)<input id="m_ShareCapitalCollected" type="number" value="0" /></label>
           <label id="m_CurIdWrap" style="display:none">Current Member ID<input id="m_CurId" readonly style="background:#f8f9fb;color:#6b7280;border-style:dashed" /></label>
           <label id="m_NewIdWrap" style="display:none">New Member ID <small style="color:#6b7280">(Admin/CEO only — leave blank to keep current)</small><input id="m_NewId" /></label>
         </div>
@@ -108,7 +108,7 @@
       </div>
       <div class="card"><div class="card-head"><h2>Members</h2><button class="ghost" data-refresh="members">Refresh</button></div>
         <div class="grid" style="margin-bottom:10px"><label>Search members<input id="m_search" placeholder="name · member ID · phone" /></label></div>
-        <div id="m_list"></div></div>
+        <div class="scrolly-list" id="m_list"></div></div>
       <div class="card" id="m_card" hidden><div class="card-head"><h2>Member details</h2><span><button class="ghost" id="m_print_detail">🖨 Print</button><button class="ghost" style="color:#dc2626" id="m_delete">🗑 Delete</button><button class="ghost" id="m_close">✕ Close</button></span></div><div id="m_detail"></div></div>
     </section>
 
@@ -146,7 +146,7 @@
         <div id="l_summary" class="summary"></div><div id="l_sched" class="scrolly"></div></div>
       <div class="card"><div class="card-head"><h2>Loans</h2><button class="ghost" data-refresh="loans">Refresh</button></div>
         <div class="grid" style="margin-bottom:10px"><label>Search loans<input id="l_search" placeholder="name · member ID · phone" /></label></div>
-        <div id="l_list"></div></div>
+        <div class="scrolly-list" id="l_list"></div></div>
     </section>
 
     <!-- REPAYMENTS -->
@@ -155,7 +155,7 @@
         <div class="grid"><label>Search<input id="r_search" placeholder="loan ID · name · phone · member ID" /></label>
           <label>Or Loan ID<input id="r_LoanId" placeholder="e.g. ECO00001" /></label></div>
         <div class="actions"><button id="r_load" class="primary">Open ledger</button></div>
-        <div id="r_loanlist"></div></div>
+        <div class="scrolly-list" id="r_loanlist"></div></div>
       <div class="card" id="r_ledgerHead" hidden>
         <div class="card-head"><h2 id="r_ledgerTitle">Ledger</h2><button class="ghost" id="r_min">Minimise</button></div>
         <div id="r_summary" class="summary"></div></div>
@@ -176,7 +176,7 @@
             <button class="ghost" id="r_pdf" style="display:none">📄 Save as PDF</button>
           </div>
         </div></div>
-      <div class="card" id="r_recCard" hidden><h2>Receipts <small>(print any anytime)</small></h2><div id="r_receipts"></div></div>
+      <div class="card" id="r_recCard" hidden><h2>Receipts <small>(print any anytime)</small></h2><div class="scrolly-list" id="r_receipts"></div></div>
       <div class="card" id="r_schedCard" hidden><h2>Scheduled instalments</h2><div id="r_sched" class="scrolly"></div></div>
     </section>
 
@@ -229,7 +229,7 @@
         <div class="actions"><button id="s_open" class="primary">Open account</button><button type="button" class="ghost" data-clear="savings">Clear</button><span id="s_msg" class="msg"></span></div></div>
       <div class="card"><div class="card-head"><h2>Savings accounts</h2><button class="ghost" data-refresh="savings">Refresh</button></div>
         <div class="grid" style="margin-bottom:10px"><label>Search savings<input id="s_search" placeholder="name · member ID · phone · savings ID" /></label></div>
-        <div id="s_list"></div></div>
+        <div class="scrolly-list" id="s_list"></div></div>
       <div class="card add-only no-director"><h2>Deposit / Withdraw</h2>
         <div class="grid">
           <label>Savings ID / Member ID / Name / Phone<input id="st_SavingsID" placeholder="any of the above" /></label>
@@ -284,10 +284,11 @@
             <button class="ghost" id="sh_hist_toggle" onclick="toggleSection('sh_hist',this)">Show History</button>
           </span>
         </div>
-        <div id="sh_summary_list"></div>
+        <div class="grid" style="margin:6px 0 4px"><label style="margin:0">Search<input id="sh_search" placeholder="member ID · name · branch" oninput="filterShareSummary(this.value)" /></label></div>
+        <div class="scrolly-list" id="sh_summary_list"></div>
         <div id="sh_hist" style="display:none">
           <h3 style="margin:14px 0 8px;font-size:13px;color:#5b6472">Transaction History</h3>
-          <div id="sh_list"></div>
+          <div class="scrolly-list" id="sh_list"></div>
         </div>
         <div id="sh_setup_msg" hidden style="background:#fef3c7;border-radius:8px;padding:14px;margin-top:10px">
           <b>Setup required:</b> The <code>share_txns</code> table has not been created yet.<br>
@@ -346,7 +347,17 @@ GRANT ALL ON public.share_txns TO service_role;</pre>
         <div class="actions"><button id="e_add" class="primary">Add expense</button><button type="button" class="ghost" data-clear="expenses">Clear</button><span id="e_msg" class="msg"></span></div>
         <div id="e_voucherBox" hidden><div id="e_voucherView" class="summary"></div>
           <button class="ghost" id="e_print">Print voucher</button></div></div>
-      <div class="card"><div class="card-head"><h2>Expenses</h2><button class="ghost" data-refresh="expenses">Refresh</button></div><div id="e_list"></div></div>
+      <div class="card">
+        <div class="card-head"><h2>Expenses</h2><button class="ghost" data-refresh="expenses">Refresh</button></div>
+        <div class="grid" style="margin:6px 0 4px;grid-template-columns:1fr 1fr 1fr auto">
+          <label style="margin:0">Search<input id="e_search" placeholder="category · description · branch" /></label>
+          <label style="margin:0">From<input id="e_from" type="date" /></label>
+          <label style="margin:0">To<input id="e_to" type="date" /></label>
+          <button class="ghost" onclick="filterExpenses()" style="align-self:flex-end;margin-bottom:2px">Filter</button>
+        </div>
+        <div id="e_filter_info" style="font-size:11px;color:#6b7280;margin-bottom:4px"></div>
+        <div class="scrolly-list" id="e_list"></div>
+      </div>
     </section>
 
     <!-- REPORTS -->
@@ -408,7 +419,7 @@ GRANT ALL ON public.share_txns TO service_role;</pre>
           <button class="ghost" onclick="printSociety()" style="align-self:flex-end;margin-bottom:2px">Print</button>
         </div>
         <div id="soc_filter_info" style="font-size:11px;color:#6b7280;margin-bottom:4px"></div>
-        <div id="soc_list"></div>
+        <div class="scrolly-list" id="soc_list"></div>
       </div>
     </section>
 
@@ -484,7 +495,7 @@ GRANT ALL ON public.share_txns TO service_role;</pre>
           <span id="mp_msg" class="msg"></span>
         </div>
       </div>
-      <div class="card admin-only"><div class="card-head"><h2>Users</h2><button class="ghost" data-refresh="users">Refresh</button></div><div id="u_list"></div></div>
+      <div class="card admin-only"><div class="card-head"><h2>Users</h2><button class="ghost" data-refresh="users">Refresh</button></div><div class="scrolly-list" id="u_list"></div></div>
       <div class="card admin-only danger-card">
         <h2 style="color:#c0392b">⚠ Danger Zone — Reset All Data</h2>
         <p style="color:#5b6472;font-size:13px">Permanently deletes <b>all transactions</b>. User accounts are preserved.</p>
@@ -495,14 +506,15 @@ GRANT ALL ON public.share_txns TO service_role;</pre>
     <!-- ACTIVITY LOG (Admin only) -->
     <section class="view" id="view-activity" hidden>
       <div class="card">
-        <div class="card-head">
-          <h2>Activity Log</h2>
-          <span style="display:flex;gap:8px">
-            <select id="act_user_filter" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--panel)">
-              <option value="">All users</option>
-            </select>
-            <button class="ghost" data-refresh="activity">Refresh</button>
-          </span>
+        <div class="card-head"><h2>Activity Log</h2>
+          <button class="ghost" data-refresh="activity">Refresh</button></div>
+        <div class="grid" style="margin:6px 0 4px;grid-template-columns:1fr 1fr 1fr auto">
+          <label style="margin:0">User<select id="act_user_filter" style="width:100%">
+            <option value="">All users</option>
+          </select></label>
+          <label style="margin:0">From<input id="act_from" type="date" /></label>
+          <label style="margin:0">To<input id="act_to" type="date" /></label>
+          <button class="ghost" onclick="loadActivityLog()" style="align-self:flex-end;margin-bottom:2px">Filter</button>
         </div>
         <div id="act_setup_msg" hidden style="background:#fef3c7;border-radius:8px;padding:14px;margin-bottom:12px">
           <b>Setup required:</b> Run this SQL in Supabase:
@@ -520,7 +532,7 @@ CREATE POLICY "service_role_all" ON public.audit_log
   FOR ALL TO service_role USING (true) WITH CHECK (true);
 GRANT ALL ON public.audit_log TO service_role;</pre>
         </div>
-        <div id="act_list"></div>
+        <div class="scrolly-list" id="act_list"></div>
       </div>
     </section>
 
