@@ -1405,16 +1405,120 @@ function printReport(){
 }
 
 /* ── SOCIETY ─────────────────────────────────────────────────── */
+// Store all society txns for client-side filter/search
+let socAllTxns = [];
+let socBalance = 0;
+let socAccountInfo = {};
+
 async function loadSociety(){
-  try{const{society}=await api('society_get');
-    $('soc_Acc').value=society.accountNumber||'';$('soc_IFSC').value=society.ifsc||'';
-    $('soc_Addr').value=society.address||'';$('soc_Open').value=society.openingBalance||0;
-    $('soc_bal').innerHTML=summaryHtml([['Current Balance',rupee(society.balance)]]);
-    let h='<table><tr><th>Txn No</th><th>Date</th><th>Direction</th><th>Amount</th><th>Party</th><th>Ref</th><th>Note</th></tr>';
-    const cleanStr=s=>(s||'').replace(/\uFFFD/g,'-').replace(/[\u2013\u2014]/g,'-');
-    society.txns.forEach(t=>h+=`<tr><td>${esc(t.TxnNo)}</td><td>${esc(t.Date)}</td><td>${esc(t.Direction)}</td><td>${rupee(t.Amount)}</td><td>${esc(t.Party)}</td><td>${esc(t.Ref)}</td><td>${esc(cleanStr(t.Note))}</td></tr>`);
-    $('soc_list').innerHTML=h+'</table>';
+  try{
+    const{society}=await api('society_get');
+    socAccountInfo = society;
+    socBalance = society.balance;
+    $('soc_Acc').value  = society.accountNumber||'';
+    $('soc_IFSC').value = society.ifsc||'';
+    $('soc_Addr').value = society.address||'';
+    $('soc_Open').value = society.openingBalance||0;
+    $('soc_bal').innerHTML = summaryHtml([['Current Balance', rupee(society.balance)]]);
+    socAllTxns = society.txns || [];
+    renderSocietyTable(socAllTxns);
   }catch(err){$('soc_list').innerHTML=`<p class="err">${err.message}</p>`;}
+}
+
+function renderSocietyTable(txns){
+  const cleanStr = s => (s||'').replace(/\uFFFD/g,'-').replace(/[\u2013\u2014]/g,'-');
+  if(!txns.length){$('soc_list').innerHTML='<p class="msg">No transactions match.</p>';return;}
+  let totalIn=0, totalOut=0;
+  let h='<table><thead><tr><th>Txn No</th><th>Date</th><th>Direction</th><th class="num">Amount</th><th>Party</th><th>Ref</th><th>Note</th></tr></thead><tbody>';
+  txns.forEach(t=>{
+    const amt=Number(String(t.Amount).replace(/[^0-9.]/g,''))||0;
+    if(t.Direction==='Received') totalIn+=amt; else totalOut+=amt;
+    const dir=t.Direction==='Received'
+      ?`<span style="color:#16a34a;font-weight:600">${esc(t.Direction)}</span>`
+      :`<span style="color:#dc2626;font-weight:600">${esc(t.Direction)}</span>`;
+    h+=`<tr><td>${esc(t.TxnNo)}</td><td style="white-space:nowrap">${esc(t.Date)}</td><td>${dir}</td><td class="num">${rupee(t.Amount)}</td><td>${esc(t.Party)}</td><td>${esc(t.Ref)}</td><td>${esc(cleanStr(t.Note))}</td></tr>`;
+  });
+  h+='</tbody></table>';
+  // Summary row
+  h+=`<div style="display:flex;gap:16px;padding:8px 4px;font-size:12px;border-top:2px solid var(--border);margin-top:4px">
+    <span><b>${txns.length}</b> transaction${txns.length!==1?'s':''}</span>
+    <span style="color:#16a34a">Total In: <b>${rupee(totalIn)}</b></span>
+    <span style="color:#dc2626">Total Out: <b>${rupee(totalOut)}</b></span>
+    <span>Net: <b style="color:${totalIn-totalOut>=0?'#16a34a':'#dc2626'}">${rupee(totalIn-totalOut)}</b></span>
+  </div>`;
+  $('soc_list').innerHTML = h;
+}
+
+function filterSociety(){
+  const q    = (val('soc_search')||'').toLowerCase().trim();
+  const from = val('soc_from');
+  const to   = val('soc_to');
+  let filtered = socAllTxns;
+  if(from) filtered = filtered.filter(t=>t.Date>=from||t.Date.replace(/[^0-9-]/g,'')>=from.replace(/[^0-9-]/g,''));
+  if(to)   filtered = filtered.filter(t=>t.Date<=to||t.Date.replace(/[^0-9-]/g,'')<=to.replace(/[^0-9-]/g,''));
+  if(q)    filtered = filtered.filter(t=>[t.TxnNo,t.Date,t.Direction,t.Party,t.Ref,t.Note].some(v=>String(v||'').toLowerCase().includes(q)));
+  // Update info line
+  const parts=[];
+  if(q)    parts.push(`search: "${q}"`);
+  if(from) parts.push(`from ${from}`);
+  if(to)   parts.push(`to ${to}`);
+  const info=$('soc_filter_info');
+  if(info) info.textContent=parts.length?`Showing ${filtered.length} of ${socAllTxns.length} transactions (${parts.join(', ')})`:'' ;
+  renderSocietyTable(filtered);
+}
+
+function printSociety(){
+  const q    = (val('soc_search')||'').toLowerCase().trim();
+  const from = val('soc_from');
+  const to   = val('soc_to');
+  let filtered = socAllTxns;
+  if(from) filtered = filtered.filter(t=>t.Date>=from);
+  if(to)   filtered = filtered.filter(t=>t.Date<=to);
+  if(q)    filtered = filtered.filter(t=>[t.TxnNo,t.Date,t.Direction,t.Party,t.Ref,t.Note].some(v=>String(v||'').toLowerCase().includes(q)));
+
+  const cleanStr = s => (s||'').replace(/\uFFFD/g,'-').replace(/[\u2013\u2014]/g,'-');
+  const dateRange = (from||to) ? `${from||'start'} to ${to||'today'}` : 'All dates';
+  let totalIn=0, totalOut=0;
+  let rows='';
+  filtered.forEach(t=>{
+    const amt=Number(String(t.Amount).replace(/[^0-9.]/g,''))||0;
+    if(t.Direction==='Received') totalIn+=amt; else totalOut+=amt;
+    rows+=`<tr><td>${esc(t.TxnNo)}</td><td>${esc(t.Date)}</td>`+
+      `<td style="color:${t.Direction==='Received'?'#16a34a':'#dc2626'};font-weight:600">${esc(t.Direction)}</td>`+
+      `<td style="text-align:right">${rupee(t.Amount)}</td>`+
+      `<td>${esc(t.Party)}</td><td>${esc(t.Ref)}</td><td>${esc(cleanStr(t.Note))}</td></tr>`;
+  });
+
+  const body=
+    `<div class="ph">`+
+      `<img src="${LOGO_URL}" class="pl" onerror="this.style.display='none'"/>`+
+      `<div><div class="pb">${esc(BANK)}</div><div class="pt">Society Bank Statement</div></div>`+
+    `</div>`+
+    `<div class="pi">Period: ${esc(dateRange)}${q?' | Filter: "'+esc(q)+'"':''} | Generated: ${new Date().toLocaleDateString('en-IN')}</div>`+
+    `<table class="pt2"><thead><tr><th>Txn No</th><th>Date</th><th>Direction</th><th>Amount</th><th>Party</th><th>Ref</th><th>Note</th></tr></thead>`+
+    `<tbody>${rows}</tbody></table>`+
+    `<div class="ps">`+
+      `<span>${filtered.length} transactions</span>`+
+      `<span style="color:#16a34a">Total Received: <b>${rupee(totalIn)}</b></span>`+
+      `<span style="color:#dc2626">Total Sent: <b>${rupee(totalOut)}</b></span>`+
+      `<span>Net: <b>${rupee(totalIn-totalOut)}</b></span>`+
+    `</div>`;
+
+  const css=
+    `@page{size:A4 landscape;margin:1.2cm}`+
+    `*{box-sizing:border-box}`+
+    `body{font-family:Arial,sans-serif;font-size:10px;color:#000;margin:0;padding:0}`+
+    `.ph{display:flex;align-items:center;gap:14px;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:8px}`+
+    `.pl{width:52px;height:52px;object-fit:contain;flex-shrink:0}`+
+    `.pb{font-size:18px;font-weight:700}.pt{font-size:12px;color:#555;margin-top:2px}`+
+    `.pi{font-size:10px;color:#555;margin-bottom:8px;padding:4px 0;border-bottom:1px solid #ddd}`+
+    `.pt2{width:100%;border-collapse:collapse;font-size:10px}`+
+    `.pt2 th{background:#e8eef8;color:#1a3a8f;font-size:9px;font-weight:700;text-transform:uppercase;`+
+    `padding:5px 7px;border:1px solid #bbb;text-align:left}`+
+    `.pt2 td{padding:4px 7px;border:1px solid #ddd;vertical-align:top}`+
+    `.pt2 tr:nth-child(even) td{background:#fafbff}`+
+    `.ps{display:flex;gap:20px;margin-top:10px;padding-top:6px;border-top:2px solid #111;font-size:10px}`;
+  printDoc(body, css, '');
 }
 async function socSave(){
   $('soc_msg').textContent='Saving…';
