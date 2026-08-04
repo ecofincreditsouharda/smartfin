@@ -68,6 +68,7 @@
     <button class="navbtn approval-role" data-view="approvals">Loan Approvals<span id="ap_badge" class="notif-badge" style="display:none">!</span></button>
     <button class="navbtn settings-only" data-view="settings">Settings</button>
     <button class="navbtn admin-only" data-view="users">Users</button>
+    <button class="navbtn admin-only" data-view="activity">Activity Log</button>
     <button class="navbtn" data-view="account">My account</button>
     <div id="nav_lastlogin"></div>
   </nav>
@@ -472,6 +473,38 @@ GRANT ALL ON public.share_txns TO service_role;</pre>
         <p style="color:#5b6472;font-size:13px">Permanently deletes <b>all transactions</b>. User accounts are preserved.</p>
         <div class="grid"><label>Type RESET to confirm<input id="reset_confirm" placeholder="type RESET" /></label></div>
         <div class="actions"><button id="reset_go" class="primary" style="background:#c0392b">Delete all data</button><span id="reset_msg" class="msg"></span></div></div>
+    </section>
+
+    <!-- ACTIVITY LOG (Admin only) -->
+    <section class="view" id="view-activity" hidden>
+      <div class="card">
+        <div class="card-head">
+          <h2>Activity Log</h2>
+          <span style="display:flex;gap:8px">
+            <select id="act_user_filter" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--panel)">
+              <option value="">All users</option>
+            </select>
+            <button class="ghost" data-refresh="activity">Refresh</button>
+          </span>
+        </div>
+        <div id="act_setup_msg" hidden style="background:#fef3c7;border-radius:8px;padding:14px;margin-bottom:12px">
+          <b>Setup required:</b> Run this SQL in Supabase:
+          <pre style="background:#f8f9fb;padding:10px;border-radius:6px;font-size:11px;margin-top:8px;overflow:auto">CREATE TABLE IF NOT EXISTS public.audit_log (
+  id            BIGSERIAL PRIMARY KEY,
+  user_id       TEXT NOT NULL DEFAULT '',
+  user_name     TEXT NOT NULL DEFAULT '',
+  action        TEXT NOT NULL DEFAULT '',
+  target        TEXT DEFAULT '',
+  detail        TEXT DEFAULT '',
+  performed_at  TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role_all" ON public.audit_log
+  FOR ALL TO service_role USING (true) WITH CHECK (true);
+GRANT ALL ON public.audit_log TO service_role;</pre>
+        </div>
+        <div id="act_list"></div>
+      </div>
     </section>
 
     <!-- MY ACCOUNT -->
