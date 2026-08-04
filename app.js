@@ -251,7 +251,7 @@ function logout(){
 }
 
 /* ── MODULE PERMISSIONS (localStorage per userId) ────────────── */
-const ALL_MODULES=['dashboard','members','loans','repayments','deposits','savings','shares','transfers','society','expenses','reports','approvals','settings','users','account'];
+const ALL_MODULES=['dashboard','members','loans','repayments','deposits','savings','shares','transfers','society','expenses','reports','approvals','settings','users','activity','account'];
 const DEFAULT_MODULES={
   Admin: ALL_MODULES,
   CEO: ['dashboard','members','loans','repayments','deposits','savings','shares','transfers','society','expenses','reports','approvals','account'],
@@ -271,7 +271,8 @@ function applyModulePerms(userId, role){
   const allowed=getModulePerms(userId,role);
   document.querySelectorAll('.navbtn[data-view]').forEach(b=>{
     const v=b.dataset.view;
-    if(!allowed.includes(v)) b.style.display='none';
+    // Explicitly show OR hide — never leave stale hidden state
+    b.style.display=allowed.includes(v)?'':'none';
   });
 }
 
@@ -376,6 +377,7 @@ function refresh(v, manual=false){
   if(v==='deposits')    loadList('deposits_list','d_list',null,'deposits');
   if(v==='savings')     loadList('savings_list','s_list');
   if(v==='shares'){loadShareSummary();loadSharesList();}
+  if(v==='activity'){loadActivityLog();}
   if(v==='expenses')    loadList('expenses_list','e_list',null,'expenses');
   if(v==='repayments')  loadRepaymentLoans();
   if(v==='society'&&session.role) loadSociety();
@@ -1147,6 +1149,61 @@ function printShareReceipt() {
 }
 
 
+
+/* ══════════════════════════════════════════════════
+   ACTIVITY LOG MODULE (Admin only)
+   ════════════════════════════════════════════════ */
+async function loadActivityLog() {
+  const el = $('act_list'); if (!el) return;
+  el.innerHTML = '<p class="msg">Loading…</p>';
+  const filterUser = val('act_user_filter') || '';
+  try {
+    const { rows, setupRequired } = await api('activity_log', { userId: filterUser, limit: 200 });
+    if (setupRequired) {
+      const msg = $('act_setup_msg'); if (msg) msg.hidden = false;
+      el.innerHTML = '';
+      return;
+    }
+    if (!rows || !rows.length) {
+      el.innerHTML = '<p class="msg">No activity recorded yet.</p>';
+      return;
+    }
+    // Render as table
+    const cols = ['Time','User','Action','Target','Detail'];
+    let h = '<table><thead><tr>' + cols.map(c=>`<th>${c}</th>`).join('') + '</tr></thead><tbody>';
+    rows.forEach(r => {
+      const actionColor = r.Action.includes('Deleted') ? '#dc2626' :
+                          r.Action.includes('Added')   ? '#16a34a' :
+                          r.Action.includes('Edited')  ? '#d97706' : '#374151';
+      h += '<tr>' +
+        `<td style="white-space:nowrap;font-size:11px">${esc(r.Time)}</td>` +
+        `<td><b>${esc(r.User)}</b></td>` +
+        `<td style="color:${actionColor};font-weight:600">${esc(r.Action)}</td>` +
+        `<td>${esc(r.Target)}</td>` +
+        `<td style="color:#6b7280;font-size:12px">${esc(r.Detail)}</td>` +
+        '</tr>';
+    });
+    el.innerHTML = h + '</tbody></table>';
+
+    // Populate user filter dropdown from rows
+    const users = [...new Set(rows.map(r => r.User).filter(Boolean))].sort();
+    const sel = $('act_user_filter');
+    if (sel) {
+      const cur = sel.value;
+      sel.innerHTML = '<option value="">All users</option>' +
+        users.map(u => `<option value="${esc(u)}" ${cur===u?'selected':''}>${esc(u)}</option>`).join('');
+      sel.value = cur;
+      // Re-attach change listener
+      sel.onchange = () => loadActivityLog();
+    }
+  } catch(err) {
+    el.innerHTML = `<p class="err">${err.message}</p>`;
+    if (err.message.includes('audit_log')) {
+      const msg = $('act_setup_msg'); if (msg) msg.hidden = false;
+    }
+  }
+}
+
 /* ── MODAL ───────────────────────────────────────────────────── */
 function openModal(title,html){$('modal_title').textContent=title||'';$('modal_body').innerHTML=html;$('modal').hidden=false;}
 function closeModal(){$('modal').hidden=true;$('modal_body').innerHTML='';}
@@ -1566,7 +1623,7 @@ function loadModulePerms(){
   const allowed=getModulePerms(userId,role);
   const MODULE_LABELS={dashboard:'Dashboard',members:'Members',loans:'Loans',repayments:'Repayments',
     deposits:'Fixed Deposits',savings:'Savings',shares:'Share Capital',transfers:'Transfers',society:'Society Bank',
-    expenses:'Expenses',reports:'Reports',approvals:'Loan Approvals',settings:'Settings',users:'Users',account:'My Account'};
+    expenses:'Expenses',reports:'Reports',approvals:'Loan Approvals',settings:'Settings',users:'Users',activity:'Activity Log',account:'My Account'};
   let h='';
   ALL_MODULES.forEach(mod=>{
     const checked=allowed.includes(mod)?'checked':'';
@@ -1582,11 +1639,18 @@ function saveModulePerms(){
   setModulePerms(userId,allowed);
   if($('mp_msg'))$('mp_msg').textContent='Saved.';
   showToast('Module permissions saved','ok');
+  // Re-apply sidebar immediately for the affected user
+  if(session&&session.userId===userId){
+    applyModulePerms(userId,session.role);
+  }
 }
 function resetModulePerms(){
   const userId=val('mp_user');if(!userId)return;
   localStorage.removeItem('modperms_'+userId);
   loadModulePerms();showToast('↩ Reset to role defaults','ok');
+  if(session&&session.userId===userId){
+    applyModulePerms(userId,session.role);
+  }
 }
 async function toggleUser(userId,active){try{await api('users_update',{userId,active:!active});loadUsers();}catch(e){alert(e.message);}}
 async function resetUser(userId){try{const{tempPassword}=await api('users_reset_pw',{userId});alert('New temp password for '+userId+':\n\n'+tempPassword);}catch(e){alert(e.message);}}
