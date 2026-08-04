@@ -157,6 +157,9 @@ td.num,th.num{text-align:right!important}
 tbody tr:last-child td{border-bottom:none}
 tbody tr:hover td{background:#fafbff}
 .scrolly{max-height:58vh;overflow:auto;border-radius:var(--r-sm);border:1px solid var(--border)}
+.scrolly-list{max-height:60vh;overflow-y:auto;border-radius:var(--r-sm);border:1px solid var(--border)}
+.scrolly-list table{margin-top:0;border-radius:0}
+.scrolly-list thead th{position:sticky;top:0;z-index:2;background:var(--chip-bg)}
 .report table td:first-child,.report table th:first-child{text-align:left;min-width:180px}
 
 /* ── SUMMARY STRIPS ───────────────────────────────────────────── */
