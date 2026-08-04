@@ -251,12 +251,12 @@ function logout(){
 }
 
 /* ── MODULE PERMISSIONS (localStorage per userId) ────────────── */
-const ALL_MODULES=['dashboard','members','loans','repayments','deposits','savings','transfers','society','expenses','reports','approvals','settings','users','account'];
+const ALL_MODULES=['dashboard','members','loans','repayments','deposits','savings','shares','transfers','society','expenses','reports','approvals','settings','users','account'];
 const DEFAULT_MODULES={
   Admin: ALL_MODULES,
-  CEO: ['dashboard','members','loans','repayments','deposits','savings','transfers','society','expenses','reports','approvals','account'],
-  BranchManager: ['dashboard','members','loans','repayments','deposits','savings','transfers','expenses','reports','approvals','settings','account'],
-  Operator: ['dashboard','members','loans','repayments','deposits','savings','expenses','account'],
+  CEO: ['dashboard','members','loans','repayments','deposits','savings','shares','transfers','society','expenses','reports','approvals','account'],
+  BranchManager: ['dashboard','members','loans','repayments','deposits','savings','shares','transfers','expenses','reports','approvals','settings','account'],
+  Operator: ['dashboard','members','loans','repayments','deposits','savings','shares','expenses','account'],
   Collector: ['dashboard','repayments','account'],
   Director: ['dashboard','loans','reports','approvals','account'],
 };
