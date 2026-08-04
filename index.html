@@ -392,7 +392,24 @@ GRANT ALL ON public.share_txns TO service_role;</pre>
           <label>Note<input id="soc_Note" /></label>
         </div>
         <div class="actions"><button id="soc_txn" class="primary">Post transaction</button><span id="soc_tmsg" class="msg"></span></div></div>
-      <div class="card"><div class="card-head"><h2>Transactions</h2><span style="display:flex;gap:8px"><button class="ghost" id="soc_min" onclick="toggleSection('soc_list',this)">Minimise</button><button class="ghost" data-refresh="society">Refresh</button></span></div><div id="soc_list"></div></div>
+      <div class="card">
+        <div class="card-head"><h2>Transactions</h2>
+          <span style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <button class="ghost" id="soc_min" onclick="toggleSection('soc_list',this)">Minimise</button>
+            <button class="ghost" data-refresh="society">Refresh</button>
+          </span>
+        </div>
+        <!-- Search + date filter row -->
+        <div class="grid" style="margin:8px 0 4px;grid-template-columns:1fr 1fr 1fr auto auto">
+          <label style="margin:0">Search<input id="soc_search" placeholder="party · note · ref · txn no" /></label>
+          <label style="margin:0">From date<input id="soc_from" type="date" /></label>
+          <label style="margin:0">To date<input id="soc_to" type="date" /></label>
+          <button class="ghost" onclick="filterSociety()" style="align-self:flex-end;margin-bottom:2px">Filter</button>
+          <button class="ghost" onclick="printSociety()" style="align-self:flex-end;margin-bottom:2px">Print</button>
+        </div>
+        <div id="soc_filter_info" style="font-size:11px;color:#6b7280;margin-bottom:4px"></div>
+        <div id="soc_list"></div>
+      </div>
     </section>
 
     <!-- SETTINGS -->
