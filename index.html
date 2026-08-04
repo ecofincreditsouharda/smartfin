@@ -60,6 +60,7 @@
     <button class="navbtn" data-view="repayments">Repayments</button>
     <button class="navbtn" data-view="deposits">Fixed Deposits</button>
     <button class="navbtn" data-view="savings">Savings</button>
+    <button class="navbtn" data-view="shares">Share Capital</button>
     <button class="navbtn no-director" data-view="transfers">Transfers</button>
     <button class="navbtn society-only" data-view="society">Society Bank</button>
     <button class="navbtn" data-view="expenses">Expenses</button>
@@ -250,6 +251,67 @@
         <div id="pb_summary" class="summary"></div><div id="pb_rows" class="scrolly"></div></div>
     </section>
 
+    <!-- SHARE CAPITAL -->
+    <section class="view" id="view-shares" hidden>
+      <div class="card add-only"><h2>Issue Shares</h2>
+        <div class="grid">
+          <label>Member ID<input id="sh_MemberID" placeholder="e.g. MBR00001" /></label>
+          <label>Member Name<input id="sh_MemberName" readonly placeholder="auto-filled" /></label>
+          <label>Number of Shares<input id="sh_Shares" type="number" min="1" value="1" /></label>
+          <label>Amount per Share (₹)<input id="sh_AmtPerShare" type="number" min="1" /></label>
+          <label>Total Amount (₹)<input id="sh_Total" readonly placeholder="auto-calculated" /></label>
+          <label>Date<input id="sh_Date" type="date" /></label>
+          <label style="grid-column:1/-1">Note<input id="sh_Note" placeholder="Optional note" /></label>
+        </div>
+        <div class="actions">
+          <button id="sh_add" class="primary">Issue Shares</button>
+          <button type="button" class="ghost" data-clear="shares">Clear</button>
+          <button type="button" class="ghost" id="sh_cancel_edit" style="display:none;color:#dc2626" onclick="cancelShareEdit()">Cancel edit</button>
+          <span id="sh_msg" class="msg"></span>
+        </div>
+        <div id="sh_receipt" hidden>
+          <div id="sh_receiptView" class="summary"></div>
+          <div class="actions">
+            <button class="ghost" id="sh_print">Print receipt</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Share Capital Summary (per member)</h2>
+          <span style="display:flex;gap:8px">
+            <button class="ghost" data-refresh="shares">Refresh</button>
+            <button class="ghost" id="sh_hist_toggle" onclick="toggleSection('sh_hist',this)">Show History</button>
+          </span>
+        </div>
+        <div id="sh_summary_list"></div>
+        <div id="sh_hist" style="display:none">
+          <h3 style="margin:14px 0 8px;font-size:13px;color:#5b6472">Transaction History</h3>
+          <div id="sh_list"></div>
+        </div>
+        <div id="sh_setup_msg" hidden style="background:#fef3c7;border-radius:8px;padding:14px;margin-top:10px">
+          <b>Setup required:</b> The <code>share_txns</code> table has not been created yet.<br>
+          Run this SQL in <a href="https://supabase.com/dashboard" target="_blank">Supabase SQL Editor</a>:
+          <pre style="background:#f8f9fb;padding:10px;border-radius:6px;font-size:11px;margin-top:8px;overflow:auto">CREATE TABLE IF NOT EXISTS public.share_txns (
+  txn_no           TEXT PRIMARY KEY,
+  member_id        TEXT NOT NULL,
+  member_name      TEXT DEFAULT '',
+  branch           TEXT DEFAULT '',
+  shares           INTEGER NOT NULL DEFAULT 1,
+  amount_per_share NUMERIC(12,2) NOT NULL DEFAULT 0,
+  total_amount     NUMERIC(12,2) NOT NULL DEFAULT 0,
+  date             DATE NOT NULL DEFAULT CURRENT_DATE,
+  note             TEXT DEFAULT '',
+  entered_by       TEXT DEFAULT '',
+  created_at       TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.share_txns ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role_all" ON public.share_txns
+  FOR ALL TO service_role USING (true) WITH CHECK (true);
+GRANT ALL ON public.share_txns TO service_role;</pre>
+        </div>
+      </div>
+    </section>
+
     <!-- TRANSFERS -->
     <section class="view" id="view-transfers" hidden>
       <div class="card add-only"><h2>Transfer between members (Savings)</h2>
@@ -299,6 +361,8 @@
           <option value="Monthly_Balance_Sheet">Monthly Balance Sheet</option>
           <option value="Monthly_Cash_Flow">Monthly Cash Flow</option>
           <option value="Borrower_Collections">Borrower Collections</option>
+          <option value="Share_Capital_Detail">Share Capital (per member)</option>
+          <option value="Share_Txn_History">Share Transactions History</option>
         </select></label>
         <label>From Date<input id="rep_from" type="date" /></label>
         <label>To Date<input id="rep_to" type="date" /></label></div>
