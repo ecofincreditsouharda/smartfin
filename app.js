@@ -205,6 +205,7 @@ document.addEventListener('click',e=>{
     r_load:()=>openLedger(val('r_LoanId').trim()), r_add:addReceipt,
     r_print:()=>printReceiptObj(lastReceipt), r_pdf:()=>pdfReceiptObj(lastReceipt),
     r_min:minimiseLedger, rep_load:loadReport, rep_print:printReport,
+    sh_add:addShare, sh_print:printShareReceipt,
     soc_save:socSave, soc_txn:socTxn, br_save:branchSave,
     set_save:saveSettings, hier_save:saveHierarchy, hier_reset:resetHierarchy,
     u_add:addUser, mp_load:loadModulePerms, mp_save:saveModulePerms, mp_reset_perms:resetModulePerms,
@@ -374,6 +375,7 @@ function refresh(v, manual=false){
   if(v==='loans')       loadList('loans_list','l_list','loan','loans');
   if(v==='deposits')    loadList('deposits_list','d_list',null,'deposits');
   if(v==='savings')     loadList('savings_list','s_list');
+  if(v==='shares'){loadShareSummary();loadSharesList();}
   if(v==='expenses')    loadList('expenses_list','e_list',null,'expenses');
   if(v==='repayments')  loadRepaymentLoans();
   if(v==='society'&&session.role) loadSociety();
@@ -471,6 +473,7 @@ function clearForm(section){
     loans:['l_Borrower','l_MemberID','l_LoanType','l_Amount','l_RatePct','l_TenureMonths','l_SanctionDate','l_DisbursementDate','l_FirstEMIDate','l_CustomEMI','l_G1Name','l_G1MemberID','l_G2Name','l_G2MemberID','l_NewId'],
     deposits:['d_MemberID','d_Depositor','d_Amount','d_RatePct','d_TenureMonths','d_StartDate','d_PayoutMode','d_Nominee','d_Remarks'],
     savings:['s_MemberID','s_MemberName','s_Rate','s_MinBalance','s_OpenDate','s_Nominee'],
+  shares:['sh_MemberID','sh_MemberName','sh_Shares','sh_AmtPerShare','sh_Total','sh_Date','sh_Note'],
     expenses:['e_Date','e_Description','e_Amount','e_Remarks','e_To'],
     passbook:['pb_SavingsID','pb_from','pb_to'],
   };
@@ -883,6 +886,266 @@ async function doTransfer(){
     $('tf_msg').textContent=`${txnNo} · from ${rupee(fromBalance)} · to ${rupee(toBalance)}`;$('tf_Amount').value='';
   }catch(err){$('tf_msg').textContent='';alert(err.message);}
 }
+
+
+
+/* ══════════════════════════════════════════════════
+   SHARE CAPITAL MODULE
+   ════════════════════════════════════════════════ */
+let lastShareReceipt = null;
+
+// Refresh handler
+async function refreshSharesView() {
+  await Promise.all([loadShareSummary(), loadSharesList()]);
+}
+
+async function loadShareSummary() {
+  const el = $('sh_summary_list');
+  if (!el) return;
+  el.innerHTML = '<p class="msg">Loading…</p>';
+  try {
+    const { rows, total, setupRequired } = await api('share_summary');
+    if (setupRequired) { showShareSetup(); return; }
+    if (!rows || !rows.length) { el.innerHTML = '<p class="msg">No share capital recorded yet.</p>'; return; }
+    el.innerHTML = dashTable(rows) +
+      `<div style="text-align:right;font-weight:700;font-size:14px;padding:10px 6px;border-top:2px solid var(--border)">
+        Total Share Capital: ${rupee(total)}</div>`;
+  } catch(err) {
+    el.innerHTML = `<p class="err">${err.message}</p>`;
+    if (err.message.includes('share_txns')) showShareSetup();
+  }
+}
+
+// Store raw share txn data for edit
+let shareRows = [];
+async function loadSharesList() {
+  const el = $('sh_list');
+  if (!el) return;
+  el.innerHTML = '<p class="msg">Loading…</p>';
+  try {
+    const { rows, setupRequired, rawRows } = await api('shares_list');
+    if (setupRequired) { el.innerHTML = ''; return; }
+    if (!rows || !rows.length) { el.innerHTML = '<p class="msg">No transactions yet.</p>'; return; }
+    // Store raw for editing
+    shareRows = rawRows || [];
+    const canEdit = ['Admin','CEO'].includes(session?.role||'');
+    let h = '<table><thead><tr>' +
+      ['Txn No','Date','Member ID','Member Name','Shares','Per Share (₹)','Total (₹)','Note']
+        .map(c=>`<th>${c}</th>`).join('') +
+      (canEdit ? '<th></th>' : '') +
+      '</tr></thead><tbody>';
+    rows.forEach((r,i) => {
+      h += '<tr>' +
+        `<td>${esc(r['Txn No'])}</td>` +
+        `<td>${esc(r['Date'])}</td>` +
+        `<td>${esc(r['Member ID'])}</td>` +
+        `<td>${esc(r['Member Name'])}</td>` +
+        `<td style="text-align:right">${esc(String(r['Shares']))}</td>` +
+        `<td class="num">${rupee(r['Per Share'])}</td>` +
+        `<td class="num">${rupee(r['Total'])}</td>` +
+        `<td>${esc(r['Note']||'')}</td>`;
+      if (canEdit) {
+        h += `<td style="white-space:nowrap">` +
+          `<button class="ghost" onclick="editShareTxn('${esc(r['Txn No'])}')">Edit</button> ` +
+          `<button class="ghost" style="color:#dc2626" onclick="deleteShareTxn('${esc(r['Txn No'])}','${esc(r['Member Name'])}')">Delete</button>` +
+          `</td>`;
+      }
+      h += '</tr>';
+    });
+    el.innerHTML = h + '</tbody></table>';
+  } catch(err) {
+    el.innerHTML = `<p class="err">${err.message}</p>`;
+  }
+}
+
+function showShareSetup() {
+  const msg = $('sh_setup_msg');
+  if (msg) msg.hidden = false;
+}
+
+// Auto-calculate total when shares or amount changes
+function recalcShareTotal() {
+  const s = Number(val('sh_Shares') || 0);
+  const p = Number(val('sh_AmtPerShare') || 0);
+  if ($('sh_Total')) $('sh_Total').value = s > 0 && p > 0 ? rupee(s * p).replace('\u20b9\u00a0','') : '';
+}
+
+// Auto-fill member name when member ID is entered
+document.addEventListener('change', async e => {
+  if (e.target.id === 'sh_MemberID' && val('sh_MemberID').trim()) {
+    try {
+      const { member } = await api('member_get', { memberId: val('sh_MemberID').trim() });
+      setV('sh_MemberName', member.FullName);
+    } catch(err) { setV('sh_MemberName', ''); showToast('Member not found','err'); }
+  }
+  if (e.target.id === 'sh_Shares' || e.target.id === 'sh_AmtPerShare') recalcShareTotal();
+});
+document.addEventListener('input', e => {
+  if (e.target.id === 'sh_Shares' || e.target.id === 'sh_AmtPerShare') recalcShareTotal();
+});
+
+// ── SHARE EDIT ──────────────────────────────────────────────────────────────
+let editingShareTxno = null;
+
+function editShareTxn(txnNo) {
+  const raw = shareRows.find(r => r.txn_no === txnNo);
+  if (!raw) { alert('Transaction data not found. Refresh and try again.'); return; }
+  editingShareTxno = txnNo;
+  // Fill form fields
+  setV('sh_MemberID',    raw.member_id);
+  setV('sh_MemberName',  raw.member_name);
+  setV('sh_Shares',      raw.shares);
+  setV('sh_AmtPerShare', raw.amount_per_share);
+  setV('sh_Date',        raw.date);
+  setV('sh_Note',        raw.note || '');
+  recalcShareTotal();
+  // Update UI to "edit mode"
+  const btn = $('sh_add');
+  if (btn) { btn.textContent = 'Update Shares'; }
+  $('sh_msg').textContent = 'Editing ' + txnNo + ' — change fields and click Update Shares.';
+  if ($('sh_cancel_edit')) $('sh_cancel_edit').style.display = 'inline-flex';
+  // Scroll to form
+  const card = document.querySelector('#view-shares .card.add-only');
+  if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function cancelShareEdit() {
+  editingShareTxno = null;
+  ['sh_MemberID','sh_MemberName','sh_Shares','sh_AmtPerShare','sh_Total','sh_Date','sh_Note']
+    .forEach(id => { if ($(id)) $(id).value = ''; });
+  if ($('sh_Shares')) $('sh_Shares').value = '1';
+  $('sh_msg').textContent = '';
+  const btn = $('sh_add'); if (btn) btn.textContent = 'Issue Shares';
+  if ($('sh_cancel_edit')) $('sh_cancel_edit').style.display = 'none';
+  if ($('sh_receipt')) $('sh_receipt').hidden = true;
+}
+
+async function deleteShareTxn(txnNo, memberName) {
+  openModal('Delete Share Transaction',
+    `<div style="padding:8px 0">` +
+    `<p style="font-size:14px;color:#374151;margin:0 0 8px">Delete transaction <b>${esc(txnNo)}</b>?</p>` +
+    `<p style="font-size:12px;color:#dc2626;background:#fef2f2;padding:8px 12px;border-radius:6px;margin:0 0 16px">` +
+    `This will reverse the share capital for <b>${esc(memberName)}</b> and remove the Society Bank entry.</p>` +
+    `<div style="display:flex;gap:8px;justify-content:flex-end">` +
+    `<button class="ghost" onclick="closeModal()">Cancel</button>` +
+    `<button class="primary" style="background:#dc2626" onclick="confirmDeleteShare('${esc(txnNo)}')">Yes, delete</button>` +
+    `</div></div>`
+  );
+}
+
+async function confirmDeleteShare(txnNo) {
+  closeModal();
+  try {
+    const res = await api('share_delete', { txnNo });
+    showToast('Transaction ' + txnNo + ' deleted. Share capital updated.', 'ok');
+    await loadShareSummary();
+    await loadSharesList();
+  } catch(err) { showToast('Error: ' + err.message, 'err'); }
+}
+
+async function addShare() {
+  const btn = $('sh_add');
+  if (!val('sh_MemberID').trim()) { alert('Please enter a Member ID.'); return; }
+  if (!val('sh_Shares') || Number(val('sh_Shares')) < 1) { alert('Enter number of shares.'); return; }
+  if (!val('sh_AmtPerShare') || Number(val('sh_AmtPerShare')) <= 0) { alert('Enter amount per share.'); return; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  $('sh_msg').textContent = 'Saving…';
+  try {
+    let res;
+    if (editingShareTxno) {
+      // EDIT MODE
+      res = await api('share_edit', {
+        txnNo:          editingShareTxno,
+        shares:         Number(val('sh_Shares')),
+        amountPerShare: Number(val('sh_AmtPerShare')),
+        date:           val('sh_Date') || new Date().toISOString().split('T')[0],
+        note:           val('sh_Note')
+      });
+      editingShareTxno = null;
+      if ($('sh_cancel_edit')) $('sh_cancel_edit').style.display = 'none';
+      $('sh_msg').textContent = '';
+      showToast('Transaction updated. All values recalculated.', 'ok');
+      if ($('sh_receipt')) $('sh_receipt').hidden = true;
+      // Clear and reload
+      ['sh_MemberID','sh_MemberName','sh_Shares','sh_AmtPerShare','sh_Total','sh_Date','sh_Note']
+        .forEach(id => { if ($(id)) $(id).value = ''; });
+      if ($('sh_Shares')) $('sh_Shares').value = '1';
+      const btn2=$('sh_add');if(btn2)btn2.textContent='Issue Shares';
+      await loadShareSummary(); await loadSharesList(); return;
+    } else {
+      // ADD MODE
+      res = await api('share_add', {
+        memberId:       val('sh_MemberID').trim(),
+        shares:         Number(val('sh_Shares')),
+        amountPerShare: Number(val('sh_AmtPerShare')),
+        date:           val('sh_Date') || new Date().toISOString().split('T')[0],
+        note:           val('sh_Note')
+      });
+    }
+    lastShareReceipt = res;
+    $('sh_msg').textContent = '';
+    showToast('Shares issued — Txn ' + res.txnNo, 'ok');
+    // Show receipt
+    const rv = $('sh_receiptView');
+    if (rv) rv.innerHTML = summaryHtml([
+      ['Txn No',        esc(res.txnNo)],
+      ['Member ID',     esc(res.memberId)],
+      ['Member Name',   esc(res.memberName)],
+      ['Date',          esc(res.date)],
+      ['Shares Issued', String(res.shares)],
+      ['Amount per Share', rupee(res.amountPerShare)],
+      ['Total Amount',  rupee(res.totalAmount)],
+      ['New Share Capital', rupee(res.newShareCapital)]
+    ]);
+    if ($('sh_receipt')) $('sh_receipt').hidden = false;
+    // Clear form
+    ['sh_MemberID','sh_MemberName','sh_Shares','sh_AmtPerShare','sh_Total','sh_Note'].forEach(id=>{if($(id))$(id).value='';});
+    if ($('sh_Shares')) $('sh_Shares').value = '1';
+    // Refresh lists
+    await loadShareSummary();
+    await loadSharesList();
+  } catch(err) {
+    $('sh_msg').textContent = '';
+    alert('Error: ' + err.message);
+    if (err.message.includes('share_txns')) showShareSetup();
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Issue Shares'; }
+  }
+}
+
+function printShareReceipt() {
+  const r = lastShareReceipt;
+  if (!r) { alert('No receipt to print.'); return; }
+  const body =
+    `<div class="sh-hd"><img src="${LOGO_URL}" class="sh-logo" onerror="this.style.display='none'"/>` +
+    `<div><div class="sh-bname">${esc(BANK)}</div><div class="sh-title">Share Capital Receipt</div></div></div>` +
+    `<table class="sh-tbl">` +
+    `<tr><td class="k">Receipt No</td><td class="v">${esc(r.txnNo)}</td><td class="k">Date</td><td class="v">${esc(r.date)}</td></tr>` +
+    `<tr><td class="k">Member ID</td><td class="v">${esc(r.memberId)}</td><td class="k">Member Name</td><td class="v"><b>${esc(r.memberName)}</b></td></tr>` +
+    `<tr><td class="k">Shares Issued</td><td class="v">${r.shares}</td><td class="k">Amount per Share</td><td class="v">${rupee(r.amountPerShare)}</td></tr>` +
+    `<tr><td class="k" colspan="2">Total Amount Paid</td><td class="v" colspan="2" style="font-size:16px;font-weight:700">${rupee(r.totalAmount)}</td></tr>` +
+    `<tr><td class="k" colspan="2">Cumulative Share Capital</td><td class="v" colspan="2">${rupee(r.newShareCapital)}</td></tr>` +
+    `</table>` +
+    `<div class="sh-sign">` +
+    `<div><div class="sh-line"></div>Member Signature</div>` +
+    `<div><div class="sh-line"></div>Authorised Signatory</div>` +
+    `</div>` +
+    `<div class="sh-foot">This is an official share capital receipt issued by ${esc(BANK)}</div>`;
+  const css =
+    `@page{size:A5 landscape;margin:1cm}` +
+    `body{font-family:Arial,sans-serif;font-size:11px;border:3px double #111;padding:16px;margin:0}` +
+    `.sh-hd{display:flex;align-items:center;gap:14px;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:12px}` +
+    `.sh-logo{width:52px;height:52px;object-fit:contain}` +
+    `.sh-bname{font-size:18px;font-weight:700}.sh-title{font-size:12px;color:#555;margin-top:2px}` +
+    `.sh-tbl{width:100%;border-collapse:collapse;margin-bottom:18px}` +
+    `.sh-tbl td{padding:7px 10px;border:1px solid #ccc;font-size:11px}` +
+    `.sh-tbl td.k{background:#f0f0f0;font-weight:700;width:22%;font-size:10px;text-transform:uppercase}` +
+    `.sh-sign{display:flex;justify-content:space-around;margin-top:40px;text-align:center;font-size:11px}` +
+    `.sh-line{border-top:1px solid #333;width:160px;margin:0 auto 4px}` +
+    `.sh-foot{margin-top:16px;border-top:1px solid #aaa;padding-top:5px;font-size:9px;color:#777;text-align:center}`;
+  printDoc(body, css, '');
+}
+
 
 /* ── MODAL ───────────────────────────────────────────────────── */
 function openModal(title,html){$('modal_title').textContent=title||'';$('modal_body').innerHTML=html;$('modal').hidden=false;}
