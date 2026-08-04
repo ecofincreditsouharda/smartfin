@@ -378,7 +378,7 @@ function refresh(v, manual=false){
   if(v==='savings')     loadList('savings_list','s_list');
   if(v==='shares'){loadShareSummary();loadSharesList();}
   if(v==='activity'){loadActivityLog();}
-  if(v==='expenses')    loadList('expenses_list','e_list',null,'expenses');
+  if(v==='expenses'){api('expenses_list').then(r=>{expAllRows=r.rows||[];renderExpensesTable(expAllRows);}).catch(e=>$('e_list').innerHTML=`<p class='err'>${e.message}</p>`);}
   if(v==='repayments')  loadRepaymentLoans();
   if(v==='society'&&session.role) loadSociety();
   if(v==='approvals')   loadApprovals();
@@ -548,7 +548,7 @@ function fillMember(m){setV('m_FullName',m.FullName);setV('m_DOB',m.DOB&&m.DOB.l
   setV('m_PAN',m.PAN);setV('m_BankName',m.BankName);setV('m_BankAccount',m.BankAccount);setV('m_IFSC',m.IFSC);
   setV('m_ShareCapitalCollected',m.ShareCapitalCollected||0);
   if($('m_MemberType'))$('m_MemberType').value=m.MemberType||'Original Member';
-  if($('m_ShareCapitalMember'))$('m_ShareCapitalMember').value=m.ShareCapitalMember||'No';
+  if($('m_ShareCapitalMember')){$('m_ShareCapitalMember').value=m.ShareCapitalMember||'No';toggleShareCapital(m.ShareCapitalMember||'No');}
   // Show current Member ID as read-only, and Change ID field for Admin/CEO (Issue 1)
   const curIdWrap=$('m_CurIdWrap');if(curIdWrap){curIdWrap.style.display='';$('m_CurId')&&($('m_CurId').value=m.MemberID||'');}
   if(['Admin','CEO'].includes(session.role)){if($('m_NewIdWrap'))$('m_NewIdWrap').style.display='';setV('m_NewId','');if($('m_NewId'))$('m_NewId').placeholder='leave blank to keep '+m.MemberID;}
@@ -966,6 +966,12 @@ function showShareSetup() {
 }
 
 // Auto-calculate total when shares or amount changes
+function toggleShareCapital(v){
+  const wrap=$('m_ShareCapitalCollectedWrap');
+  if(!wrap)return;
+  wrap.style.display=v==='Yes'?'':'none';
+  if(v!=='Yes'&&$('m_ShareCapitalCollected'))$('m_ShareCapitalCollected').value='0';
+}
 function recalcShareTotal() {
   const s = Number(val('sh_Shares') || 0);
   const p = Number(val('sh_AmtPerShare') || 0);
@@ -1156,52 +1162,103 @@ function printShareReceipt() {
 async function loadActivityLog() {
   const el = $('act_list'); if (!el) return;
   el.innerHTML = '<p class="msg">Loading…</p>';
-  const filterUser = val('act_user_filter') || '';
+  const filterUserId = val('act_user_filter') || '';
+  const fromDate     = val('act_from') || '';
+  const toDate       = val('act_to')   || '';
   try {
-    const { rows, setupRequired } = await api('activity_log', { userId: filterUser, limit: 200 });
+    const { rows, users, setupRequired } = await api('activity_log', {
+      userId: filterUserId, fromDate, toDate, limit: 300
+    });
     if (setupRequired) {
       const msg = $('act_setup_msg'); if (msg) msg.hidden = false;
-      el.innerHTML = '';
+      el.innerHTML = '<p class="msg">Table not set up yet — see SQL above.</p>';
       return;
+    }
+    // Populate user dropdown from backend-returned unique users
+    const sel = $('act_user_filter');
+    if (sel && users && users.length) {
+      const cur = sel.value;
+      sel.innerHTML = '<option value="">All users</option>' +
+        users.map(u => `<option value="${esc(u)}" ${cur===u?'selected':''}>${esc(u)}</option>`).join('');
+      if (cur) sel.value = cur;
     }
     if (!rows || !rows.length) {
       el.innerHTML = '<p class="msg">No activity recorded yet.</p>';
       return;
     }
-    // Render as table
-    const cols = ['Time','User','Action','Target','Detail'];
-    let h = '<table><thead><tr>' + cols.map(c=>`<th>${c}</th>`).join('') + '</tr></thead><tbody>';
+    let h = '<table><thead><tr>' +
+      ['Time','User','Action','Target','Detail'].map(c=>`<th>${c}</th>`).join('') +
+      '</tr></thead><tbody>';
     rows.forEach(r => {
-      const actionColor = r.Action.includes('Deleted') ? '#dc2626' :
-                          r.Action.includes('Added')   ? '#16a34a' :
-                          r.Action.includes('Edited')  ? '#d97706' : '#374151';
-      h += '<tr>' +
-        `<td style="white-space:nowrap;font-size:11px">${esc(r.Time)}</td>` +
+      const c = r.Action.includes('Deleted')?'#dc2626':r.Action.includes('Added')?'#16a34a':r.Action.includes('Edited')?'#d97706':'#374151';
+      h += `<tr><td style="white-space:nowrap;font-size:11px">${esc(r.Time)}</td>` +
         `<td><b>${esc(r.User)}</b></td>` +
-        `<td style="color:${actionColor};font-weight:600">${esc(r.Action)}</td>` +
+        `<td style="color:${c};font-weight:600">${esc(r.Action)}</td>` +
         `<td>${esc(r.Target)}</td>` +
-        `<td style="color:#6b7280;font-size:12px">${esc(r.Detail)}</td>` +
-        '</tr>';
+        `<td style="color:#6b7280;font-size:12px">${esc(r.Detail)}</td></tr>`;
     });
-    el.innerHTML = h + '</tbody></table>';
-
-    // Populate user filter dropdown from rows
-    const users = [...new Set(rows.map(r => r.User).filter(Boolean))].sort();
-    const sel = $('act_user_filter');
-    if (sel) {
-      const cur = sel.value;
-      sel.innerHTML = '<option value="">All users</option>' +
-        users.map(u => `<option value="${esc(u)}" ${cur===u?'selected':''}>${esc(u)}</option>`).join('');
-      sel.value = cur;
-      // Re-attach change listener
-      sel.onchange = () => loadActivityLog();
-    }
+    el.innerHTML = h + `</tbody></table><div style="font-size:11px;color:#6b7280;padding:6px 4px">${rows.length} entries shown</div>`;
   } catch(err) {
     el.innerHTML = `<p class="err">${err.message}</p>`;
-    if (err.message.includes('audit_log')) {
-      const msg = $('act_setup_msg'); if (msg) msg.hidden = false;
-    }
+    if (err.message.includes('audit_log')) { const msg=$('act_setup_msg');if(msg)msg.hidden=false; }
   }
+}
+
+
+/* ── EXPENSES FILTER ────────────────────────────────────── */
+let expAllRows = [];
+// Override renderListHtml for expenses to cache rows
+const _origLoadList = loadList;
+async function loadExpensesWithCache(){
+  const r = await api('expenses_list');
+  expAllRows = r.rows||[];
+  renderExpensesTable(expAllRows);
+}
+function renderExpensesTable(rows){
+  if(!rows.length){$('e_list').innerHTML='<p class="msg">No expenses.</p>';return;}
+  $('e_list').innerHTML = tableFrom(rows);
+}
+function filterExpenses(){
+  const q    = (val('e_search')||'').toLowerCase();
+  const from = val('e_from');
+  const to   = val('e_to');
+  let filtered = expAllRows;
+  if(from) filtered = filtered.filter(r=>(r.Date||r.date||'')>=from);
+  if(to)   filtered = filtered.filter(r=>(r.Date||r.date||'')<=to);
+  if(q)    filtered = filtered.filter(r=>Object.values(r).some(v=>String(v||'').toLowerCase().includes(q)));
+  const info=$('e_filter_info');
+  if(info){
+    const parts=[];
+    if(q)parts.push(`"${q}"`);if(from)parts.push(`from ${from}`);if(to)parts.push(`to ${to}`);
+    info.textContent=parts.length?`${filtered.length} of ${expAllRows.length} expenses (${parts.join(', ')})`:'';}
+  renderExpensesTable(filtered);
+}
+
+
+/* ── SHARE SUMMARY FILTER ───────────────────────────────── */
+let shareSummaryRows = [];
+const _origLoadShareSummary = loadShareSummary;
+async function loadShareSummary(){
+  const el=$('sh_summary_list');if(!el)return;
+  el.innerHTML='<p class="msg">Loading…</p>';
+  try{
+    const{rows,total,setupRequired}=await api('share_summary');
+    if(setupRequired){showShareSetup();return;}
+    shareSummaryRows=rows||[];
+    renderShareSummary(shareSummaryRows,total);
+  }catch(err){el.innerHTML=`<p class="err">${err.message}</p>`;if(err.message.includes('share_txns'))showShareSetup();}
+}
+function renderShareSummary(rows,total){
+  const el=$('sh_summary_list');if(!el)return;
+  if(!rows.length){el.innerHTML='<p class="msg">No share capital recorded yet.</p>';return;}
+  el.innerHTML=dashTable(rows)+
+    `<div style="text-align:right;font-weight:700;font-size:14px;padding:10px 6px;border-top:2px solid var(--border)">Total Share Capital: ${rupee(total||rows.reduce((a,r)=>a+Number(r['Share Capital Collected']||0),0))}</div>`;
+}
+function filterShareSummary(q){
+  q=(q||'').toLowerCase();
+  const filtered=q?shareSummaryRows.filter(r=>Object.values(r).some(v=>String(v||'').toLowerCase().includes(q))):shareSummaryRows;
+  const total=filtered.reduce((a,r)=>a+Number(r['Share Capital Collected']||0),0);
+  renderShareSummary(filtered,total);
 }
 
 /* ── MODAL ───────────────────────────────────────────────────── */
