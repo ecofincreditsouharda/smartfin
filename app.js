@@ -1565,7 +1565,7 @@ function loadModulePerms(){
   const role=roleMatch?roleMatch[1]:'Operator';
   const allowed=getModulePerms(userId,role);
   const MODULE_LABELS={dashboard:'Dashboard',members:'Members',loans:'Loans',repayments:'Repayments',
-    deposits:'Fixed Deposits',savings:'Savings',transfers:'Transfers',society:'Society Bank',
+    deposits:'Fixed Deposits',savings:'Savings',shares:'Share Capital',transfers:'Transfers',society:'Society Bank',
     expenses:'Expenses',reports:'Reports',approvals:'Loan Approvals',settings:'Settings',users:'Users',account:'My Account'};
   let h='';
   ALL_MODULES.forEach(mod=>{
