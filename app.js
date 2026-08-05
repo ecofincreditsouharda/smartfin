@@ -45,7 +45,7 @@ async function api(action, payload={}) {
 const summaryHtml = pairs => pairs.map(([k,v])=>`<div><span>${esc(k)}</span><b>${v}</b></div>`).join('');
 /* Dashboard table: fixed equal columns, content centred */
 const dashTable = rows => {
-  if(!rows||!rows.length) return '<p class="msg">Nothing to show.</p>';
+  if(!rows||!rows.length) return '<p class="msg" style="text-align:center;padding:24px;color:#9ca3af;font-size:13px">No records found.</p>';
   const cols=Object.keys(rows[0]);
   const isNum=c=>/^(amount|emi|balance|paid|arrears|payout)/i.test(c.trim());
   const pct=Math.floor(100/cols.length)+'%';
@@ -68,9 +68,13 @@ const tableFrom = rows => {
   return h+'</tbody></table>';
 };
 const schedTable = sch => {
-  let h='<table><tr><th>#</th><th>Date</th><th>Opening</th><th>Interest</th><th>Principal</th><th>Instalment</th><th>Closing</th></tr>';
-  sch.forEach(x=>h+=`<tr><td>${x.period}</td><td>${x.date}</td><td>${rupee(x.opening)}</td><td>${rupee(x.interest)}</td><td>${rupee(x.principal)}</td><td>${rupee(x.emi)}</td><td>${rupee(x.closing)}</td></tr>`);
-  return h+'</table>';
+  const cols=['#','Date','Opening','Interest','Principal','Instalment','Closing'];
+  let h='<table><thead><tr>'+cols.map((c,i)=>`<th${i>1?' class="num"':''}>${c}</th>`).join('')+'</tr></thead><tbody>';
+  sch.forEach(x=>h+=`<tr><td>${x.period}</td><td style="white-space:nowrap">${x.date}</td>`+
+    `<td class="num">${rupee(x.opening)}</td><td class="num">${rupee(x.interest)}</td>`+
+    `<td class="num">${rupee(x.principal)}</td><td class="num" style="font-weight:600">${rupee(x.emi)}</td>`+
+    `<td class="num">${rupee(x.closing)}</td></tr>`);
+  return h+'</tbody></table>';
 };
 const fileToB64 = f => new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=rej;r.readAsDataURL(f);});
 
@@ -136,6 +140,9 @@ function setupPwToggle(btnId, inputId) {
   });
 }
 
+function setViewTitle(title){
+  const el=$('view_title');if(el)el.textContent=title;
+}
 function applyBranding(appName, bankName){
   // APP_NAME = application/UI name shown in splash, login header, topbar, nav
   // BANK     = cooperative/bank name used ONLY in printed docs (receipts, passbooks, vouchers, reports)
@@ -345,9 +352,11 @@ async function start(user){
   }
   const canApproval=['Admin','CEO','BranchManager','Director'].includes(role);
   document.querySelectorAll('.approval-role').forEach(el=>{
+    // Skip navbtn elements — applyModulePerms handles nav visibility
+    if(el.classList.contains('navbtn')) return;
     if(!canApproval){el.style.display='none';return;}
     if(role==='Director'&&el.classList.contains('add-only')){el.style.display='none';return;}
-    el.style.display=(el.tagName==='BUTTON')?'inline-block':'block';
+    el.style.display=(el.tagName==='BUTTON')?'inline-flex':'block';
   });
   // Apply per-user module permissions (overrides defaults)
   applyModulePerms(user.userId, role);
@@ -373,11 +382,16 @@ async function populateBranchSelects(){
     else if(cur&&names.includes(cur)) sel.value=cur;
   });
 }
+const VIEW_TITLES={dashboard:'Dashboard',members:'Members',loans:'Loans',repayments:'Repayments',
+  deposits:'Fixed Deposits',savings:'Savings',shares:'Share Capital',transfers:'Transfers',
+  society:'Society Bank',expenses:'Expenses',reports:'Reports',approvals:'Loan Approvals',
+  settings:'Settings',users:'Users',activity:'Activity Log',account:'My Account'};
 function showView(v){
   document.querySelectorAll('.view').forEach(s=>s.hidden=true);
   const vEl=$('view-'+v); if(!vEl) return;
   vEl.hidden=false;
   document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
+  setViewTitle(VIEW_TITLES[v]||v);
   toggleNav(false); refresh(v);
 }
 function refresh(v, manual=false){
@@ -1222,12 +1236,14 @@ async function loadActivityLog() {
       ['Time','User','Action','Target','Detail'].map(c=>`<th>${c}</th>`).join('') +
       '</tr></thead><tbody>';
     rows.forEach(r => {
-      const c = r.Action.includes('Deleted')?'#dc2626':r.Action.includes('Added')?'#16a34a':r.Action.includes('Edited')?'#d97706':'#374151';
-      h += `<tr><td style="white-space:nowrap;font-size:11px">${esc(r.Time)}</td>` +
-        `<td><b>${esc(r.User)}</b></td>` +
-        `<td style="color:${c};font-weight:600">${esc(r.Action)}</td>` +
-        `<td>${esc(r.Target)}</td>` +
-        `<td style="color:#6b7280;font-size:12px">${esc(r.Detail)}</td></tr>`;
+      // Support both "Action" and "action" keys for safety
+      const action = r.Action||r.action||'';
+      const c = action.includes('Deleted')?'#dc2626':action.includes('Added')?'#16a34a':action.includes('Edited')?'#d97706':'#374151';
+      h += `<tr><td style="white-space:nowrap;font-size:11px">${esc(r.Time||r.time||'')}</td>` +
+        `<td><b>${esc(r.User||r.user||'')}</b></td>` +
+        `<td style="color:${c};font-weight:600">${esc(action)}</td>` +
+        `<td>${esc(r.Target||r.target||'')}</td>` +
+        `<td style="color:#6b7280;font-size:12px">${esc(r.Detail||r.detail||'')}</td></tr>`;
     });
     el.innerHTML = h + `</tbody></table><div style="font-size:11px;color:#6b7280;padding:6px 4px">${rows.length} entries shown</div>`;
   } catch(err) {
@@ -1292,6 +1308,20 @@ function filterShareSummary(q){
   const total=filtered.reduce((a,r)=>a+Number(r['Share Capital Collected']||0),0);
   renderShareSummary(filtered,total);
 }
+
+/* ── KEYBOARD SHORTCUTS ─────────────────────────────────────── */
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&editing.type){
+    const section={loan:'loans',deposit:'deposits',expense:'expenses',member:'members'}[editing.type];
+    if(section)cancelEdit(section);
+    return;
+  }
+  if((e.ctrlKey||e.metaKey)&&e.key==='r'){
+    const active=document.querySelector('.navbtn.active');
+    if(active&&active.dataset.view){e.preventDefault();refresh(active.dataset.view,true);}
+    return;
+  }
+});
 
 /* ── MODAL ───────────────────────────────────────────────────── */
 function openModal(title,html){$('modal_title').textContent=title||'';$('modal_body').innerHTML=html;$('modal').hidden=false;}
@@ -1393,18 +1423,20 @@ function printMemberList(){
     `<div class="lh"><img src="${LOGO_URL}" class="ll" onerror="this.style.display='none'"/>`+
     `<div><div class="lb">${esc(BANK)}</div><div class="lt">Member List — As on ${now}</div>`+
     `<div class="ld">Total: ${allMembers.length} members</div></div></div>`+
-    `<table class="ltbl"><thead><tr><th>#</th><th>Member ID</th><th>Name</th><th>Phone</th><th>Branch</th><th>Share Capital</th></tr></thead><tbody>${rows}</tbody></table>`+
+    `<table class="ltbl"><colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"><col class="c5"><col class="c6"></colgroup>`+
+    `<thead><tr><th>#</th><th>Member ID</th><th>Full Name</th><th>Phone</th><th>Branch</th><th>Share Capital</th></tr></thead><tbody>${rows}</tbody></table>`+
     `<div class="lf">Printed on ${now} · ${esc(BANK)}</div>`;
   const css=
-    `@page{size:A4;margin:1.2cm}body{font-family:Arial,sans-serif;font-size:10px;margin:0}`+
-    `.lh{display:flex;align-items:center;gap:12px;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:10px}`+
-    `.ll{width:50px;height:50px;object-fit:contain}.lb{font-size:18px;font-weight:700}`+
-    `.lt{font-size:12px;font-weight:600;margin-top:2px}.ld{font-size:10px;color:#666}`+
-    `.ltbl{width:100%;border-collapse:collapse}`+
-    `.ltbl th{background:#1a3a8f;color:#fff;font-size:9px;text-transform:uppercase;padding:5px 7px;border:1px solid #bbb;text-align:left}`+
-    `.ltbl td{padding:4px 7px;border:1px solid #ddd;font-size:10px}`+
+    `@page{size:A4;margin:1cm}body{font-family:Arial,sans-serif;font-size:9px;margin:0;padding:0}`+
+    `.lh{display:flex;align-items:center;gap:10px;border-bottom:2px solid #111;padding-bottom:8px;margin-bottom:8px}`+
+    `.ll{width:42px;height:42px;object-fit:contain;flex-shrink:0}.lb{font-size:15px;font-weight:700}`+
+    `.lt{font-size:11px;font-weight:600;margin-top:1px}.ld{font-size:9px;color:#666}`+
+    `.ltbl{width:100%;border-collapse:collapse;table-layout:fixed}`+
+    `.ltbl th{background:#1a3a8f;color:#fff;font-size:8px;text-transform:uppercase;padding:4px 5px;border:1px solid #aaa;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}`+
+    `.ltbl td{padding:3px 5px;border:1px solid #ddd;font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}`+
     `.ltbl tr:nth-child(even) td{background:#f5f7fc}`+
-    `.lf{margin-top:12px;border-top:1px solid #aaa;padding-top:5px;font-size:9px;color:#888;text-align:center}`;
+    `.ltbl col.c1{width:5%}.ltbl col.c2{width:13%}.ltbl col.c3{width:30%}.ltbl col.c4{width:15%}.ltbl col.c5{width:22%}.ltbl col.c6{width:15%}`+
+    `.lf{margin-top:10px;border-top:1px solid #aaa;padding-top:4px;font-size:8px;color:#888;text-align:center}`;
   printDoc(body,css,'');
 }
 function printMemberDetail(){
