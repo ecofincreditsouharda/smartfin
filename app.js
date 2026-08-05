@@ -429,19 +429,22 @@ function showToast(msg,type){
 async function loadDashboard(){
   $('dash').innerHTML='<p class="msg">Loading…</p>';$('dash_overdue').innerHTML='';
   try{const{stats,overdue,extraStats}=await api('dashboard_stats');
-    let html=[['Loans',stats.loanCount,''],['Amount Disbursed',rupee(stats.totalDisbursed),''],
-      ['Due This Month',rupee(stats.dueThisMonth),''],['Members in Arrears',stats.overdueCount,stats.overdueCount?'warn':''],
-      ['Total Arrears',rupee(stats.totalArrears),stats.totalArrears>0?'warn':'']]
-      .map(([l,v,c])=>`<div class="stat ${c}"><span>${l}</span><b>${v}</b></div>`).join('');
+    const mkStat=(l,v,c,nav,sub)=>`<div class="stat ${c}" onclick="showView('${nav}')" title="Click to open ${nav}">`+
+      `<span>${l}</span><b>${v}</b><small>${sub}</small></div>`;
+    let html=
+      mkStat('Total Loans',stats.loanCount,'','loans','Active loan accounts')+
+      mkStat('Amount Disbursed',rupee(stats.totalDisbursed),'','loans','Total principal given out')+
+      mkStat('Due This Month',rupee(stats.dueThisMonth),'','repayments','Scheduled EMI collections')+
+      mkStat('Members in Arrears',stats.overdueCount,stats.overdueCount?'warn':'ok','repayments',stats.overdueCount?'Missed EMIs detected':'All EMIs up to date')+
+      mkStat('Total Arrears',rupee(stats.totalArrears),stats.totalArrears>0?'warn':'ok','repayments',stats.totalArrears>0?'Outstanding overdue amount':'No outstanding arrears');
     if(extraStats){
-      html+=[
-        ['Interest Due This Month',rupee(extraStats.interestDueMonth),''],
-        ['Principal Due This Month',rupee(extraStats.principalDueMonth),''],
-        ['New Loans This Month',extraStats.newLoansThisMonth,''],
-        ['FDs Held (active)',rupee(extraStats.totalFDHeld),''],
-        ['Total Savings Balance',rupee(extraStats.totalSavingsBalance),''],
-        ['Share Capital Collected',rupee(extraStats.totalShareCapital),''],
-      ].map(([l,v,c])=>`<div class="stat ${c}"><span>${l}</span><b>${v}</b></div>`).join('');
+      html+=
+        mkStat('Interest Due This Month',rupee(extraStats.interestDueMonth),'','repayments','')+
+        mkStat('Principal Due This Month',rupee(extraStats.principalDueMonth),'','repayments','')+
+        mkStat('New Loans This Month',extraStats.newLoansThisMonth,'ok','loans','')+
+        mkStat('FDs Held (active)',rupee(extraStats.totalFDHeld),'','deposits','Active fixed deposits')+
+        mkStat('Total Savings Balance',rupee(extraStats.totalSavingsBalance),'','savings','Across all accounts')+
+        mkStat('Share Capital Collected',rupee(extraStats.totalShareCapital),'ok','shares','Total share capital');
       if(extraStats.expiringFDs&&extraStats.expiringFDs.length)
         $('dash_overdue').innerHTML+=
           '<h3 style="margin-top:16px;color:#d97706">FDs Expiring in Next 30 Days ('+extraStats.expiringFDs.length+')</h3>'+
@@ -640,6 +643,29 @@ async function printPastReceipt(receiptNo){
 }
 /* ── PRINT FUNCTIONS ─────────────────────────────────────────── */
 /* PWA-safe print via srcdoc + onload */
+function printTable(title, tableHtml){
+  const now=new Date().toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric'});
+  const body=
+    `<div style="display:flex;align-items:center;gap:12px;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:12px">`+
+    `<img src="${LOGO_URL}" style="width:44px;height:44px;object-fit:contain" onerror="this.style.display='none'"/>`+
+    `<div><div style="font-size:17px;font-weight:700">${esc(BANK)}</div>`+
+    `<div style="font-size:12px;font-weight:600">${esc(title)}</div></div></div>`+
+    tableHtml+
+    `<div style="margin-top:14px;border-top:1px solid #aaa;padding-top:5px;font-size:9px;color:#888;text-align:center">Printed on ${now} · ${esc(BANK)}</div>`;
+  const css=
+    `@page{size:A4 landscape;margin:1.2cm}`+
+    `*{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:10px;margin:0}`+
+    `table{width:100%;border-collapse:collapse}th{background:#1a3a8f;color:#fff;font-size:9px;`+
+    `text-transform:uppercase;padding:5px 7px;text-align:left;border:1px solid #aaa}`+
+    `td{padding:4px 7px;border:1px solid #ddd;font-size:10px}`+
+    `tr:nth-child(even) td{background:#f5f7fc}`;
+  printDoc(body,css,'');
+}
+function getCurrentTableHtml(listId){
+  const el=$(listId);if(!el)return'<p>No data.</p>';
+  const tbl=el.querySelector('table');
+  return tbl?tbl.outerHTML:'<p>No data to print.</p>';
+}
 function printDoc(inner,pageCss,extraCss){
   const base=`body{font-family:Arial,sans-serif;color:#000}
     .hd{display:flex;align-items:center;gap:14px;border-bottom:2px solid #333;padding-bottom:8px;margin-bottom:12px}
@@ -1205,6 +1231,21 @@ function printShareReceipt() {
 /* ══════════════════════════════════════════════════
    ACTIVITY LOG MODULE (Admin only)
    ════════════════════════════════════════════════ */
+async function testActivityLog(){
+  const el=$('act_list');if(!el)return;
+  el.innerHTML='<p class="msg">Testing audit_log table…</p>';
+  try{
+    const res=await api('activity_test');
+    if(res.canWrite){
+      el.innerHTML='<p style="color:#16a34a;padding:12px;background:#f0fdf4;border-radius:8px;font-size:13px">audit_log table is working correctly. Refreshing…</p>';
+      setTimeout(loadActivityLog,1500);
+    } else {
+      el.innerHTML=`<div style="padding:14px;background:#fef2f2;border-radius:8px"><p style="color:#dc2626;font-weight:600;margin:0 0 8px">Error: ${esc(res.error||'Unknown')}</p>`+
+        `<p style="font-size:12px;color:#374151;margin:0 0 8px">Run this SQL in your Supabase SQL Editor:</p>`+
+        `<pre style="font-size:11px;background:#1f2937;color:#f9fafb;padding:10px;border-radius:6px;overflow:auto;margin:0">GRANT ALL ON public.audit_log TO service_role;\nCREATE POLICY IF NOT EXISTS "service_role_all" ON public.audit_log FOR ALL TO service_role USING (true) WITH CHECK (true);</pre></div>`;
+    }
+  }catch(err){el.innerHTML=`<p class="err">${esc(err.message)}</p>`;}
+}
 async function loadActivityLog() {
   const el = $('act_list'); if (!el) return;
   el.innerHTML = '<p class="msg">Loading…</p>';
