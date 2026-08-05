@@ -1167,7 +1167,7 @@ async function loadActivityLog() {
   const toDate       = val('act_to')   || '';
   try {
     const { rows, users, setupRequired } = await api('activity_log', {
-      userId: filterUserId, fromDate, toDate, limit: 300
+      userName: filterUserId, fromDate, toDate, limit: 500
     });
     if (setupRequired) {
       const msg = $('act_setup_msg'); if (msg) msg.hidden = false;
