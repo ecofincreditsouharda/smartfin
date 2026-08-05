@@ -262,9 +262,19 @@ const DEFAULT_MODULES={
 };
 function getModulePerms(userId, role){
   const key='modperms_'+userId;
+  const defaults=(DEFAULT_MODULES[role]||['dashboard','account']).slice();
+  // Admin always gets everything
+  if(role==='Admin') return ALL_MODULES.slice();
   const stored=localStorage.getItem(key);
-  if(stored){try{return JSON.parse(stored);}catch(e){}}
-  return (DEFAULT_MODULES[role]||['dashboard','account']).slice();
+  if(stored){
+    try{
+      const cached=JSON.parse(stored);
+      // Keep cached but add any new defaults for this role not yet in cache
+      const merged=[...new Set([...cached,...defaults])];
+      return merged.filter(m=>defaults.includes(m));
+    }catch(e){}
+  }
+  return defaults;
 }
 function setModulePerms(userId, perms){ localStorage.setItem('modperms_'+userId, JSON.stringify(perms)); }
 function applyModulePerms(userId, role){
@@ -580,7 +590,7 @@ async function loadLedger(){
   try{const{ledger}=await api('repayment_ledger',{loanId:id});const s=ledger.summary;
     $('r_ledgerHead').hidden=false;$('r_ledgerTitle').textContent='Ledger — '+id;
     $('r_summary').innerHTML=summaryHtml([['Total Payable',rupee(s.totalPayable)],['Total Paid',rupee(s.totalPaid)],
-      ['Balance Remaining',rupee(s.balanceRemaining)],['Scheduled Due To-Date',rupee(s.scheduledDueToDate)],
+      ['Balance Remaining',rupee(s.balanceRemaining)],['Penalties Charged',s.totalPenalty>0?rupee(s.totalPenalty):'—'],['Scheduled Due To-Date',rupee(s.scheduledDueToDate)],
       ['Arrears / (Advance)',rupee(s.arrears)],['Next Due',s.nextDueDate+' · '+rupee(s.nextDueAmount)]]);
     $('r_addCard').hidden=(session.role==='Director');$('r_receiptBox').hidden=true;
     let rh='<table><tr><th style="text-align:left">Receipt</th><th style="text-align:left">Date</th><th style="text-align:right">Amount</th><th style="text-align:left">Mode</th><th style="text-align:left">Note</th><th></th></tr>';
@@ -715,7 +725,7 @@ function loanFromForm(){return{Borrower:val('l_Borrower'),MemberID:val('l_Member
   Method:val('l_Method'),Frequency:val('l_Frequency'),SanctionDate:val('l_SanctionDate'),
   DisbursementDate:val('l_DisbursementDate'),FirstEMIDate:val('l_FirstEMIDate'),CustomEMI:val('l_CustomEMI'),
   Collector:val('l_Collector'),G1Name:val('l_G1Name'),G1MemberID:val('l_G1MemberID'),
-  G2Name:val('l_G2Name'),G2MemberID:val('l_G2MemberID')};}
+  G2Name:val('l_G2Name'),G2MemberID:val('l_G2MemberID'),Recommendation:val('l_Recommendation')};}
 async function previewLoan(){
   $('l_msg').textContent='Calculating…';
   try{const{result,meta}=await api('loan_preview',{loan:loanFromForm()});
@@ -825,6 +835,28 @@ async function savingsTxn(){
     $('st_msg').textContent=txnNo+' · balance '+rupee(balance);$('st_Amount').value='';
     if(val('pb_SavingsID')===val('st_SavingsID'))loadPassbook();
   }catch(err){$('st_msg').textContent='';alert(err.message);}
+}
+async function closeSavingsAccount(savingsId){
+  const sid=esc(savingsId);
+  openModal('Close Savings Account',
+    `<div style="padding:8px 0">
+      <p style="font-size:14px;color:#374151;margin:0 0 8px">Close account <b>${sid}</b>?</p>
+      <p style="font-size:12px;color:#6b7280;background:#fef3c7;padding:8px 12px;border-radius:6px;margin:0 0 16px">
+        Remaining balance will be auto-withdrawn and posted to Society Bank.
+      </p>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="ghost" onclick="closeModal()">Cancel</button>
+        <button class="primary" style="background:#dc2626" onclick="confirmCloseSavings('${sid}')">Close Account</button>
+      </div></div>`
+  );
+}
+async function confirmCloseSavings(savingsId){
+  closeModal();
+  try{
+    const res=await api('savings_close',{savingsId});
+    showToast('Account '+savingsId+' closed. Balance returned: '+rupee(res.balanceReturned),'ok');
+    loadList('savings_list','s_list');
+  }catch(err){showToast('Error: '+err.message,'err');}
 }
 async function loadPassbook(){
   const id=val('pb_SavingsID').trim();if(!id)return;
@@ -1347,6 +1379,33 @@ async function showMember(id){
     }else h+=`<p style="margin-top:8px;color:#7b8794;font-size:13px">No savings accounts linked.</p>`;
     $('m_detail').innerHTML=h;$('m_card').scrollIntoView({behavior:'smooth'});
   }catch(err){alert(err.message);}
+}
+function printMemberList(){
+  if(!allMembers||!allMembers.length){showToast('Load members list first','err');return;}
+  const now=new Date().toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric'});
+  let rows='';
+  allMembers.forEach((m,i)=>{
+    rows+=`<tr><td>${i+1}</td><td>${esc(m['Member ID']||'')}</td><td>${esc(m['Full Name']||'')}</td>`+
+      `<td>${esc(m.Phone||'')}</td><td>${esc(m.Branch||'')}</td>`+
+      `<td style="text-align:right">${esc(m['Share Capital']||'—')}</td></tr>`;
+  });
+  const body=
+    `<div class="lh"><img src="${LOGO_URL}" class="ll" onerror="this.style.display='none'"/>`+
+    `<div><div class="lb">${esc(BANK)}</div><div class="lt">Member List — As on ${now}</div>`+
+    `<div class="ld">Total: ${allMembers.length} members</div></div></div>`+
+    `<table class="ltbl"><thead><tr><th>#</th><th>Member ID</th><th>Name</th><th>Phone</th><th>Branch</th><th>Share Capital</th></tr></thead><tbody>${rows}</tbody></table>`+
+    `<div class="lf">Printed on ${now} · ${esc(BANK)}</div>`;
+  const css=
+    `@page{size:A4;margin:1.2cm}body{font-family:Arial,sans-serif;font-size:10px;margin:0}`+
+    `.lh{display:flex;align-items:center;gap:12px;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:10px}`+
+    `.ll{width:50px;height:50px;object-fit:contain}.lb{font-size:18px;font-weight:700}`+
+    `.lt{font-size:12px;font-weight:600;margin-top:2px}.ld{font-size:10px;color:#666}`+
+    `.ltbl{width:100%;border-collapse:collapse}`+
+    `.ltbl th{background:#1a3a8f;color:#fff;font-size:9px;text-transform:uppercase;padding:5px 7px;border:1px solid #bbb;text-align:left}`+
+    `.ltbl td{padding:4px 7px;border:1px solid #ddd;font-size:10px}`+
+    `.ltbl tr:nth-child(even) td{background:#f5f7fc}`+
+    `.lf{margin-top:12px;border-top:1px solid #aaa;padding-top:5px;font-size:9px;color:#888;text-align:center}`;
+  printDoc(body,css,'');
 }
 function printMemberDetail(){
   if(!currentMemberId){alert('Open a member first.');return;}
