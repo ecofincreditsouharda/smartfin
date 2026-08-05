@@ -106,7 +106,7 @@
         </div>
         <div class="actions"><button id="m_add" class="primary">Add member</button><button type="button" class="ghost" data-clear="members">Clear</button><button type="button" class="ghost" id="m_cancel_edit" style="display:none;color:#dc2626" onclick="cancelEdit('member')">Cancel edit</button><span id="m_msg" class="msg"></span></div>
       </div>
-      <div class="card"><div class="card-head"><h2>Members</h2><button class="ghost" data-refresh="members">Refresh</button></div>
+      <div class="card"><div class="card-head"><h2>Members</h2><span style="display:flex;gap:8px"><button class="ghost" onclick="printMemberList()">Print List</button><button class="ghost" data-refresh="members">Refresh</button></span></div>
         <div class="grid" style="margin-bottom:10px"><label>Search members<input id="m_search" placeholder="name · member ID · phone" /></label></div>
         <div class="scrolly-list" id="m_list"></div></div>
       <div class="card" id="m_card" hidden><div class="card-head"><h2>Member details</h2><span><button class="ghost" id="m_print_detail">🖨 Print</button><button class="ghost" style="color:#dc2626" id="m_delete">🗑 Delete</button><button class="ghost" id="m_close">✕ Close</button></span></div><div id="m_detail"></div></div>
@@ -134,6 +134,7 @@
           <label>Guarantor 1 — Member No.<input id="l_G1MemberID" /></label>
           <label>Guarantor 2 — Name<input id="l_G2Name" /></label>
           <label>Guarantor 2 — Member No.<input id="l_G2MemberID" /></label>
+          <label style="grid-column:1/-1">Loan Recommendation / Purpose<input id="l_Recommendation" placeholder="Purpose, recommending officer, notes…" /></label>
           <!-- Change Loan ID: only shown when editing, for BM/CEO/Admin -->
           <label id="l_NewIdWrap" style="display:none">Change Loan ID (edit only)<input id="l_NewId" placeholder="leave blank to keep current" /></label>
         </div>
@@ -195,6 +196,7 @@
           <label>Payout Mode<input id="d_PayoutMode" value="On Maturity" /></label>
           <label>Remarks<input id="d_Remarks" /></label>
           <label>Nominee<input id="d_Nominee" /></label>
+          <label>Auto-Renew on Maturity<select id="d_AutoRenew"><option value="No">No</option><option value="Yes">Yes — same tenure &amp; rate</option></select></label>
         </div>
         <div class="actions"><button id="d_preview" class="ghost">Preview maturity</button>
           <button id="d_add" class="primary" hidden>Confirm &amp; Save</button><button type="button" class="ghost" data-clear="deposits">Clear</button><button type="button" class="ghost" id="d_cancel_edit" style="display:none;color:#dc2626" onclick="cancelEdit('deposits')">Cancel edit</button><span id="d_msg" class="msg"></span></div>
