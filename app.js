@@ -1782,6 +1782,14 @@ function renderHierarchy(levels){
   });
   currentHierarchyLevels=[...levels];
 }
+function clearAllModuleCache(){
+  const keys=Object.keys(localStorage).filter(k=>k.startsWith('modperms_'));
+  keys.forEach(k=>localStorage.removeItem(k));
+  const msg=$('cache_msg');
+  if(msg)msg.textContent='Cleared '+keys.length+' entry(ies). Re-login to apply.';
+  showToast('Module cache cleared — please re-login','ok');
+  if(session)applyModulePerms(session.userId,session.role);
+}
 function saveHierarchy(){
   if(!currentHierarchyLevels.length)return;
   localStorage.setItem('coop_hierarchy',JSON.stringify(currentHierarchyLevels));
