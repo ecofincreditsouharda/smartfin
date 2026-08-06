@@ -1,4 +1,3 @@
-
 /* ── CONFIG ──────────────────────────────────────────────────── */
 const WEB_APP_URL = 'https://tgopjjtamvoftzdfvzuc.supabase.co/functions/v1/api';
 const IDLE_MS = 60 * 1000;
@@ -270,16 +269,16 @@ const DEFAULT_MODULES={
 };
 function getModulePerms(userId, role){
   const key='modperms_'+userId;
-  const defaults=(DEFAULT_MODULES[role]||['dashboard','account']).slice();
-  // Admin always gets everything
+  // Admin always gets ALL modules — no cache
   if(role==='Admin') return ALL_MODULES.slice();
+  const defaults=(DEFAULT_MODULES[role]||['dashboard','account']).slice();
   const stored=localStorage.getItem(key);
   if(stored){
     try{
       const cached=JSON.parse(stored);
-      // Keep cached but add any new defaults for this role not yet in cache
-      const merged=[...new Set([...cached,...defaults])];
-      return merged.filter(m=>defaults.includes(m));
+      // Use stored permissions as-is (admin's explicit choices).
+      // Only include modules that exist in ALL_MODULES (filter out stale/removed modules).
+      return cached.filter(m=>ALL_MODULES.includes(m));
     }catch(e){}
   }
   return defaults;
@@ -290,7 +289,7 @@ function applyModulePerms(userId, role){
   document.querySelectorAll('.navbtn[data-view]').forEach(b=>{
     const v=b.dataset.view;
     // Explicitly show OR hide — never leave stale hidden state
-    b.style.display=allowed.includes(v)?'':'none';
+    b.style.display=allowed.includes(v)?'block':'none';
   });
 }
 
@@ -431,22 +430,22 @@ function showToast(msg,type){
 async function loadDashboard(){
   $('dash').innerHTML='<p class="msg">Loading…</p>';$('dash_overdue').innerHTML='';
   try{const{stats,overdue,extraStats}=await api('dashboard_stats');
-    const mkStat=(l,v,c,nav,sub)=>`<div class="stat ${c}" onclick="showView('${nav}')" title="Click to open ${nav}">`+
-      `<span>${l}</span><b>${v}</b><small>${sub}</small></div>`;
+    const mkStat=(l,v,c,nav)=>`<div class="stat ${c}" onclick="showView('${nav}')">`+
+      `<span>${l}</span><b>${v}</b></div>`;
     let html=
-      mkStat('Total Loans',stats.loanCount,'','loans','Active loan accounts')+
-      mkStat('Amount Disbursed',rupee(stats.totalDisbursed),'','loans','Total principal given out')+
-      mkStat('Due This Month',rupee(stats.dueThisMonth),'','repayments','Scheduled EMI collections')+
+      mkStat('Total Loans',stats.loanCount,'','loans')+
+      mkStat('Amount Disbursed',rupee(stats.totalDisbursed),'','loans')+
+      mkStat('Due This Month',rupee(stats.dueThisMonth),'','repayments')+
       mkStat('Members in Arrears',stats.overdueCount,stats.overdueCount?'warn':'ok','repayments',stats.overdueCount?'Missed EMIs detected':'All EMIs up to date')+
       mkStat('Total Arrears',rupee(stats.totalArrears),stats.totalArrears>0?'warn':'ok','repayments',stats.totalArrears>0?'Outstanding overdue amount':'No outstanding arrears');
     if(extraStats){
       html+=
-        mkStat('Interest Due This Month',rupee(extraStats.interestDueMonth),'','repayments','')+
-        mkStat('Principal Due This Month',rupee(extraStats.principalDueMonth),'','repayments','')+
-        mkStat('New Loans This Month',extraStats.newLoansThisMonth,'ok','loans','')+
-        mkStat('FDs Held (active)',rupee(extraStats.totalFDHeld),'','deposits','Active fixed deposits')+
-        mkStat('Total Savings Balance',rupee(extraStats.totalSavingsBalance),'','savings','Across all accounts')+
-        mkStat('Share Capital Collected',rupee(extraStats.totalShareCapital),'ok','shares','Total share capital');
+        mkStat('Interest Due This Month',rupee(extraStats.interestDueMonth),'','repayments')+
+        mkStat('Principal Due This Month',rupee(extraStats.principalDueMonth),'','repayments')+
+        mkStat('New Loans This Month',extraStats.newLoansThisMonth,'ok','loans')+
+        mkStat('FDs Held (active)',rupee(extraStats.totalFDHeld),'','deposits')+
+        mkStat('Total Savings Balance',rupee(extraStats.totalSavingsBalance),'','savings')+
+        mkStat('Share Capital Collected',rupee(extraStats.totalShareCapital),'ok','shares');
       if(extraStats.expiringFDs&&extraStats.expiringFDs.length)
         $('dash_overdue').innerHTML+=
           '<h3 style="margin-top:16px;color:#d97706">FDs Expiring in Next 30 Days ('+extraStats.expiringFDs.length+')</h3>'+
