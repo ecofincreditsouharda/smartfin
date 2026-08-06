@@ -187,14 +187,14 @@ tbody tr:hover td{background:#fafbff}
   color:var(--ink);vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dash-tbl tbody tr:last-child td{border-bottom:none}
 .dash-tbl tbody tr:hover td{background:#fafbff}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:4px}
 .stat{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);
-  padding:14px 14px 12px;display:flex;flex-direction:column;gap:3px;
+  padding:14px 16px;display:flex;flex-direction:column;gap:4px;
   border-top:3px solid var(--blue);cursor:pointer;
-  transition:box-shadow .15s,transform .1s}
-.stat:hover{box-shadow:0 4px 14px rgba(0,0,0,.09);transform:translateY(-1px)}
-.stat span{font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:600;letter-spacing:.05em;line-height:1.3}
-.stat b{font-size:28px;font-weight:700;color:var(--head);line-height:1.15;margin-top:2px}
-.stat small{font-size:11px;color:var(--muted);margin-top:2px}
+  transition:box-shadow .12s,transform .1s}
+.stat:hover{box-shadow:0 4px 12px rgba(0,0,0,.08);transform:translateY(-1px)}
+.stat span{font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:600;letter-spacing:.04em}
+.stat b{font-size:22px;font-weight:700;color:var(--head);line-height:1.2}
 .stat.warn{border-top-color:var(--danger)}
 .stat.warn b{color:var(--danger)}
 .stat.ok{border-top-color:#16a34a}
