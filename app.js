@@ -217,7 +217,7 @@ document.addEventListener('click',e=>{
     set_save:saveSettings, hier_save:saveHierarchy, hier_reset:resetHierarchy,
     u_add:addUser, mp_load:loadModulePerms, mp_save:saveModulePerms, mp_reset_perms:resetModulePerms,
     cp_go:changePw, prof_save:saveProfile, prof_photo_save:saveProfilePhoto,
-    reset_go:resetAll, logoutBtn:logout
+    reset_go:resetAll, logoutBtn:logout, forceRefreshBtn:forceRefresh
   };
   if(map[t.id]) return map[t.id]();
   if(d.loan)   return showSchedule(d.loan);
@@ -249,6 +249,12 @@ async function login(){
     if(msg){ msg.style.color='#dc2626'; msg.textContent=err.message||'Login failed.'; }
     console.error('[Login error]', err);
   }
+}
+async function forceRefresh(){
+  if('caches' in window){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)));}
+  if(session) localStorage.removeItem('modperms_'+session.userId);
+  showToast('Cache cleared — reloading','ok');
+  setTimeout(()=>location.reload(true),800);
 }
 function logout(){
   clearTimeout(idleTimer);localStorage.removeItem('coop_token');session=null;
@@ -324,7 +330,8 @@ async function start(user){
     `${avatarHtml}`+
     `<div style="text-align:right"><div style="font-size:13px;font-weight:600;color:#111827">${esc(user.name)}</div>`+
     `<div style="font-size:11px;color:#6b7280">${esc(roleLabel)}${branchLabel}</div></div>`+
-    `<button id="logoutBtn" style="margin-left:8px">Sign out</button>`;
+    `<button id="forceRefreshBtn" style="margin-left:4px;font-size:11px;padding:3px 8px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:5px;cursor:pointer" title="Clear app cache and reload">Reload</button>`+
+    `<button id="logoutBtn" style="margin-left:4px">Sign out</button>`;
 
   // Sidebar last-login + avatar (PWA)
   if($('nav_lastlogin')){
@@ -760,6 +767,10 @@ async function autofillMember(query,nameId,memberIdId){
     if(memberIdId&&$(memberIdId))$(memberIdId).value=member.MemberID||'';
     return member;
   }catch(e){return null;}
+}
+function roundCustomEMI(){
+  const el=$('l_CustomEMI');if(!el||!el.value)return;
+  const v=Number(el.value);if(!isNaN(v)&&v>0)el.value=String(Math.round(v));
 }
 function loanFromForm(){return{Borrower:val('l_Borrower'),MemberID:val('l_MemberID'),LoanType:val('l_LoanType'),
   Branch:val('l_Branch'),Amount:val('l_Amount'),RateAnnual:Number(val('l_RatePct'))/100,TenureMonths:val('l_TenureMonths'),
