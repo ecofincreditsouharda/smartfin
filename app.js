@@ -305,6 +305,7 @@ async function start(user){
   applyBranding(APP_NAME, BANK);
   $('gate').hidden=true;$('splash').hidden=true;$('app').hidden=false;resetIdle();
   const role=user.role;
+  if(role==='Admin') localStorage.removeItem('modperms_'+user.userId);
   const canWrite    =['Admin','CEO','BranchManager','Operator','Collector'].includes(role);
   const canReport   =canWrite;
   const canSettings =['Admin','CEO','BranchManager'].includes(role);
@@ -1253,12 +1254,12 @@ async function loadActivityLog() {
   const fromDate     = val('act_from') || '';
   const toDate       = val('act_to')   || '';
   try {
-    const { rows, users, setupRequired } = await api('activity_log', {
-      userName: filterUserId, fromDate, toDate, limit: 500
-    });
+    const _aRes = await api('activity_log', { userName: filterUserId, fromDate, toDate, limit: 500 });
+    const { rows, users, setupRequired } = _aRes;
+    const _actErr = _aRes.errorMsg||'';
     if (setupRequired) {
       const msg = $('act_setup_msg'); if (msg) msg.hidden = false;
-      el.innerHTML = '<p class="msg">Table not set up yet — see SQL above.</p>';
+      el.innerHTML = `<p class="err">Activity log not available${_actErr?' — '+esc(_actErr):''}. Click Test to diagnose.</p>`;
       return;
     }
     // Populate user dropdown from backend-returned unique users
