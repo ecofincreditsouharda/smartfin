@@ -1,4 +1,3 @@
-
 /* ── CONFIG ──────────────────────────────────────────────────── */
 const WEB_APP_URL = 'https://tgopjjtamvoftzdfvzuc.supabase.co/functions/v1/api';
 const IDLE_MS = 60 * 1000;
