@@ -447,6 +447,14 @@ GRANT ALL ON public.share_txns TO service_role;</pre>
         </div>
         <div class="actions"><button id="br_save" class="primary">Save branch</button><span id="br_msg" class="msg"></span></div>
         <div id="br_list"></div></div>
+      <!-- CACHE CLEAR — Admin only -->
+      <div class="card admin-only">
+        <h2>Module Permissions Cache</h2>
+        <p style="font-size:12px;color:#6b7280;margin:0 0 10px">If modules are not showing correctly in the sidebar, clear the cache and re-login.</p>
+        <button class="ghost" onclick="clearAllModuleCache()">Clear Module Cache</button>
+        <span id="cache_msg" class="msg" style="margin-left:8px"></span>
+      </div>
+
       <!-- HIERARCHY CHART — Admin only -->
       <div class="card admin-only">
         <div class="card-head"><h2>Organisation Hierarchy</h2><button class="ghost" id="hier_reset">Reset</button></div>
