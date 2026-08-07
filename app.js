@@ -410,7 +410,7 @@ function refresh(v, manual=false){
   if(v==='deposits')    loadList('deposits_list','d_list',null,'deposits');
   if(v==='savings')     loadList('savings_list','s_list');
   if(v==='shares'){loadShareSummary();loadSharesList();}
-  if(v==='activity'){loadActivityLog();}
+  if(v==='activity'){_actAllRows=[];loadActivityLog(true);}
   if(v==='expenses'){api('expenses_list').then(r=>{expAllRows=r.rows||[];renderExpensesTable(expAllRows);}).catch(e=>$('e_list').innerHTML=`<p class='err'>${e.message}</p>`);}
   if(v==='repayments')  loadRepaymentLoans();
   if(v==='society'&&session.role) loadSociety();
@@ -629,7 +629,7 @@ async function loadLedger(){
       else {$('r_bal_warn').style.display='none';}
     }
     let rh='<table style="table-layout:fixed;width:100%">'
-      +'<colgroup><col style="width:130px"><col style="width:90px"><col style="width:100px"><col style="width:80px"><col style="min-width:100px"><col style="width:60px">'+(  _canEditRec?'<col style="width:55px">':'')+'</colgroup>'
+      +'<colgroup><col style="width:22%"><col style="width:12%"><col style="width:13%"><col style="width:11%"><col style="width:auto"><col style="width:46px">'+(_canEditRec?'<col style="width:42px">':'')+'</colgroup>'
       +'<thead><tr><th>Receipt No</th><th>Date</th><th class="num">Amount</th><th>Mode</th><th>Note</th><th></th>'+(_canEditRec?'<th></th>':'')+'</tr></thead><tbody>';
     ledger.receipts.forEach(x=>rh+=`<tr><td style="font-size:11px">${esc(x.Receipt)}</td><td style="white-space:nowrap">${esc(x.Date)}</td><td class="num">${rupee(x.Amount)}</td>`+
       `<td>${esc(x.Mode||'')}</td><td style="color:#6b7280">${esc(x.Note||'')}</td><td><button class="ghost" data-rprint="${esc(x.Receipt)}">Print</button></td>`+
@@ -1274,14 +1274,33 @@ async function testActivityLog(){
     }
   }catch(err){el.innerHTML=`<p class="err">${esc(err.message)}</p>`;}
 }
-async function loadActivityLog() {
+let _actAllRows=[];
+async function loadActivityLog(forceRefresh) {
   const el = $('act_list'); if (!el) return;
   el.innerHTML = '<p class="msg">Loading…</p>';
   const filterUserId = val('act_user_filter') || '';
   const fromDate     = val('act_from') || '';
   const toDate       = val('act_to')   || '';
   try {
-    const _aRes = await api('activity_log', { userName: filterUserId, fromDate, toDate, limit: 500 });
+    // Use cached rows for client-side filter; fetch fresh on first load or explicit refresh
+    let _aRes;
+    if (_actAllRows.length > 0 && !forceRefresh) {
+      let filtered = _actAllRows;
+      if (filterUserId) filtered = filtered.filter(r=>(r['User']||'')=== filterUserId);
+      if (fromDate) filtered = filtered.filter(r=>(r['_ts']||'')>=fromDate);
+      if (toDate)   filtered = filtered.filter(r=>(r['_ts']||'')<=toDate+'T23:59:59Z');
+      _aRes = { rows: filtered, users:[...new Set(_actAllRows.map(r=>r['User']||'').filter(Boolean))].sort(), setupRequired:false };
+    } else {
+      _aRes = await api('activity_log', { userName:'', fromDate:'', toDate:'', limit:500 });
+      if (_aRes.rows && !_aRes.setupRequired) {
+        _actAllRows = _aRes.rows;
+        let filtered = _actAllRows;
+        if (filterUserId) filtered = filtered.filter(r=>(r['User']||'')=== filterUserId);
+        if (fromDate) filtered = filtered.filter(r=>(r['_ts']||'')>=fromDate);
+        if (toDate)   filtered = filtered.filter(r=>(r['_ts']||'')<=toDate+'T23:59:59Z');
+        _aRes = {..._aRes, rows:filtered};
+      }
+    }
     const { rows, users, setupRequired } = _aRes;
     const _actErr = _aRes.errorMsg||'';
     if (setupRequired) {
