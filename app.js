@@ -1,6 +1,6 @@
 /* ── CONFIG ──────────────────────────────────────────────────── */
 const WEB_APP_URL = 'https://tgopjjtamvoftzdfvzuc.supabase.co/functions/v1/api';
-const IDLE_MS = 180 * 1000;
+const IDLE_MS = 60 * 1000;
 
 let session = null, lastSchedule = null, lastMeta = null, lastReceipt = null, curLoanId = '';
 let editing = { type:null, id:null }, lastVoucher = null, repLoans = [];
@@ -619,10 +619,18 @@ async function loadLedger(){
       ['Balance Remaining',rupee(s.balanceRemaining)],['Penalties Charged',s.totalPenalty>0?rupee(s.totalPenalty):'—'],['Scheduled Due To-Date',rupee(s.scheduledDueToDate)],
       ['Arrears / (Advance)',rupee(s.arrears)],['Next Due',s.nextDueDate+' · '+rupee(s.nextDueAmount)]]);
     $('r_addCard').hidden=(session.role==='Director');$('r_receiptBox').hidden=true;
-    let rh='<table><tr><th style="text-align:left">Receipt</th><th style="text-align:left">Date</th><th style="text-align:right">Amount</th><th style="text-align:left">Mode</th><th style="text-align:left">Note</th><th></th></tr>';
-    ledger.receipts.forEach(x=>rh+=`<tr><td>${esc(x.Receipt)}</td><td>${esc(x.Date)}</td><td style="text-align:right">${rupee(x.Amount)}</td>`+
-      `<td>${esc(x.Mode)}</td><td>${esc(x.Note)}</td><td><button class="ghost" data-rprint="${esc(x.Receipt)}">Print</button></td></tr>`);
-    $('r_recCard').hidden=false;$('r_receipts').innerHTML=rh+'</table>';
+    const _canEditRec=['Admin','CEO','BranchManager'].includes(session?.role||'');
+    // Balance warning or close prompt
+    const bal=ledger.summary.balanceRemaining||0;
+    if($('r_closeLoanWrap')) $('r_closeLoanWrap').style.display=(_canEditRec&&bal<=0)?'inline-flex':'none';
+    let rh='<table style="table-layout:fixed;width:100%">'
+      +'<colgroup><col style="width:130px"><col style="width:90px"><col style="width:100px"><col style="width:80px"><col style="min-width:100px"><col style="width:60px">'+(  _canEditRec?'<col style="width:55px">':'')+'</colgroup>'
+      +'<thead><tr><th>Receipt No</th><th>Date</th><th class="num">Amount</th><th>Mode</th><th>Note</th><th></th>'+(_canEditRec?'<th></th>':'')+'</tr></thead><tbody>';
+    ledger.receipts.forEach(x=>rh+=`<tr><td style="font-size:11px">${esc(x.Receipt)}</td><td style="white-space:nowrap">${esc(x.Date)}</td><td class="num">${rupee(x.Amount)}</td>`+
+      `<td>${esc(x.Mode||'')}</td><td style="color:#6b7280">${esc(x.Note||'')}</td><td><button class="ghost" data-rprint="${esc(x.Receipt)}">Print</button></td>`+
+      (_canEditRec?`<td><button class="ghost" onclick="openReceiptEdit('${esc(x.Receipt)}',${x.Amount},'${esc(x.Date)}','${esc(x.Mode||'')}','${esc(x.Note||'')}',${x.Penalty||0})">Edit</button></td>`:'')
+      +`</tr>`);
+    $('r_recCard').hidden=false;$('r_receipts').innerHTML=rh+'</tbody></table>';
     $('r_schedCard').hidden=false;$('r_sched').innerHTML=schedTable(ledger.schedule);
   }catch(err){alert(err.message);}
 }
@@ -1252,8 +1260,8 @@ async function testActivityLog(){
   try{
     const res=await api('activity_test');
     if(res.canWrite){
-      el.innerHTML='<p style="color:#16a34a;padding:12px;background:#f0fdf4;border-radius:8px;font-size:13px">audit_log table is working correctly. Refreshing…</p>';
-      setTimeout(loadActivityLog,1500);
+      el.innerHTML=`<p style="color:#16a34a;padding:12px;background:#f0fdf4;border-radius:8px;font-size:13px">audit_log has ${res.rowCount||0} row(s). Loading activity log…</p>`;
+      setTimeout(loadActivityLog,800);
     } else {
       el.innerHTML=`<div style="padding:14px;background:#fef2f2;border-radius:8px"><p style="color:#dc2626;font-weight:600;margin:0 0 8px">Error: ${esc(res.error||'Unknown')}</p>`+
         `<p style="font-size:12px;color:#374151;margin:0 0 8px">Run this SQL in your Supabase SQL Editor:</p>`+
@@ -1394,6 +1402,7 @@ async function loadLoansList(){
     allLoans=rows||[];
     if(!rows||!rows.length){if(el)el.innerHTML='<p class="msg">No loans.</p>';return;}
     const canMod=['Admin','CEO'].includes(session?.role||'');
+    const canEdit=['Admin','CEO','BranchManager'].includes(session?.role||'');
     let h='<table><thead><tr><th>Loan ID</th><th>Borrower</th><th>Branch</th><th>Method</th>'+
       '<th class="num">Amount</th><th class="num">Repayable</th><th class="num">Paid</th>'+
       '<th class="num">Balance</th><th>Status</th><th></th></tr></thead><tbody>';
@@ -1410,6 +1419,7 @@ async function loadLoansList(){
         `<td class="num"${r.Balance>0?' style="color:#dc2626"':''}>${rupee(r.Balance)}</td>`+
         `<td>${badge}</td>`+
         `<td style="white-space:nowrap"><button class="ghost" data-loan="${id}">Schedule</button>`+
+        (!closed&&canEdit?` <button class="ghost" data-edit="loans:${id}">Edit</button>`:'')+
         (canMod?` <button class="ghost" onclick="deleteLoan('${id}')" style="color:#dc2626">Delete</button>`:'')
         +`</td></tr>`;
     });
@@ -1471,6 +1481,11 @@ function showClosedLoanDetail(idx){
   });
   h+='</tbody></table></div>';
   const el=$('lh_detail_content');if(el)el.innerHTML=h;
+  // Reactivate button for admins
+  if(['Admin','CEO','BranchManager'].includes(session?.role||'')){
+    const li=item.loan.loan_id;
+    if(el)el.innerHTML+=`<div style="margin-top:16px"><button class="ghost" style="color:#d97706;border:1px solid #d97706" onclick="reactivateLoan('${esc(li)}')">Reactivate this loan</button></div>`;
+  }
   const card=$('lh_detail_card');if(card){card.hidden=false;card.scrollIntoView({behavior:'smooth'});}
 }
 
@@ -1538,6 +1553,27 @@ async function saveReceiptEdit(){
     showToast('Receipt updated','ok');
     editingReceipt=null;
     if(lastLedgerLoanId) loadLedger(lastLedgerLoanId);
+  }catch(err){showToast('Error: '+err.message,'err');}
+}
+
+
+/* ── LOAN STATUS CONTROL ────────────────────────────────────── */
+async function closeLoanManual(loanId){
+  if(!confirm('Mark loan '+loanId+' as Closed? Make sure all payments are recorded.')) return;
+  try{
+    await api('loan_set_status',{loanId,status:'Closed'});
+    showToast('Loan '+loanId+' marked as Closed','ok');
+    loadLoansList();
+  }catch(err){showToast('Error: '+err.message,'err');}
+}
+async function reactivateLoan(loanId){
+  if(!confirm('Reactivate loan '+loanId+'? It will appear as Active again.')) return;
+  try{
+    await api('loan_set_status',{loanId,status:'Active'});
+    showToast('Loan '+loanId+' reactivated','ok');
+    loadLoanHistory();
+    // Also refresh the detail card
+    const card=$('lh_detail_card');if(card)card.hidden=true;
   }catch(err){showToast('Error: '+err.message,'err');}
 }
 
