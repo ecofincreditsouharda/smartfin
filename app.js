@@ -1,6 +1,6 @@
 /* ── CONFIG ──────────────────────────────────────────────────── */
 const WEB_APP_URL = 'https://tgopjjtamvoftzdfvzuc.supabase.co/functions/v1/api';
-const IDLE_MS = 60 * 1000;
+const IDLE_MS = 180 * 1000;
 
 let session = null, lastSchedule = null, lastMeta = null, lastReceipt = null, curLoanId = '';
 let editing = { type:null, id:null }, lastVoucher = null, repLoans = [];
@@ -264,11 +264,11 @@ function logout(){
 }
 
 /* ── MODULE PERMISSIONS (localStorage per userId) ────────────── */
-const ALL_MODULES=['dashboard','members','loans','repayments','deposits','savings','shares','transfers','society','expenses','reports','approvals','settings','users','activity','account'];
+const ALL_MODULES=['dashboard','members','loans','repayments','deposits','savings','shares','transfers','society','expenses','reports','approvals','loan-history','settings','users','activity','account'];
 const DEFAULT_MODULES={
   Admin: ALL_MODULES,
-  CEO: ['dashboard','members','loans','repayments','deposits','savings','shares','transfers','society','expenses','reports','approvals','account'],
-  BranchManager: ['dashboard','members','loans','repayments','deposits','savings','shares','transfers','expenses','reports','approvals','settings','account'],
+  CEO: ['dashboard','members','loans','loan-history','repayments','deposits','savings','shares','transfers','society','expenses','reports','approvals','account'],
+  BranchManager: ['dashboard','members','loans','loan-history','repayments','deposits','savings','shares','transfers','expenses','reports','approvals','settings','account'],
   Operator: ['dashboard','members','loans','repayments','deposits','savings','shares','expenses','account'],
   Collector: ['dashboard','repayments','account'],
   Director: ['dashboard','loans','reports','approvals','account'],
@@ -392,7 +392,7 @@ async function populateBranchSelects(){
 }
 const VIEW_TITLES={dashboard:'Dashboard',members:'Members',loans:'Loans',repayments:'Repayments',
   deposits:'Fixed Deposits',savings:'Savings',shares:'Share Capital',transfers:'Transfers',
-  society:'Society Bank',expenses:'Expenses',reports:'Reports',approvals:'Loan Approvals',
+  society:'Society Bank',expenses:'Expenses',reports:'Reports',approvals:'Loan Approvals','loan-history':'Loan History',
   settings:'Settings',users:'Users',activity:'Activity Log',account:'My Account'};
 function showView(v){
   document.querySelectorAll('.view').forEach(s=>s.hidden=true);
@@ -405,7 +405,8 @@ function showView(v){
 function refresh(v, manual=false){
   if(v==='dashboard')   loadDashboard();
   if(v==='members'){loadList('members_list','m_list','member','member').then(()=>{if(manual)showToast('Members refreshed','ok');});}
-  if(v==='loans')       loadList('loans_list','l_list','loan','loans');
+  if(v==='loans'){loadLoansList();}
+  if(v==='loan-history'){loadLoanHistory();}
   if(v==='deposits')    loadList('deposits_list','d_list',null,'deposits');
   if(v==='savings')     loadList('savings_list','s_list');
   if(v==='shares'){loadShareSummary();loadSharesList();}
@@ -613,7 +614,7 @@ function minimiseLedger(){['r_ledgerHead','r_addCard','r_recCard','r_schedCard']
 async function loadLedger(){
   const id=val('r_LoanId').trim();if(!id)return;curLoanId=id;
   try{const{ledger}=await api('repayment_ledger',{loanId:id});const s=ledger.summary;
-    $('r_ledgerHead').hidden=false;$('r_ledgerTitle').textContent='Ledger — '+id;
+    lastLedgerLoanId=id;$('r_ledgerHead').hidden=false;$('r_ledgerTitle').textContent='Ledger — '+id;
     $('r_summary').innerHTML=summaryHtml([['Total Payable',rupee(s.totalPayable)],['Total Paid',rupee(s.totalPaid)],
       ['Balance Remaining',rupee(s.balanceRemaining)],['Penalties Charged',s.totalPenalty>0?rupee(s.totalPenalty):'—'],['Scheduled Due To-Date',rupee(s.scheduledDueToDate)],
       ['Arrears / (Advance)',rupee(s.arrears)],['Next Due',s.nextDueDate+' · '+rupee(s.nextDueAmount)]]);
@@ -1378,6 +1379,168 @@ document.addEventListener('keydown',e=>{
   }
 });
 
+
+/* ══ LOANS — active/closed filter ══════════════════════════════ */
+let lastLedgerLoanId=null;
+let lhAllLoans=[];
+let lhCurrentLoan=null;
+let editingReceipt=null;
+
+async function loadLoansList(){
+  const showClosed=($('l_show_closed')&&$('l_show_closed').checked)||false;
+  const el=$('l_list');if(el)el.innerHTML='<p class="msg">Loading…</p>';
+  try{
+    const{rows}=await api('loans_list',{showClosed});
+    allLoans=rows||[];
+    if(!rows||!rows.length){if(el)el.innerHTML='<p class="msg">No loans.</p>';return;}
+    const canMod=['Admin','CEO'].includes(session?.role||'');
+    let h='<table><thead><tr><th>Loan ID</th><th>Borrower</th><th>Branch</th><th>Method</th>'+
+      '<th class="num">Amount</th><th class="num">Repayable</th><th class="num">Paid</th>'+
+      '<th class="num">Balance</th><th>Status</th><th></th></tr></thead><tbody>';
+    rows.forEach(r=>{
+      const closed=r.Status==='Closed';
+      const badge=closed
+        ?'<span style="background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">CLOSED</span>'
+        :'<span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">ACTIVE</span>';
+      const id=esc(r['Loan ID']||'');
+      h+=`<tr${closed?' style="color:#9ca3af"':''}><td>${id}</td><td>${esc(r.Borrower||'')}</td>`+
+        `<td>${esc(r.Branch||'')}</td><td>${esc(r.Method||'')}</td>`+
+        `<td class="num">${rupee(r.Amount)}</td><td class="num">${rupee(r['Total Repayable'])}</td>`+
+        `<td class="num">${rupee(r['Total Paid'])}</td>`+
+        `<td class="num"${r.Balance>0?' style="color:#dc2626"':''}>${rupee(r.Balance)}</td>`+
+        `<td>${badge}</td>`+
+        `<td style="white-space:nowrap"><button class="ghost" data-loan="${id}">Schedule</button>`+
+        (canMod?` <button class="ghost" onclick="deleteLoan('${id}')" style="color:#dc2626">Delete</button>`:'')
+        +`</td></tr>`;
+    });
+    if(el)el.innerHTML=h+'</tbody></table>';
+  }catch(err){if(el)el.innerHTML=`<p class="err">${err.message}</p>`;}
+}
+
+/* ══ LOAN HISTORY ════════════════════════════════════════════ */
+async function loadLoanHistory(){
+  const el=$('lh_list');if(!el)return;
+  el.innerHTML='<p class="msg">Loading closed loans…</p>';
+  try{
+    const{loans}=await api('closed_loans');
+    lhAllLoans=loans||[];
+    renderLoanHistoryList(lhAllLoans);
+  }catch(err){el.innerHTML=`<p class="err">${err.message}</p>`;}
+}
+
+function renderLoanHistoryList(loans){
+  const el=$('lh_list');if(!el)return;
+  if(!loans||!loans.length){el.innerHTML='<p class="msg">No closed loans yet.</p>';return;}
+  let h='<table><thead><tr><th>Loan ID</th><th>Borrower</th><th>Branch</th><th class="num">Principal</th>'+
+    '<th class="num">Repayable</th><th class="num">Total Paid</th><th>Closed On</th><th></th></tr></thead><tbody>';
+  loans.forEach(item=>{
+    const l=item.loan;
+    h+=`<tr><td>${esc(l.loan_id)}</td><td>${esc(l.borrower)}</td><td>${esc(l.branch||'')}</td>`+
+      `<td class="num">${rupee(l.amount)}</td><td class="num">${rupee(l.totalRepayable)}</td>`+
+      `<td class="num">${rupee(l.totalPaid)}</td><td>${esc(l.closedOn||'—')}</td>`+
+      `<td><button class="ghost" onclick="showClosedLoanDetail(${loans.indexOf(item)})">Details</button></td></tr>`;
+  });
+  el.innerHTML=h+'</tbody></table>';
+}
+
+function filterLoanHistory(q){
+  q=(q||'').toLowerCase();
+  const f=q?lhAllLoans.filter(item=>(item.loan.loan_id||'').toLowerCase().includes(q)||(item.loan.borrower||'').toLowerCase().includes(q)):lhAllLoans;
+  renderLoanHistoryList(f);
+}
+
+function showClosedLoanDetail(idx){
+  const item=lhAllLoans[idx];if(!item)return;
+  lhCurrentLoan=item;
+  const l=item.loan;
+  const title=$('lh_detail_title');if(title)title.textContent=`${l.loan_id} — ${l.borrower}`;
+  let h=summaryHtml([
+    ['Loan ID',esc(l.loan_id)],['Borrower',esc(l.borrower)],['Branch',esc(l.branch||'')],
+    ['Method',esc(l.method||'')],['Principal',rupee(l.amount)],
+    ['Total Interest',rupee(l.totalInterest)],['Total Repayable',rupee(l.totalRepayable)],
+    ['Total Paid',rupee(l.totalPaid)],['Disbursed On',esc(l.disbursement_date||'—')],
+    ['Closed On',`<b style="color:#16a34a">${esc(l.closedOn||'—')}</b>`]
+  ]);
+  h+='<h3 style="margin:14px 0 6px;font-size:13px;font-weight:700">Repayment Receipts</h3>';
+  h+='<div class="scrolly-list"><table><thead><tr><th>Receipt No</th><th>Date</th><th class="num">Amount</th>'+
+    '<th class="num">Penalty</th><th>Mode</th><th>Note</th></tr></thead><tbody>';
+  item.receipts.forEach(r=>{
+    h+=`<tr><td>${esc(r.receipt_no)}</td><td>${esc(r.date)}</td>`+
+      `<td class="num">${rupee(r.amount)}</td><td class="num">${r.penalty>0?rupee(r.penalty):'—'}</td>`+
+      `<td>${esc(r.mode||'')}</td><td>${esc(r.note||'')}</td></tr>`;
+  });
+  h+='</tbody></table></div>';
+  const el=$('lh_detail_content');if(el)el.innerHTML=h;
+  const card=$('lh_detail_card');if(card){card.hidden=false;card.scrollIntoView({behavior:'smooth'});}
+}
+
+function printClosedLoan(){
+  if(!lhCurrentLoan)return;
+  const item=lhCurrentLoan;const l=item.loan;
+  const now=new Date().toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric'});
+  let rows='';
+  item.receipts.forEach((r,i)=>{
+    rows+=`<tr><td>${i+1}</td><td>${esc(r.receipt_no)}</td><td>${esc(r.date)}</td>`+
+      `<td style="text-align:right">${rupee(r.amount)}</td>`+
+      `<td style="text-align:right">${r.penalty>0?rupee(r.penalty):'—'}</td>`+
+      `<td>${esc(r.mode||'')}</td><td>${esc(r.note||'')}</td></tr>`;
+  });
+  const info=`<table style="width:100%;border-collapse:collapse;margin-bottom:14px;font-size:10px"><tbody>`+
+    `<tr><td style="padding:3px 8px;color:#555;font-weight:600;text-transform:uppercase;font-size:9px;width:140px">Loan ID</td><td>${esc(l.loan_id)}</td><td style="padding:3px 8px;color:#555;font-weight:600;text-transform:uppercase;font-size:9px;width:140px">Borrower</td><td>${esc(l.borrower)}</td></tr>`+
+    `<tr><td style="padding:3px 8px;color:#555;font-weight:600;text-transform:uppercase;font-size:9px">Principal</td><td>${rupee(l.amount)}</td><td style="padding:3px 8px;color:#555;font-weight:600;text-transform:uppercase;font-size:9px">Total Repayable</td><td>${rupee(l.totalRepayable)}</td></tr>`+
+    `<tr><td style="padding:3px 8px;color:#555;font-weight:600;text-transform:uppercase;font-size:9px">Disbursed On</td><td>${esc(l.disbursement_date||'—')}</td><td style="padding:3px 8px;color:#555;font-weight:600;text-transform:uppercase;font-size:9px">Closed On</td><td style="color:#16a34a;font-weight:700">${esc(l.closedOn||'—')}</td></tr>`+
+    `</tbody></table>`;
+  const tbl=`<table style="width:100%;border-collapse:collapse"><thead><tr>`+
+    ['#','Receipt No','Date','Amount (₹)','Penalty','Mode','Note'].map(c=>`<th style="background:#1a3a8f;color:#fff;padding:5px 7px;text-align:left;font-size:9px">${c}</th>`).join('')+
+    `</tr></thead><tbody>${rows}</tbody></table>`;
+  const body=
+    `<div style="display:flex;align-items:center;gap:12px;border-bottom:3px double #111;padding-bottom:10px;margin-bottom:12px">`+
+    `<img src="${LOGO_URL}" style="width:52px;height:52px;object-fit:contain" onerror="this.style.display='none'"/>`+
+    `<div><div style="font-size:18px;font-weight:700">${esc(BANK)}</div>`+
+    `<div style="font-size:13px;font-weight:600;margin-top:2px">Loan Closure Statement</div></div></div>`+
+    info+tbl+
+    `<div style="margin-top:40px;display:flex;justify-content:flex-end">`+
+    `<div style="text-align:center"><div style="border-top:1px solid #333;width:180px;margin:0 auto 4px"></div>Authorised Signatory</div></div>`+
+    `<div style="margin-top:12px;border-top:1px solid #aaa;padding-top:4px;font-size:9px;color:#888;text-align:center">Printed on ${now} · ${esc(BANK)}</div>`;
+  printDoc(body,'@page{size:A4;margin:1.2cm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:10px;margin:0}td,th{font-size:10px}','');
+}
+
+/* ══ REPAYMENT RECEIPT EDIT ══════════════════════════════════ */
+function openReceiptEdit(receiptNo,amount,date,mode,note,penalty){
+  editingReceipt=receiptNo;
+  openModal('Edit Receipt '+receiptNo,
+    `<div style="padding:4px 0"><div class="grid" style="gap:10px">`+
+    `<label>Amount (₹)<input id="re_amount" type="number" value="${esc(String(amount||''))}" /></label>`+
+    `<label>Date<input id="re_date" type="date" value="${esc(String(date||''))}" /></label>`+
+    `<label>Mode<select id="re_mode">`+
+    ['Cash','Online','Cheque','Bank Transfer'].map(m=>`<option${m===mode?' selected':''}>${m}</option>`).join('')+
+    `</select></label>`+
+    `<label>Penalty (₹)<input id="re_penalty" type="number" value="${esc(String(penalty||0))}" /></label>`+
+    `<label style="grid-column:1/-1">Note<input id="re_note" value="${esc(String(note||''))}" /></label>`+
+    `</div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">`+
+    `<button class="ghost" onclick="closeModal()">Cancel</button>`+
+    `<button class="primary" onclick="saveReceiptEdit()">Save</button>`+
+    `</div></div>`
+  );
+}
+async function saveReceiptEdit(){
+  if(!editingReceipt)return;
+  closeModal();
+  try{
+    const res=await api('repayment_edit',{
+      receiptNo:editingReceipt,
+      amount:Number($('re_amount').value),
+      date:$('re_date').value,
+      mode:$('re_mode').value,
+      note:$('re_note').value,
+      penalty:Number($('re_penalty').value||0)
+    });
+    showToast('Receipt updated','ok');
+    editingReceipt=null;
+    if(lastLedgerLoanId) loadLedger(lastLedgerLoanId);
+  }catch(err){showToast('Error: '+err.message,'err');}
+}
+
 /* ── MODAL ───────────────────────────────────────────────────── */
 function openModal(title,html){$('modal_title').textContent=title||'';$('modal_body').innerHTML=html;$('modal').hidden=false;}
 function closeModal(){$('modal').hidden=true;$('modal_body').innerHTML='';}
@@ -1938,7 +2101,7 @@ function loadModulePerms(){
   const allowed=getModulePerms(userId,role);
   const MODULE_LABELS={dashboard:'Dashboard',members:'Members',loans:'Loans',repayments:'Repayments',
     deposits:'Fixed Deposits',savings:'Savings',shares:'Share Capital',transfers:'Transfers',society:'Society Bank',
-    expenses:'Expenses',reports:'Reports',approvals:'Loan Approvals',settings:'Settings',users:'Users',activity:'Activity Log',account:'My Account'};
+    expenses:'Expenses',reports:'Reports',approvals:'Loan Approvals','loan-history':'Loan History',settings:'Settings',users:'Users',activity:'Activity Log',account:'My Account'};
   let h='';
   ALL_MODULES.forEach(mod=>{
     const checked=allowed.includes(mod)?'checked':'';
