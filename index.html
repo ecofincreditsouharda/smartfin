@@ -57,6 +57,7 @@
     <button class="navbtn" data-view="dashboard">Dashboard</button>
     <button class="navbtn" data-view="members">Members</button>
     <button class="navbtn" data-view="loans">Loans</button>
+    <button class="navbtn" data-view="loan-history">Loan History</button>
     <button class="navbtn" data-view="repayments">Repayments</button>
     <button class="navbtn" data-view="deposits">Fixed Deposits</button>
     <button class="navbtn" data-view="savings">Savings</button>
@@ -145,9 +146,38 @@
         <div class="card-head"><h2 id="l_schedTitle">Schedule</h2>
           <span><button class="ghost" id="l_print">Print (A4)</button><button class="ghost" id="l_min">Minimise</button></span></div>
         <div id="l_summary" class="summary"></div><div id="l_sched" class="scrolly"></div></div>
-      <div class="card"><div class="card-head"><h2>Loans</h2><span style="display:flex;gap:8px"><button class="ghost" onclick="printTable('Loans',getCurrentTableHtml('l_list'))">Print</button><button class="ghost" data-refresh="loans">Refresh</button></span></div>
+      <div class="card"><div class="card-head"><h2>Loans</h2>
+        <span style="display:flex;gap:8px;align-items:center">
+          <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px;margin:0;cursor:pointer">
+            <input type="checkbox" id="l_show_closed" onchange="loadLoansList()"> Show closed
+          </label>
+          <button class="ghost" onclick="printTable('Loans',getCurrentTableHtml('l_list'))">Print</button>
+          <button class="ghost" data-refresh="loans">Refresh</button>
+        </span></div>
         <div class="grid" style="margin-bottom:10px"><label>Search loans<input id="l_search" placeholder="name · member ID · phone" /></label></div>
         <div class="scrolly-list" id="l_list"></div></div>
+    </section>
+
+    <!-- LOAN HISTORY -->
+    <section class="view" id="view-loan-history" hidden>
+      <div class="card">
+        <div class="card-head"><h2>Loan History — Closed Loans</h2>
+          <span style="display:flex;gap:8px">
+            <input id="lh_search" placeholder="Search loan / borrower" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;width:180px" oninput="filterLoanHistory(this.value)" />
+            <button class="ghost" data-refresh="loan-history">Refresh</button>
+          </span>
+        </div>
+        <div id="lh_list" class="scrolly-list"></div>
+      </div>
+      <div class="card" id="lh_detail_card" hidden>
+        <div class="card-head"><h2 id="lh_detail_title">Loan Detail</h2>
+          <span style="display:flex;gap:8px">
+            <button class="ghost" onclick="printClosedLoan()">Print</button>
+            <button class="ghost" onclick="$('lh_detail_card').hidden=true">Close</button>
+          </span>
+        </div>
+        <div id="lh_detail_content"></div>
+      </div>
     </section>
 
     <!-- REPAYMENTS -->
