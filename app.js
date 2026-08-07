@@ -623,6 +623,11 @@ async function loadLedger(){
     // Balance warning or close prompt
     const bal=ledger.summary.balanceRemaining||0;
     if($('r_closeLoanWrap')) $('r_closeLoanWrap').style.display=(_canEditRec&&bal<=0)?'inline-flex':'none';
+    // Show warning when balance > 0
+    if($('r_bal_warn')){
+      if(bal>0){$('r_bal_warn').style.display='block';$('r_bal_warn').textContent='Balance remaining: '+rupee(bal);}
+      else {$('r_bal_warn').style.display='none';}
+    }
     let rh='<table style="table-layout:fixed;width:100%">'
       +'<colgroup><col style="width:130px"><col style="width:90px"><col style="width:100px"><col style="width:80px"><col style="min-width:100px"><col style="width:60px">'+(  _canEditRec?'<col style="width:55px">':'')+'</colgroup>'
       +'<thead><tr><th>Receipt No</th><th>Date</th><th class="num">Amount</th><th>Mode</th><th>Note</th><th></th>'+(_canEditRec?'<th></th>':'')+'</tr></thead><tbody>';
@@ -1403,25 +1408,33 @@ async function loadLoansList(){
     if(!rows||!rows.length){if(el)el.innerHTML='<p class="msg">No loans.</p>';return;}
     const canMod=['Admin','CEO'].includes(session?.role||'');
     const canEdit=['Admin','CEO','BranchManager'].includes(session?.role||'');
-    let h='<table><thead><tr><th>Loan ID</th><th>Borrower</th><th>Branch</th><th>Method</th>'+
-      '<th class="num">Amount</th><th class="num">Repayable</th><th class="num">Paid</th>'+
-      '<th class="num">Balance</th><th>Status</th><th></th></tr></thead><tbody>';
+    let h='<table style="table-layout:fixed;width:100%"><colgroup>'+
+      '<col style="width:90px"><col style="min-width:110px"><col style="width:72px">'+
+      '<col style="width:92px"><col style="width:92px"><col style="width:80px"><col style="width:80px"><col style="width:70px"></colgroup>'+
+      '<thead><tr><th>Loan ID</th><th>Borrower</th><th>Method</th>'+
+      '<th class="num">Repayable</th><th class="num">Paid</th>'+
+      '<th class="num">Balance</th><th>Status</th><th style="width:70px">Actions</th></tr></thead><tbody>';
     rows.forEach(r=>{
       const closed=r.Status==='Closed';
       const badge=closed
-        ?'<span style="background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">CLOSED</span>'
-        :'<span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">ACTIVE</span>';
+        ?'<span style="background:#dcfce7;color:#16a34a;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:700">CLOSED</span>'
+        :'<span style="background:#dbeafe;color:#1d4ed8;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:700">ACTIVE</span>';
       const id=esc(r['Loan ID']||'');
-      h+=`<tr${closed?' style="color:#9ca3af"':''}><td>${id}</td><td>${esc(r.Borrower||'')}</td>`+
-        `<td>${esc(r.Branch||'')}</td><td>${esc(r.Method||'')}</td>`+
-        `<td class="num">${rupee(r.Amount)}</td><td class="num">${rupee(r['Total Repayable'])}</td>`+
+      h+=`<tr${closed?' style="color:#9ca3af"':''}>`+
+        `<td style="white-space:nowrap;font-size:11px;font-weight:600">${id}</td>`+
+        `<td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.Borrower||'')}</td>`+
+        `<td style="font-size:11px">${esc(r.Method||'')}</td>`+
+        `<td class="num">${rupee(r['Total Repayable'])}</td>`+
         `<td class="num">${rupee(r['Total Paid'])}</td>`+
         `<td class="num"${r.Balance>0?' style="color:#dc2626"':''}>${rupee(r.Balance)}</td>`+
         `<td>${badge}</td>`+
-        `<td style="white-space:nowrap"><button class="ghost" data-loan="${id}">Schedule</button>`+
-        (!closed&&canEdit?` <button class="ghost" data-edit="loans:${id}">Edit</button>`:'')+
-        (canMod?` <button class="ghost" onclick="deleteLoan('${id}')" style="color:#dc2626">Delete</button>`:'')
-        +`</td></tr>`;
+        `<td style="white-space:nowrap">`+
+          `<div style="display:flex;flex-direction:column;gap:2px">`+
+            `<button class="ghost" style="font-size:10px;padding:2px 6px" data-loan="${id}">Schedule</button>`+
+            (!closed&&canEdit?`<button class="ghost" style="font-size:10px;padding:2px 6px" data-edit="loans:${id}">Edit</button>`:'')+
+            (canMod?`<button class="ghost" style="font-size:10px;padding:2px 6px;color:#dc2626" onclick="deleteLoan('${id}')">Delete</button>`:'')+
+          `</div>`+
+        `</td></tr>`;
     });
     if(el)el.innerHTML=h+'</tbody></table>';
   }catch(err){if(el)el.innerHTML=`<p class="err">${err.message}</p>`;}
