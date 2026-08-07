@@ -1,4 +1,3 @@
-
 /* ── CONFIG ──────────────────────────────────────────────────── */
 const WEB_APP_URL = 'https://tgopjjtamvoftzdfvzuc.supabase.co/functions/v1/api';
 const IDLE_MS = 60 * 1000;
@@ -791,11 +790,13 @@ async function addLoan(){
   try{
     if(editing.type==='loans'){
       const fields=loanFromForm();
-      // Change Loan ID if provided and role allows (#5)
       const newId=val('l_NewId').trim();
-      if(newId&&['BranchManager','CEO','Admin'].includes(session.role)) fields.NewLoanId=newId;
-      await api('reg_edit',{key:'loans',id:editing.id,fields});
-      $('l_msg').textContent='Updated '+(newId||editing.id);clearEdit();
+      if(newId&&['CEO','Admin'].includes(session.role)) fields.NewLoanId=newId;
+      const res=await api('reg_edit',{key:'loans',id:editing.id,fields});
+      const finalId=res.id||newId||editing.id;
+      if(res.renamed) showToast('Loan ID renamed to '+finalId,'ok');
+      else showToast('Loan '+finalId+' updated','ok');
+      $('l_msg').textContent='Updated '+finalId;clearEdit();
       return loadList('loans_list','l_list','loan','loans');
     }
     const{id}=await api('loans_add',{loan:loanFromForm()});
