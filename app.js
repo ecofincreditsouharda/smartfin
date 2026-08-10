@@ -42,7 +42,7 @@ async function api(action, payload={}) {
     throw err;
   }
 }
-const summaryHtml = pairs => pairs.map(([k,v])=>`<div><span>${esc(k)}</span><b>${v}</b></div>`).join('');
+const summaryHtml = pairs => pairs.map(([k,v])=>`<div><span>${esc(k)}:</span><b style="padding-left:6px">${v}</b></div>`).join('');
 /* Dashboard table: fixed equal columns, content centred */
 const dashTable = rows => {
   if(!rows||!rows.length) return '<p class="msg" style="text-align:center;padding:24px;color:#9ca3af;font-size:13px">No records found.</p>';
@@ -441,9 +441,10 @@ async function loadDashboard(){
     const mkStat=(l,v,c,nav)=>`<div class="stat ${c}" onclick="showView('${nav}')">`+
       `<span>${l}</span><b>${v}</b></div>`;
     let html=
-      mkStat('Total Loans',stats.loanCount,'','loans')+
+      mkStat('Active Loans',stats.activeLoanCount||stats.loanCount,'ok','loans')+
       mkStat('Amount Disbursed',rupee(stats.totalDisbursed),'','loans')+
       mkStat('Due This Month',rupee(stats.dueThisMonth),'','repayments')+
+      mkStat('Collected This Month',rupee(stats.collectedThisMonth||0),'ok','repayments')+
       mkStat('Members in Arrears',stats.overdueCount,stats.overdueCount?'warn':'ok','repayments',stats.overdueCount?'Missed EMIs detected':'All EMIs up to date')+
       mkStat('Total Arrears',rupee(stats.totalArrears),stats.totalArrears>0?'warn':'ok','repayments',stats.totalArrears>0?'Outstanding overdue amount':'No outstanding arrears');
     if(extraStats){
@@ -1428,8 +1429,8 @@ async function loadLoansList(){
     const canMod=['Admin','CEO'].includes(session?.role||'');
     const canEdit=['Admin','CEO','BranchManager'].includes(session?.role||'');
     let h='<table style="table-layout:fixed;width:100%"><colgroup>'+
-      '<col style="width:90px"><col style="min-width:110px"><col style="width:72px">'+
-      '<col style="width:92px"><col style="width:92px"><col style="width:80px"><col style="width:80px"><col style="width:70px"></colgroup>'+
+      '<col style="width:85px"><col style="width:90px"><col style="width:62px">'+
+      '<col style="width:80px"><col style="width:78px"><col style="width:70px"><col style="width:64px"><col style="width:76px"></colgroup>'+
       '<thead><tr><th>Loan ID</th><th>Borrower</th><th>Method</th>'+
       '<th class="num">Repayable</th><th class="num">Paid</th>'+
       '<th class="num">Balance</th><th>Status</th><th style="width:70px">Actions</th></tr></thead><tbody>';
