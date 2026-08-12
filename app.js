@@ -408,7 +408,7 @@ function refresh(v, manual=false){
   if(v==='loans'){loadLoansList();}
   if(v==='loan-history'){loadLoanHistory();}
   if(v==='deposits')    loadList('deposits_list','d_list',null,'deposits');
-  if(v==='savings')     loadList('savings_list','s_list');
+  if(v==='savings')     loadSavingsList();
   if(v==='shares'){loadShareSummary();loadSharesList();}
   if(v==='activity'){_actAllRows=[];loadActivityLog(true);}
   if(v==='expenses'){api('expenses_list').then(r=>{expAllRows=r.rows||[];renderExpensesTable(expAllRows);}).catch(e=>$('e_list').innerHTML=`<p class='err'>${e.message}</p>`);}
@@ -1610,6 +1610,48 @@ async function reactivateLoan(loanId){
   }catch(err){showToast('Error: '+err.message,'err');}
 }
 
+
+/* ── SAVINGS CUSTOM TABLE ───────────────────────────────────── */
+async function loadSavingsList(){
+  const el=$('s_list');if(!el)return;
+  el.innerHTML='<p class="msg">Loading…</p>';
+  try{const{rows}=await api('savings_list');allSavings=rows||[];renderSavingsList(allSavings);}
+  catch(err){el.innerHTML=`<p class="err">${err.message}</p>`;}
+}
+function renderSavingsList(rows){
+  const el=$('s_list');if(!el)return;
+  if(!rows||!rows.length){el.innerHTML='<p class="msg">No savings accounts.</p>';return;}
+  const canAct=['Admin','CEO','BranchManager'].includes(session?.role||'');
+  let h='<table style="table-layout:fixed;width:100%"><colgroup>'+
+    '<col style="width:88px"><col style="width:78px"><col style="width:13%"><col style="width:10%">'+
+    '<col style="width:50px"><col style="width:70px"><col style="width:78px"><col style="width:11%">'+
+    (canAct?'<col style="width:90px">':'')+'</colgroup>'+
+    '<thead><tr><th>Savings ID</th><th>Member ID</th><th>Member</th><th>Branch</th>'+
+    '<th class="num" style="font-size:10px">Rate</th><th class="num" style="font-size:10px">Min Bal</th>'+
+    '<th class="num" style="font-size:10px">Balance</th><th style="font-size:10px">Nominee</th>'+
+    (canAct?'<th></th>':'')+'</tr></thead><tbody>';
+  rows.forEach(r=>{
+    const sid=esc(r.SavingsID||'');const bal=Number(r.Balance||0);
+    h+=`<tr style="font-size:11px"><td style="white-space:nowrap;font-size:10px">${sid}</td>`+
+      `<td style="font-size:10px">${esc(r.MemberID||'')}</td>`+
+      `<td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.Member||'')}</td>`+
+      `<td style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.Branch||'')}</td>`+
+      `<td class="num">${((Number(r.Rate)||0)*100).toFixed(1)}%</td>`+
+      `<td class="num">${rupee(r.MinBalance||0)}</td>`+
+      `<td class="num"${bal<Number(r.MinBalance||0)?' style="color:#dc2626"':''}>${rupee(bal)}</td>`+
+      `<td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px">${esc(r.Nominee||'—')}</td>`+
+      (canAct?`<td><div style="display:flex;flex-direction:column;gap:2px">`+
+        `<button class="ghost" style="font-size:10px;padding:1px 5px" onclick="openSavingsPassbook('${sid}')">Passbook</button>`+
+        `<button class="ghost" style="font-size:10px;padding:1px 5px;color:#dc2626" onclick="closeSavingsAccount('${sid}')">Close</button>`+
+        `</div></td>`:'')+`</tr>`;
+  });
+  el.innerHTML=h+'</tbody></table>';
+}
+async function fixShareDirection(){
+  if(!confirm('Fix share capital entries marked as Sent → Received?')) return;
+  try{const r=await api('fix_share_direction');showToast('Fixed '+r.fixed+' entries','ok');loadSociety();}
+  catch(err){showToast('Error: '+err.message,'err');}
+}
 /* ── MODAL ───────────────────────────────────────────────────── */
 function openModal(title,html){$('modal_title').textContent=title||'';$('modal_body').innerHTML=html;$('modal').hidden=false;}
 function closeModal(){$('modal').hidden=true;$('modal_body').innerHTML='';}
@@ -1864,14 +1906,17 @@ function renderSocietyTable(txns){
   const cleanStr = s => (s||'').replace(/\uFFFD/g,'-').replace(/[\u2013\u2014]/g,'-');
   if(!txns.length){$('soc_list').innerHTML='<p class="msg">No transactions match.</p>';return;}
   let totalIn=0, totalOut=0;
-  let h='<table><thead><tr><th>Txn No</th><th>Date</th><th>Direction</th><th class="num">Amount</th><th>Party</th><th>Ref</th><th>Note</th></tr></thead><tbody>';
+  let h='<table style="table-layout:fixed;width:100%"><colgroup>'+
+    '<col style="width:80px"><col style="width:78px"><col style="width:52px">'+
+    '<col style="width:80px"><col style="width:15%"><col style="width:9%"><col style="width:auto"></colgroup>'+
+    '<thead><tr>'+['Txn No','Date','Dir','Amount','Party','Ref','Note'].map(c=>`<th style="font-size:10px">${c}</th>`).join('')+'</tr></thead><tbody>';
   txns.forEach(t=>{
     const amt=Number(String(t.Amount).replace(/[^0-9.]/g,''))||0;
     if(t.Direction==='Received') totalIn+=amt; else totalOut+=amt;
     const dir=t.Direction==='Received'
-      ?`<span style="color:#16a34a;font-weight:600">${esc(t.Direction)}</span>`
-      :`<span style="color:#dc2626;font-weight:600">${esc(t.Direction)}</span>`;
-    h+=`<tr><td>${esc(t.TxnNo)}</td><td style="white-space:nowrap">${esc(t.Date)}</td><td>${dir}</td><td class="num">${rupee(t.Amount)}</td><td>${esc(t.Party)}</td><td>${esc(t.Ref)}</td><td>${esc(cleanStr(t.Note))}</td></tr>`;
+      ?'<span style="color:#16a34a;font-weight:700;font-size:10px">In</span>'
+      :'<span style="color:#dc2626;font-weight:700;font-size:10px">Out</span>';
+    h+=`<tr style="font-size:11px"><td style="white-space:nowrap;font-size:10px">${esc(t.TxnNo)}</td><td style="white-space:nowrap">${esc(t.Date)}</td><td>${dir}</td><td class="num">${rupee(t.Amount)}</td><td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.Party)}</td><td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.Ref)}</td><td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#6b7280">${esc(cleanStr(t.Note))}</td></tr>`;
   });
   h+='</tbody></table>';
   // Summary row
