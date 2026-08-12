@@ -1647,6 +1647,29 @@ function renderSavingsList(rows){
   });
   el.innerHTML=h+'</tbody></table>';
 }
+async function auditShareCapital(){
+  showToast('Running audit…','ok');
+  try{
+    const r=await api('share_audit');
+    const lines=[
+      'SHARE CAPITAL AUDIT',
+      '═══════════════════════',
+      'Members Table:',
+      '  Members with share capital: '+r.memberCount,
+      '  Total from members table:   ₹'+r.memberTotal.toLocaleString('en-IN'),
+      '',
+      'Society Bank (share-related entries):',
+      '  Total Received entries: '+r.socReceivedCount+' (₹'+r.socReceivedTotal.toLocaleString('en-IN')+')',
+      '  Total Sent entries:     '+r.socSentCount+' (₹'+r.socSentTotal.toLocaleString('en-IN')+')',
+      '  Net in Society Bank:    ₹'+r.socNet.toLocaleString('en-IN'),
+      '',
+      'Difference (Members − Society Net): ₹'+(r.memberTotal-r.socNet).toLocaleString('en-IN'),
+    ];
+    if(r.wrongDir&&r.wrongDir.length>0) lines.push('','WRONG DIRECTION (Sent instead of Received):',
+      ...r.wrongDir.map((t)=>'  '+t.txn+': ₹'+t.amount+' — '+t.note));
+    alert(lines.join(String.fromCharCode(10)));
+  }catch(err){showToast('Error: '+err.message,'err');}
+}
 async function reconcileShareCapital(){
   if(!confirm('Recalculate share capital totals from transaction history? This updates members whose totals look wrong.')) return;
   try{
