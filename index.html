@@ -324,6 +324,7 @@
           <span style="display:flex;gap:8px">
             <button class="ghost" data-refresh="shares">Refresh</button>
             <button class="ghost" onclick="printTable('Share Capital',getCurrentTableHtml('sh_summary_list'))">Print</button>
+            <button class="ghost admin-only" onclick="auditShareCapital()" style="color:#1d4ed8">Audit</button>
             <button class="ghost admin-only" onclick="reconcileShareCapital()" style="color:#d97706">Reconcile</button>
             <button class="ghost" id="sh_hist_toggle" onclick="toggleSection('sh_hist',this)">Show History</button>
           </span>
