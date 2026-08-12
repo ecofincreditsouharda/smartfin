@@ -1647,6 +1647,14 @@ function renderSavingsList(rows){
   });
   el.innerHTML=h+'</tbody></table>';
 }
+async function reconcileShareCapital(){
+  if(!confirm('Recalculate share capital totals from transaction history? This updates members whose totals look wrong.')) return;
+  try{
+    const r=await api('share_reconcile');
+    showToast('Reconciled — '+r.updated+' member(s) updated','ok');
+    loadShareSummary();loadSharesList();
+  }catch(err){showToast('Error: '+err.message,'err');}
+}
 async function fixShareDirection(){
   if(!confirm('Fix share capital entries marked as Sent → Received?')) return;
   try{const r=await api('fix_share_direction');showToast('Fixed '+r.fixed+' entries','ok');loadSociety();}
@@ -1907,16 +1915,16 @@ function renderSocietyTable(txns){
   if(!txns.length){$('soc_list').innerHTML='<p class="msg">No transactions match.</p>';return;}
   let totalIn=0, totalOut=0;
   let h='<table style="table-layout:fixed;width:100%"><colgroup>'+
-    '<col style="width:80px"><col style="width:78px"><col style="width:52px">'+
-    '<col style="width:80px"><col style="width:15%"><col style="width:9%"><col style="width:auto"></colgroup>'+
-    '<thead><tr>'+['Txn No','Date','Dir','Amount','Party','Ref','Note'].map(c=>`<th style="font-size:10px">${c}</th>`).join('')+'</tr></thead><tbody>';
+    '<col style="width:11%"><col style="width:10%"><col style="width:8%">'+
+    '<col style="width:11%"><col style="width:18%"><col style="width:10%"><col style="width:auto"></colgroup>'+
+    '<thead><tr>'+['Txn No','Date','Dir','Amount','Party','Ref','Note'].map(c=>`<th>${c}</th>`).join('')+'</tr></thead><tbody>';
   txns.forEach(t=>{
     const amt=Number(String(t.Amount).replace(/[^0-9.]/g,''))||0;
     if(t.Direction==='Received') totalIn+=amt; else totalOut+=amt;
     const dir=t.Direction==='Received'
-      ?'<span style="color:#16a34a;font-weight:700;font-size:10px">In</span>'
-      :'<span style="color:#dc2626;font-weight:700;font-size:10px">Out</span>';
-    h+=`<tr style="font-size:11px"><td style="white-space:nowrap;font-size:10px">${esc(t.TxnNo)}</td><td style="white-space:nowrap">${esc(t.Date)}</td><td>${dir}</td><td class="num">${rupee(t.Amount)}</td><td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.Party)}</td><td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.Ref)}</td><td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#6b7280">${esc(cleanStr(t.Note))}</td></tr>`;
+      ?'<span style="color:#16a34a;font-weight:700">In</span>'
+      :'<span style="color:#dc2626;font-weight:700">Out</span>';
+    h+=`<tr><td style="white-space:nowrap">${esc(t.TxnNo)}</td><td style="white-space:nowrap">${esc(t.Date)}</td><td>${dir}</td><td class="num">${rupee(t.Amount)}</td><td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.Party)}</td><td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.Ref)}</td><td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#6b7280">${esc(cleanStr(t.Note))}</td></tr>`;
   });
   h+='</tbody></table>';
   // Summary row
