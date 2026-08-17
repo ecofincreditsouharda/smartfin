@@ -1441,7 +1441,7 @@ async function loadLoansList(){
         :'<span style="background:#dbeafe;color:#1d4ed8;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:700">ACTIVE</span>';
       const id=esc(r['Loan ID']||'');
       h+=`<tr${closed?' style="color:#9ca3af"':''}>`+
-        `<td style="white-space:nowrap;font-size:11px;font-weight:600">${id}</td>`+
+        `<td style="white-space:nowrap;font-size:11px;font-weight:600"><a href="#" onclick="showLoanDetail('${id}');return false" style="color:var(--primary);text-decoration:underline;text-underline-offset:2px">${id}</a></td>`+
         `<td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.Borrower||'')}</td>`+
         `<td style="font-size:11px">${esc(r.Method||'')}</td>`+
         `<td class="num">${rupee(r['Total Repayable'])}</td>`+
@@ -1683,6 +1683,39 @@ async function fixShareDirection(){
   try{const r=await api('fix_share_direction');showToast('Fixed '+r.fixed+' entries','ok');loadSociety();}
   catch(err){showToast('Error: '+err.message,'err');}
 }
+
+/* ── LOAN DETAIL MODAL ──────────────────────────────────────── */
+async function showLoanDetail(loanId){
+  try{
+    const l = await api('loan_get_full', {loanId});
+    const rate = (Number(l.rate_annual||0)*100).toFixed(2);
+    const pairs=[
+      ['Loan ID',         esc(l.loan_id)],
+      ['Borrower',        esc(l.borrower||'')],
+      ['Member ID',       esc(l.member_id||'—')],
+      ['Loan Type',       esc(l.loan_type||'')],
+      ['Branch',          esc(l.branch||'')],
+      ['Principal',       rupee(l.amount)],
+      ['Rate (Annual)',   rate+'%'],
+      ['Tenure',          l.tenure_months+' months'],
+      ['Method',          esc(l.method||'')],
+      ['Sanction Date',   esc(l.sanction_date||'—')],
+      ['Disbursement',    esc(l.disbursement_date||'—')],
+      ['First EMI Date',  esc(l.first_emi_date||'—')],
+      ['Custom EMI',      l.custom_emi?rupee(l.custom_emi):'—'],
+      ['Guarantor 1',     l.g1_name?(esc(l.g1_name)+(l.g1_member_id?' ('+esc(l.g1_member_id)+')':'')):'—'],
+      ['Guarantor 2',     l.g2_name?(esc(l.g2_name)+(l.g2_member_id?' ('+esc(l.g2_member_id)+')':'')):'—'],
+      ['Recommendation',  esc(l.recommendation||'—')],
+      ['Remarks',         esc(l.remarks||'—')],
+      ['Status',          l.status||'Active'],
+    ];
+    const body=`<div class="summary" style="max-height:70vh;overflow-y:auto">`+
+      pairs.map(([k,v])=>`<div><span>${k}:</span><b>${v}</b></div>`).join('')+
+      `</div>`;
+    openModal('Loan Details — '+esc(l.loan_id), body+'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="ghost" onclick="closeModal()">Close</button><button class="ghost" data-loan="'+esc(l.loan_id)+'" onclick="closeModal()">View Schedule</button></div>');
+  }catch(err){showToast('Error: '+err.message,'err');}
+}
+
 /* ── MODAL ───────────────────────────────────────────────────── */
 function openModal(title,html){$('modal_title').textContent=title||'';$('modal_body').innerHTML=html;$('modal').hidden=false;}
 function closeModal(){$('modal').hidden=true;$('modal_body').innerHTML='';}
@@ -1758,14 +1791,30 @@ async function showMember(id){
     h+=`<label style="font-size:12px;color:#5b6472">📄 ${member.IdProofUrl?'Replace':'Upload'} ID Proof<input type="file" id="mu_IdProof_${esc(member.MemberID)}" accept="image/jpeg,image/png,application/pdf" style="margin-left:8px"/></label><button class="ghost" style="margin-top:6px" onclick="uploadMemberFile('${esc(member.MemberID)}','idproof')">${member.IdProofUrl?'Replace ID Proof':'Upload ID Proof'}</button></div>`;
     h+=`<div id="mu_msg_${esc(member.MemberID)}" style="margin-top:8px;font-size:13px;color:#5b6472"></div>`;
     if(member.loans&&member.loans.length){
-      h+=`<h3 style="margin:16px 0 8px;font-size:14px">Loans</h3><table><tr><th>Loan ID</th><th>Amount</th><th>Paid</th><th>Remaining</th><th>Missed EMI</th></tr>`;
-      member.loans.forEach(l=>h+=`<tr><td>${esc(l.loanId)}</td><td>${rupee(l.amount)}</td><td>${rupee(l.paid)}</td><td>${rupee(l.remaining)}</td><td style="color:${l.missedEMI>0?'#c0392b':'#27ae60'}">${l.missedEMI>0?rupee(l.missedEMI):'—'}</td></tr>`);
-      h+='</table>';
+      h+=`<h3 style="margin:16px 0 8px;font-size:14px;font-weight:700;border-bottom:1px solid var(--border);padding-bottom:4px">Loans</h3>`;
+      h+='<table style="table-layout:fixed;width:100%"><colgroup>'+
+        '<col style="width:20%"><col style="width:20%"><col style="width:20%"><col style="width:20%"><col style="width:20%"></colgroup>'+
+        '<thead><tr><th>Loan ID</th><th class="num">Amount</th><th class="num">Paid</th><th class="num">Balance</th><th class="num">Missed EMI</th></tr></thead><tbody>';
+      member.loans.forEach(l=>h+=`<tr>`+
+        `<td style="white-space:nowrap;font-size:11px"><a href="#" onclick="showLoanDetail('${esc(l.loanId)}');return false" style="color:var(--primary);text-decoration:none;font-weight:600">${esc(l.loanId)}</a></td>`+
+        `<td class="num">${rupee(l.amount)}</td>`+
+        `<td class="num">${rupee(l.paid)}</td>`+
+        `<td class="num"${l.remaining>0?' style="color:#dc2626"':''}>${rupee(l.remaining)}</td>`+
+        `<td class="num" style="color:${l.missedEMI>0?'#dc2626':'#16a34a'}">${l.missedEMI>0?rupee(l.missedEMI):'—'}</td>`+
+        `</tr>`);
+      h+='</tbody></table>';
     }else h+=`<p style="margin-top:14px;color:#7b8794;font-size:13px">No loans linked.</p>`;
     if(member.savings&&member.savings.length){
-      h+=`<h3 style="margin:16px 0 8px;font-size:14px">Savings Accounts</h3><table><tr><th>Savings ID</th><th>Balance</th><th>Min Balance</th></tr>`;
-      member.savings.forEach(s=>h+=`<tr><td>${esc(s.savingsId)}</td><td>${rupee(s.balance)}</td><td>${rupee(s.minBalance)}</td></tr>`);
-      h+='</table>';
+      h+=`<h3 style="margin:16px 0 8px;font-size:14px;font-weight:700;border-bottom:1px solid var(--border);padding-bottom:4px">Savings Accounts</h3>`;
+      h+='<table style="table-layout:fixed;width:100%"><colgroup>'+
+        '<col style="width:40%"><col style="width:30%"><col style="width:30%"></colgroup>'+
+        '<thead><tr><th>Savings ID</th><th class="num">Balance</th><th class="num">Min Balance</th></tr></thead><tbody>';
+      member.savings.forEach(s=>h+=`<tr>`+
+        `<td style="white-space:nowrap;font-size:11px">${esc(s.savingsId)}</td>`+
+        `<td class="num">${rupee(s.balance)}</td>`+
+        `<td class="num">${rupee(s.minBalance)}</td>`+
+        `</tr>`);
+      h+='</tbody></table>';
     }else h+=`<p style="margin-top:8px;color:#7b8794;font-size:13px">No savings accounts linked.</p>`;
     $('m_detail').innerHTML=h;$('m_card').scrollIntoView({behavior:'smooth'});
   }catch(err){alert(err.message);}
