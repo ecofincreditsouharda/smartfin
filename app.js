@@ -8,8 +8,13 @@ let BANK = 'ECOSMART', APP_NAME = 'ECOSMART', LOGO_URL = 'logo.png';
 let HQ_ADDRESS = '', HQ_PHONE = '', COMMON_EMAIL = '';
 const $ = id => document.getElementById(id);
 const val = id => ($(id) ? $(id).value : '');
-const rupee = n => (n===''||n==null||isNaN(Number(String(n).replace(/[^0-9.\-]/g,''))))
-  ? (n||'') : '\u20b9\u00a0'+Number(String(n).replace(/[^0-9.\-]/g,'')).toLocaleString('en-IN',{maximumFractionDigits:2});
+const rupee = n => {
+  if(n===''||n==null) return '';
+  const num=Number(String(n).replace(/[^0-9.\-]/g,''));
+  if(isNaN(num)) return String(n||'');
+  const frac=num%1===0?0:2;
+  return '\u20b9\u00a0'+num.toLocaleString('en-IN',{minimumFractionDigits:frac,maximumFractionDigits:frac});
+};
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const token = () => localStorage.getItem('coop_token') || '';
 const isPWA = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
@@ -489,7 +494,7 @@ function filterList(rows,query,target,linkKind,editKey){
 }
 function renderListHtml(rows,target,linkKind,editKey){
   if(!rows||!rows.length){$(target).innerHTML='<p class="msg">Nothing to show.</p>';return;}
-  const cols=Object.keys(rows[0]); const money=/amount|emi|repayable|value|paid|balance|arrears|min/i;
+  const cols=Object.keys(rows[0]); const money=/amount|emi|repayable|value|paid|balance|arrears|min|capital|collected|interest|total|fee|charge|penalty|principal|rate(?!\s*%)/i;
   const hasBtn=linkKind||editKey;
   let h='<table><tr>'+cols.map(c=>`<th>${esc(c)}</th>`).join('')+(hasBtn?'<th></th>':'')+' </tr>';
   rows.forEach(r=>{const id=r[cols[0]];h+='<tr>'+cols.map(c=>`<td>${money.test(c)?rupee(r[c]):esc(r[c])}</td>`).join('');
@@ -604,7 +609,7 @@ function renderLoanList(){
   const q=(val('r_search')||'').toLowerCase();
   const rows=repLoans.filter(r=>!q||Object.values(r).some(v=>String(v).toLowerCase().includes(q)));
   if(!rows.length){$('r_loanlist').innerHTML='<p class="msg">No matching loans.</p>';return;}
-  const cols=Object.keys(rows[0]); const money=/amount|emi|repayable/i;
+  const cols=Object.keys(rows[0]); const money=/amount|emi|repayable|interest|total|principal|balance|paid/i;
   let h='<table><tr>'+cols.map(c=>`<th>${esc(c)}</th>`).join('')+'<th></th></tr>';
   rows.forEach(r=>{h+='<tr>'+cols.map(c=>`<td>${money.test(c)?rupee(r[c]):esc(r[c])}</td>`).join('')+
     `<td><button class="ghost" data-openledger="${esc(r[cols[0]])}">Collect / View</button></td></tr>`;});
@@ -815,7 +820,9 @@ async function addLoan(){
       if(res.renamed) showToast('Loan ID renamed to '+finalId,'ok');
       else showToast('Loan '+finalId+' updated','ok');
       $('l_msg').textContent='Updated '+finalId;clearEdit();
-      return loadList('loans_list','l_list','loan','loans');
+      if(lastLedgerLoanId===editing.id||lastLedgerLoanId===(res.id||editing.id)) loadLedger();
+      loadLoansList();
+      return;
     }
     const{id}=await api('loans_add',{loan:loanFromForm()});
     $('l_msg').textContent='Saved '+id;$('l_add').hidden=true;
