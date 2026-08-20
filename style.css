@@ -157,10 +157,15 @@ td.num,th.num{text-align:right!important}
 tbody tr:last-child td{border-bottom:none}
 tbody tr:hover td{background:#fafbff}
 .scrolly{max-height:58vh;overflow:auto;border-radius:var(--r-sm);border:1px solid var(--border)}
-.scrolly-list{max-height:60vh;overflow-y:auto;border-radius:var(--r-sm);border:1px solid var(--border)}
-.scrolly-list table{margin-top:0;border-radius:0}
-.scrolly-list thead th{position:sticky;top:0;z-index:2;background:var(--chip-bg)}
+.scrolly-list{max-height:60vh;overflow:auto;border-radius:var(--r-sm);border:1px solid var(--border)}
+.scrolly-list table{margin-top:0;border-radius:0;min-width:500px}
+.scrolly-list thead th{position:sticky;top:0;z-index:2;background:var(--chip-bg);white-space:nowrap}
 .report table td:first-child,.report table th:first-child{text-align:left;min-width:180px}
+
+/* ── VIEW TRANSITIONS ─────────────────────────────────────────────── */
+section.view{animation:fadeIn .2s cubic-bezier(.4,0,.2,1)}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+*{-webkit-tap-highlight-color:transparent}
 
 /* ── LOADING SKELETON ─────────────────────────────────────────────────── */
 .skeleton{background:linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%);
