@@ -443,15 +443,15 @@ function showToast(msg,type){
 async function loadDashboard(){
   $('dash').innerHTML='<p class="msg">Loading…</p>';$('dash_overdue').innerHTML='';
   try{const{stats,overdue,extraStats}=await api('dashboard_stats');
-    const mkStat=(l,v,c,nav)=>`<div class="stat ${c}" onclick="showView('${nav}')">`+
+    const mkStat=(l,v,c,nav,sub='')=>`<div class="stat ${c}" onclick="showView('${nav}')">`+
       `<span>${l}</span><b>${v}</b></div>`;
     let html=
       mkStat('Active Loans',stats.activeLoanCount||stats.loanCount,'ok','loans')+
-      mkStat('Amount Disbursed',rupee(stats.totalDisbursed),'','loans')+
+      mkStat('Total Disbursed',rupee(stats.totalDisbursed),'','loans')+
       mkStat('Due This Month',rupee(stats.dueThisMonth),'','repayments')+
       mkStat('Collected This Month',rupee(stats.collectedThisMonth||0),'ok','repayments')+
-      mkStat('Members in Arrears',stats.overdueCount,stats.overdueCount?'warn':'ok','repayments',stats.overdueCount?'Missed EMIs detected':'All EMIs up to date')+
-      mkStat('Total Arrears',rupee(stats.totalArrears),stats.totalArrears>0?'warn':'ok','repayments',stats.totalArrears>0?'Outstanding overdue amount':'No outstanding arrears');
+      mkStat('Loans in Arrears',stats.overdueCount,stats.overdueCount?'warn':'ok','repayments')+
+      mkStat('Total Arrears',rupee(stats.totalArrears),stats.totalArrears>0?'warn':'ok','repayments');
     if(extraStats){
       html+=
         mkStat('Interest Due This Month',rupee(extraStats.interestDueMonth),'','repayments')+
@@ -466,7 +466,9 @@ async function loadDashboard(){
           dashTable(extraStats.expiringFDs);
     }
     $('dash').innerHTML=html;
-    $('dash_overdue').innerHTML=overdue&&overdue.length?dashTable(overdue):'<p class="msg">No missed EMIs.</p>';
+    $('dash_overdue').innerHTML=overdue&&overdue.length
+      ?'<h3 style="font-size:13px;font-weight:700;color:#dc2626;margin:12px 0 6px">Loans with Missed EMIs (arrears as of today)</h3>'+dashTable(overdue)
+      :'<p class="msg" style="color:#16a34a;padding:12px">All EMIs up to date — no arrears.</p>';
     if(extraStats&&extraStats.newLoansDetail&&extraStats.newLoansDetail.length){
       $('dash_overdue').innerHTML+='<h3 style="margin-top:16px">New Loans This Month</h3>'+dashTable(extraStats.newLoansDetail);}
   }catch(err){$('dash').innerHTML=`<p class="err">${err.message}</p>`;}
