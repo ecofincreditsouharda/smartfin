@@ -1585,15 +1585,17 @@ function openReceiptEdit(receiptNo,amount,date,mode,note,penalty){
 }
 async function saveReceiptEdit(){
   if(!editingReceipt)return;
+  // Read values BEFORE closing modal (closeModal removes the DOM elements)
+  const _amount=Number($('re_amount')?.value||0);
+  const _date=$('re_date')?.value||'';
+  const _mode=$('re_mode')?.value||'Cash';
+  const _note=$('re_note')?.value||'';
+  const _penalty=Number($('re_penalty')?.value||0);
   closeModal();
   try{
     const res=await api('repayment_edit',{
       receiptNo:editingReceipt,
-      amount:Number($('re_amount').value),
-      date:$('re_date').value,
-      mode:$('re_mode').value,
-      note:$('re_note').value,
-      penalty:Number($('re_penalty').value||0)
+      amount:_amount,date:_date,mode:_mode,note:_note,penalty:_penalty
     });
     showToast('Receipt updated','ok');
     editingReceipt=null;
