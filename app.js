@@ -577,6 +577,7 @@ async function startEdit(key,id){
 function fillReg(key,f,id){
   if(key==='loans'){setV('l_Borrower',f.Borrower);setV('l_MemberID',f.MemberID||f.member_id);setV('l_LoanType',f.LoanType||f.loan_type);
     setV('l_Branch',f.Branch||f.branch);setV('l_Amount',f.Amount||f.amount);setV('l_RatePct',(Number(f.RateAnnual||f.rate_annual)||0)*100);
+  if($('l_PenaltyRate'))$('l_PenaltyRate').value=(Number(f.penalty_rate||f.PenaltyRate||0.03)*100).toFixed(1);
     setV('l_TenureMonths',f.TenureMonths||f.tenure_months);setV('l_Method',f.Method||f.method||'Flat');setV('l_Frequency',f.Frequency||f.frequency||'Monthly');
     setV('l_SanctionDate',f.SanctionDate||f.sanction_date);setV('l_DisbursementDate',f.DisbursementDate||f.disbursement_date);
     setV('l_FirstEMIDate',f.FirstEMIDate||f.first_emi_date);setV('l_CustomEMI',f.CustomEMI||f.custom_emi);
@@ -809,7 +810,8 @@ function loanFromForm(){return{Borrower:val('l_Borrower'),MemberID:val('l_Member
   Method:val('l_Method'),Frequency:val('l_Frequency'),SanctionDate:val('l_SanctionDate'),
   DisbursementDate:val('l_DisbursementDate'),FirstEMIDate:val('l_FirstEMIDate'),CustomEMI:val('l_CustomEMI'),
   Collector:val('l_Collector'),G1Name:val('l_G1Name'),G1MemberID:val('l_G1MemberID'),
-  G2Name:val('l_G2Name'),G2MemberID:val('l_G2MemberID'),Recommendation:val('l_Recommendation')};}
+  G2Name:val('l_G2Name'),G2MemberID:val('l_G2MemberID'),Recommendation:val('l_Recommendation'),
+  PenaltyRate:val('l_PenaltyRate')?Number(val('l_PenaltyRate')):null};}
 async function previewLoan(){
   $('l_msg').textContent='Calculating…';
   try{const{result,meta}=await api('loan_preview',{loan:loanFromForm()});
@@ -1755,18 +1757,18 @@ async function loadOverdueLoans(minDays){
         `<td class="num" style="color:#dc2626">${rupee(l.arrears)}</td>`+
         `<td>${esc(l.frequency||'Monthly')}</td>`+
         `<td style="white-space:nowrap"><div style="display:flex;flex-direction:column;gap:2px">`+
-          (l.daysMissed>=7 ?`<button class="ghost" style="font-size:10px;padding:1px 6px;color:#dc2626" onclick="printNotice('${esc(l.loanId)}',1)">1st Notice</button>`:'')+ 
-          (l.daysMissed>=14?`<button class="ghost" style="font-size:10px;padding:1px 6px;color:#b45309" onclick="printNotice('${esc(l.loanId)}',2)">2nd Notice</button>`:'')+ 
-          (l.daysMissed>=21?`<button class="ghost" style="font-size:10px;padding:1px 6px;color:#7f1d1d" onclick="printNotice('${esc(l.loanId)}',3)">Final Notice</button>`:'')+
+          (l.daysMissed>=7 ?`<button class="ghost" style="font-size:10px;padding:1px 6px;color:#dc2626" onclick="printNotice('${esc(l.loanId)}',1,${l.penaltyRate||3})">1st Notice</button>`:'')+ 
+          (l.daysMissed>=14?`<button class="ghost" style="font-size:10px;padding:1px 6px;color:#b45309" onclick="printNotice('${esc(l.loanId)}',2,${l.penaltyRate||3})">2nd Notice</button>`:'')+ 
+          (l.daysMissed>=21?`<button class="ghost" style="font-size:10px;padding:1px 6px;color:#7f1d1d" onclick="printNotice('${esc(l.loanId)}',3,${l.penaltyRate||3})">Final Notice</button>`:'')+
         `</div></td></tr>`;
     });
     el.innerHTML=h+'</tbody></table>';
   }catch(err){el.innerHTML=`<p class="err">${err.message}</p>`;}
 }
 
-async function printNotice(loanId, noticeType){
+async function printNotice(loanId, noticeType, overridePenaltyPct){
   try{
-    const{notice:n}=await api('loan_notice',{loanId,noticeType});
+    const{notice:n}=await api('loan_notice',{loanId,noticeType,overridePenaltyPct:overridePenaltyPct||null});
     const noticeName=noticeType===1?'FIRST NOTICE':noticeType===2?'SECOND NOTICE':'FINAL NOTICE';
     const urgencyColor=noticeType===1?'#dc2626':noticeType===2?'#b45309':'#7f1d1d';
     const now=new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric',timeZone:'Asia/Kolkata'});
