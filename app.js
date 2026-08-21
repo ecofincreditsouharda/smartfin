@@ -503,6 +503,10 @@ function renderListHtml(rows,target,linkKind,editKey){
     h+='<tr>'+cols.map(c=>{
       if(money.test(c)) return `<td class="num">${rupee(r[c])}</td>`;
       if(c===cols[0]&&linkKind==='member') return `<td><a href="#" onclick="viewMember('${esc(id)}');return false" style="color:var(--primary);text-decoration:underline;text-underline-offset:2px;font-weight:600">${esc(r[c]||'')}</a></td>`;
+      // Photo column — show thumbnail if URL, else ✓/—
+      if(c==='Photo'&&r['PhotoUrl']) return `<td><img src="${esc(r['PhotoUrl'])}" style="width:28px;height:28px;object-fit:cover;border-radius:50%;vertical-align:middle;cursor:pointer" onclick="window.open('${esc(r['PhotoUrl'])}','_blank')" title="View photo" /></td>`;
+      if(c==='Photo') return `<td style="color:#9ca3af">—</td>`;
+      if(c==='PhotoUrl'||c==='IdProofUrl') return ''; // hidden columns
       return `<td>${esc(r[c]||'')}</td>`;
     }).join('');
     if(hasBtn){h+='<td>';
