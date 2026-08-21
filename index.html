@@ -58,6 +58,7 @@
     <button class="navbtn" data-view="members">Members</button>
     <button class="navbtn" data-view="loans">Loans</button>
     <button class="navbtn" data-view="loan-history">Loan History</button>
+    <button class="navbtn" data-view="notices">Notices</button>
     <button class="navbtn" data-view="repayments">Repayments</button>
     <button class="navbtn" data-view="deposits">Fixed Deposits</button>
     <button class="navbtn" data-view="savings">Savings</button>
@@ -156,6 +157,29 @@
         </span></div>
         <div class="grid" style="margin-bottom:10px"><label>Search loans<input id="l_search" placeholder="name · member ID · phone" /></label></div>
         <div class="scrolly-list" id="l_list"></div></div>
+    </section>
+
+    <!-- LOAN NOTICES -->
+    <section class="view" id="view-notices" hidden>
+      <div class="card">
+        <div class="card-head"><h2>Loan Notices</h2>
+          <span style="display:flex;gap:8px;align-items:center">
+            <label style="font-size:12px;margin:0">Min days overdue:
+              <select id="notice_days" onchange="loadOverdueLoans(Number(this.value))" style="font-size:12px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;margin-left:4px">
+                <option value="7">7+ days (1st Notice)</option>
+                <option value="14">14+ days (2nd Notice)</option>
+                <option value="21">21+ days (Final Notice)</option>
+                <option value="1">All overdue</option>
+              </select>
+            </label>
+            <button class="ghost" onclick="loadOverdueLoans(Number($('notice_days').value))">Refresh</button>
+          </span>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 10px">
+          Loans with missed payments. Penalty: 3% per missed instalment period. Click notice button to print.
+        </p>
+        <div id="r_notices_list" class="scrolly-list"></div>
+      </div>
     </section>
 
     <!-- LOAN HISTORY -->
