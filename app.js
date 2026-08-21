@@ -269,11 +269,11 @@ function logout(){
 }
 
 /* ── MODULE PERMISSIONS (localStorage per userId) ────────────── */
-const ALL_MODULES=['dashboard','members','loans','repayments','deposits','savings','shares','transfers','society','expenses','reports','approvals','loan-history','settings','users','activity','account'];
+const ALL_MODULES=['dashboard','members','loans','repayments','deposits','savings','shares','transfers','society','expenses','reports','approvals','loan-history','notices','settings','users','activity','account'];
 const DEFAULT_MODULES={
   Admin: ALL_MODULES,
-  CEO: ['dashboard','members','loans','loan-history','repayments','deposits','savings','shares','transfers','society','expenses','reports','approvals','account'],
-  BranchManager: ['dashboard','members','loans','loan-history','repayments','deposits','savings','shares','transfers','expenses','reports','approvals','settings','account'],
+  CEO: ['dashboard','members','loans','loan-history','notices','repayments','deposits','savings','shares','transfers','society','expenses','reports','approvals','account'],
+  BranchManager: ['dashboard','members','loans','loan-history','notices','repayments','deposits','savings','shares','transfers','expenses','reports','approvals','settings','account'],
   Operator: ['dashboard','members','loans','repayments','deposits','savings','shares','expenses','account'],
   Collector: ['dashboard','repayments','account'],
   Director: ['dashboard','loans','reports','approvals','account'],
@@ -412,6 +412,7 @@ function refresh(v, manual=false){
   if(v==='members'){loadList('members_list','m_list','member','member').then(()=>{if(manual)showToast('Members refreshed','ok');});}
   if(v==='loans'){loadLoansList();}
   if(v==='loan-history'){loadLoanHistory();}
+  if(v==='notices'){loadOverdueLoans(Number($('notice_days')?.value||7));}
   if(v==='deposits')    loadList('deposits_list','d_list',null,'deposits');
   if(v==='savings')     loadSavingsList();
   if(v==='shares'){loadShareSummary();loadSharesList();}
@@ -1738,6 +1739,114 @@ async function showLoanDetail(loanId){
 
 function viewMember(id){document.body.click();// trigger any open dropdowns
 const btn=document.createElement('button');btn.dataset.member=id;btn.style.display='none';document.body.appendChild(btn);btn.click();btn.remove();}
+
+
+/* ══ LOAN NOTICES ═══════════════════════════════════════════ */
+async function loadOverdueLoans(minDays){
+  const el=$('r_notices_list');if(!el)return;
+  el.innerHTML='<p class="msg">Loading…</p>';
+  try{
+    const{loans}=await api('loans_overdue',{minDays:minDays||7});
+    if(!loans||!loans.length){el.innerHTML='<p class="msg" style="color:#16a34a">No loans with arrears older than '+minDays+' days.</p>';return;}
+    let h='<table><thead><tr><th>Loan ID</th><th>Borrower</th><th>Days Missed</th><th class="num">Arrears</th><th>Frequency</th><th>Actions</th></tr></thead><tbody>';
+    loans.forEach(l=>{
+      h+=`<tr><td style="font-weight:600">${esc(l.loanId)}</td><td>${esc(l.borrower)}</td>`+
+        `<td style="color:#dc2626;font-weight:600">${l.daysMissed}d</td>`+
+        `<td class="num" style="color:#dc2626">${rupee(l.arrears)}</td>`+
+        `<td>${esc(l.frequency||'Monthly')}</td>`+
+        `<td style="white-space:nowrap"><div style="display:flex;flex-direction:column;gap:2px">`+
+          (l.daysMissed>=7 ?`<button class="ghost" style="font-size:10px;padding:1px 6px;color:#dc2626" onclick="printNotice('${esc(l.loanId)}',1)">1st Notice</button>`:'')+ 
+          (l.daysMissed>=14?`<button class="ghost" style="font-size:10px;padding:1px 6px;color:#b45309" onclick="printNotice('${esc(l.loanId)}',2)">2nd Notice</button>`:'')+ 
+          (l.daysMissed>=21?`<button class="ghost" style="font-size:10px;padding:1px 6px;color:#7f1d1d" onclick="printNotice('${esc(l.loanId)}',3)">Final Notice</button>`:'')+
+        `</div></td></tr>`;
+    });
+    el.innerHTML=h+'</tbody></table>';
+  }catch(err){el.innerHTML=`<p class="err">${err.message}</p>`;}
+}
+
+async function printNotice(loanId, noticeType){
+  try{
+    const{notice:n}=await api('loan_notice',{loanId,noticeType});
+    const noticeName=noticeType===1?'FIRST NOTICE':noticeType===2?'SECOND NOTICE':'FINAL NOTICE';
+    const urgencyColor=noticeType===1?'#dc2626':noticeType===2?'#b45309':'#7f1d1d';
+    const now=new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric',timeZone:'Asia/Kolkata'});
+    // Receipt rows
+    let receiptRows='';
+    (n.receipts||[]).forEach((r,i)=>{receiptRows+=`<tr><td>${i+1}</td><td>${esc(r.date)}</td><td style="text-align:right">${rupee(r.amount)}</td><td>${esc(r.mode||'')}</td></tr>`;});
+    const body=
+      // Header
+      `<div style="text-align:center;border-bottom:3px double #111;padding-bottom:12px;margin-bottom:16px">`+
+        `<img src="${LOGO_URL}" style="width:60px;height:60px;object-fit:contain" onerror="this.style.display='none'"/>`+
+        `<div style="font-size:20px;font-weight:800;margin-top:6px">${esc(BANK)}</div>`+
+        `<div style="font-size:11px;color:#555;margin-top:2px">Cooperative Credit Society</div>`+
+        `<div style="font-size:15px;font-weight:700;color:${urgencyColor};margin-top:8px;letter-spacing:.04em;border:2px solid ${urgencyColor};display:inline-block;padding:3px 18px;border-radius:4px">${noticeName}</div>`+
+      `</div>`+
+      // Date + Ref
+      `<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:14px">`+
+        `<span>Date: <b>${esc(n.generatedOn)}</b></span>`+
+        `<span>Ref: <b>${esc(n.loanId)}</b></span>`+
+      `</div>`+
+      // To
+      `<div style="background:#fef9f0;border-left:3px solid ${urgencyColor};padding:10px 14px;margin-bottom:14px;font-size:11px">`+
+        `<b>To,</b><br/>`+
+        `Member ID: <b>${esc(n.memberId)}</b><br/>`+
+        `<b>${esc(n.memberName)}</b><br/>`+
+        (n.memberAddress?`${esc(n.memberAddress)}<br/>`:'')+ 
+        (n.memberPhone?`Phone: ${esc(n.memberPhone)}`:'') +
+      `</div>`+
+      // Subject
+      `<div style="font-size:12px;margin-bottom:14px">`+
+        `<b>Subject: ${noticeName} — Recovery of Overdue Loan Amount</b><br/><br/>`+
+        `Dear <b>${esc(n.memberName)}</b>,<br/><br/>`+
+        `This is to inform you that your loan account <b>${esc(n.loanId)}</b> has overdue instalments. `+
+        `Despite our records showing that payments are due, the following amounts remain unpaid. `+
+        `You are hereby requested to clear the outstanding immediately to avoid further action.`+
+      `</div>`+
+      // Loan Details
+      `<table style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:12px">`+
+        `<tr style="background:#f3f4f6"><td style="padding:5px 8px;font-weight:700;width:50%">Loan Details</td><td style="padding:5px 8px;font-weight:700">Amount</td></tr>`+
+        `<tr><td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">Loan ID</td><td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">${esc(n.loanId)}</td></tr>`+
+        `<tr><td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">Repayment Method</td><td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">${esc(n.method)} — ${esc(n.frequency)}</td></tr>`+
+        `<tr><td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">Principal Amount</td><td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">${rupee(n.principal)}</td></tr>`+
+        `<tr><td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">Total Repayable</td><td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">${rupee(n.totalRepayable)}</td></tr>`+
+        `<tr><td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">Total Paid (${n.receiptsCount} receipt${n.receiptsCount===1?'':'s'})</td><td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">${rupee(n.totalPaid)}</td></tr>`+
+        `<tr style="background:#fff7ed"><td style="padding:5px 8px;font-weight:700;color:#dc2626">Arrears (Overdue)</td><td style="padding:5px 8px;font-weight:700;color:#dc2626">${rupee(n.arrears)}</td></tr>`+
+        `<tr style="background:#fff7ed"><td style="padding:5px 8px;color:#b45309">Penalty (3% × ${n.missedEMIsCount} missed ${n.frequency==='Daily'?'day':'month'}${n.missedEMIsCount===1?'':'s'})</td><td style="padding:5px 8px;color:#b45309">${rupee(n.penalty)}</td></tr>`+
+        `<tr style="background:#fee2e2"><td style="padding:6px 8px;font-weight:800;font-size:11px">Total Amount Due</td><td style="padding:6px 8px;font-weight:800;font-size:12px;color:#991b1b">${rupee(n.totalDue)}</td></tr>`+
+      `</table>`+
+      // Repayment history
+      (n.receipts&&n.receipts.length?
+        `<div style="font-size:10px;font-weight:700;margin-bottom:4px">Payment History</div>`+
+        `<table style="width:100%;border-collapse:collapse;font-size:9px;margin-bottom:14px">`+
+          `<thead><tr style="background:#f3f4f6"><th style="padding:3px 6px;text-align:left">#</th><th style="padding:3px 6px;text-align:left">Date</th><th style="padding:3px 6px;text-align:right">Amount</th><th style="padding:3px 6px;text-align:left">Mode</th></tr></thead>`+
+          `<tbody>${receiptRows}</tbody>`+
+        `</table>`
+      :'')+
+      // Action required
+      `<div style="background:#fff1f2;border:1px solid #fecaca;border-radius:4px;padding:10px 14px;font-size:10px;margin-bottom:16px">`+
+        (noticeType===3?
+          `<b style="color:#991b1b">FINAL NOTICE:</b> Failure to pay the outstanding amount of <b>${rupee(n.totalDue)}</b> within <b>7 days</b> of this notice will result in legal proceedings being initiated against you under applicable laws.`
+        :noticeType===2?
+          `<b style="color:#b45309">SECOND NOTICE:</b> You are once again requested to clear the outstanding amount of <b>${rupee(n.totalDue)}</b> immediately. Non-payment may lead to a Final Notice and legal action.`
+        :
+          `<b style="color:#dc2626">NOTICE:</b> Please clear the outstanding amount of <b>${rupee(n.totalDue)}</b> at the earliest. Continued default will attract further penalties and notices.`
+        )+
+      `</div>`+
+      // Signatory
+      `<div style="display:flex;justify-content:space-between;margin-top:32px;font-size:10px">`+
+        `<div><div style="border-top:1px solid #333;width:160px;margin-bottom:4px"></div>Member's Signature</div>`+
+        `<div style="text-align:right">`+
+          `<div style="border-top:1px solid #333;width:160px;margin-left:auto;margin-bottom:4px"></div>`+
+          `Authorised Signatory<br/><b>${esc(BANK)}</b>`+
+        `</div>`+
+      `</div>`+
+      // Footer
+      `<div style="margin-top:14px;border-top:1px solid #e5e7eb;padding-top:6px;font-size:8px;color:#9ca3af;text-align:center">`+
+        `Generated on ${now} · ${esc(BANK)} · Branch: ${esc(n.branch)}`+
+      `</div>`;
+    printDoc(body,'@page{size:A4;margin:1.5cm}*{box-sizing:border-box;font-family:Arial,sans-serif}body{margin:0;font-size:10px}td,th{font-size:10px}','');
+  }catch(err){showToast('Error: '+err.message,'err');}
+}
 
 /* ── MODAL ───────────────────────────────────────────────────── */
 function openModal(title,html){$('modal_title').textContent=title||'';$('modal_body').innerHTML=html;$('modal').hidden=false;}
