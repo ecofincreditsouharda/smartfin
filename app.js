@@ -52,7 +52,7 @@ const summaryHtml = pairs => pairs.map(([k,v])=>`<div><span>${esc(k)}:</span><b 
 const dashTable = rows => {
   if(!rows||!rows.length) return '<p class="msg" style="text-align:center;padding:24px;color:#9ca3af;font-size:13px">No records found.</p>';
   const cols=Object.keys(rows[0]);
-  const isNum=c=>/^(amount|emi|balance|paid|arrears|payout)/i.test(c.trim());
+  const isNum=c=>/^(amount|emi|balance|paid|arrears|payout|share capital|total|principal)/i.test(c.trim());
   const pct=Math.floor(100/cols.length)+'%';
   let h='<table class="dash-tbl"><colgroup>'+cols.map(()=>`<col style="width:${pct}">`).join('')+'</colgroup>';
   h+='<thead><tr>'+cols.map(c=>`<th>${esc(c)}</th>`).join('')+'</tr></thead><tbody>';
@@ -499,7 +499,12 @@ function renderListHtml(rows,target,linkKind,editKey){
   const cols=Object.keys(rows[0]); const money=/amount|emi|repayable|value|paid|balance|arrears|min|capital|collected|interest|total|fee|charge|penalty|principal|rate(?!\s*%)/i;
   const hasBtn=linkKind||editKey;
   let h='<table><tr>'+cols.map(c=>`<th>${esc(c)}</th>`).join('')+(hasBtn?'<th></th>':'')+' </tr>';
-  rows.forEach(r=>{const id=r[cols[0]];h+='<tr>'+cols.map(c=>`<td>${money.test(c)?rupee(r[c]):esc(r[c])}</td>`).join('');
+  rows.forEach(r=>{const id=r[cols[0]];
+    h+='<tr>'+cols.map(c=>{
+      if(money.test(c)) return `<td class="num">${rupee(r[c])}</td>`;
+      if(c===cols[0]&&linkKind==='member') return `<td><a href="#" onclick="viewMember('${esc(id)}');return false" style="color:var(--primary);text-decoration:underline;text-underline-offset:2px;font-weight:600">${esc(r[c]||'')}</a></td>`;
+      return `<td>${esc(r[c]||'')}</td>`;
+    }).join('');
     if(hasBtn){h+='<td>';
       if(linkKind==='loan'){
         h+=`<button class="ghost" data-loan="${esc(id)}">Schedule</button> `;
@@ -1573,7 +1578,7 @@ function openReceiptEdit(receiptNo,amount,date,mode,note,penalty){
     `<label>Amount (₹)<input id="re_amount" type="number" value="${esc(String(amount||''))}" /></label>`+
     `<label>Date<input id="re_date" type="date" value="${esc(String(date||''))}" /></label>`+
     `<label>Mode<select id="re_mode">`+
-    ['Cash','Online','Cheque','Bank Transfer'].map(m=>`<option${m===mode?' selected':''}>${m}</option>`).join('')+
+    ['Cash','UPI','NEFT','RTGS','Cheque','DD'].map(m=>`<option${m===mode?' selected':''}>${m}</option>`).join('')+
     `</select></label>`+
     `<label>Penalty (₹)<input id="re_penalty" type="number" value="${esc(String(penalty||0))}" /></label>`+
     `<label style="grid-column:1/-1">Note<input id="re_note" value="${esc(String(note||''))}" /></label>`+
@@ -1729,6 +1734,9 @@ async function showLoanDetail(loanId){
     openModal('Loan Details — '+esc(l.loan_id), body+'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="ghost" onclick="closeModal()">Close</button><button class="ghost" data-loan="'+esc(l.loan_id)+'" onclick="closeModal()">View Schedule</button></div>');
   }catch(err){showToast('Error: '+err.message,'err');}
 }
+
+function viewMember(id){document.body.click();// trigger any open dropdowns
+const btn=document.createElement('button');btn.dataset.member=id;btn.style.display='none';document.body.appendChild(btn);btn.click();btn.remove();}
 
 /* ── MODAL ───────────────────────────────────────────────────── */
 function openModal(title,html){$('modal_title').textContent=title||'';$('modal_body').innerHTML=html;$('modal').hidden=false;}
