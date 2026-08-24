@@ -59,6 +59,7 @@
     <button class="navbtn" data-view="loans">Loans</button>
     <button class="navbtn" data-view="loan-history">Loan History</button>
     <button class="navbtn" data-view="notices">Notices</button>
+    <button class="navbtn" data-view="foir">FOIR Calculator</button>
     <button class="navbtn" data-view="repayments">Repayments</button>
     <button class="navbtn" data-view="deposits">Fixed Deposits</button>
     <button class="navbtn" data-view="savings">Savings</button>
@@ -179,6 +180,30 @@
           Loans with missed payments. Penalty: 3% per missed instalment period. Click notice button to print.
         </p>
         <div id="r_notices_list" class="scrolly-list"></div>
+      </div>
+    </section>
+
+    <!-- FOIR CALCULATOR -->
+    <section class="view" id="view-foir" hidden>
+      <div class="card">
+        <div class="card-head"><h2>Loan Eligibility &amp; FOIR Calculator</h2>
+          <button class="ghost" onclick="foirClear()">Clear</button>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 14px">Calculate Fixed Obligation to Income Ratio and loan eligibility instantly.</p>
+        <div class="grid" style="gap:12px;margin-bottom:16px">
+          <label>CIBIL Score (300–900)<input id="foir_cibil" type="number" min="300" max="900" placeholder="e.g. 750" oninput="this.value=Math.min(900,Math.max(300,this.value||300));calcFOIR()" /></label>
+          <label>Net Monthly Income (₹)<input id="foir_income" type="number" min="0" placeholder="e.g. 50000" oninput="calcFOIR()" /></label>
+          <label>Existing Monthly EMIs (₹)<input id="foir_existing" type="number" min="0" placeholder="0" oninput="calcFOIR()" /></label>
+          <label>New Loan Amount (₹)<input id="foir_loan" type="number" min="0" placeholder="e.g. 200000" oninput="calcFOIR()" /></label>
+          <label>Flat Interest Rate (% p.a.)<input id="foir_rate" type="number" min="0" max="100" step="0.1" placeholder="e.g. 18" oninput="calcFOIR()" /></label>
+          <label>Tenure (Years)<input id="foir_tenure" type="number" min="0.1" step="0.5" placeholder="e.g. 2" oninput="calcFOIR()" /></label>
+        </div>
+        <div id="foir_result" style="min-height:60px">
+          <p style="color:#6b7280;font-size:13px;text-align:center;padding:20px">Fill in all fields to see results.</p>
+        </div>
+        <p style="font-size:10px;color:var(--muted);margin-top:12px">
+          Rules: APPROVED if CIBIL ≥ 700 &amp; FOIR ≤ 50% · REVIEW if CIBIL 650–699 &amp; FOIR ≤ 50% · REJECTED otherwise
+        </p>
       </div>
     </section>
 
