@@ -652,7 +652,7 @@ async function loadLedger(){
       `<td style="font-size:11px">${esc(x.Mode||'')}</td><td style="color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.Note||'')}</td>`+
       `<td><div style="display:flex;flex-direction:column;gap:2px">`+
         `<button class="ghost" style="font-size:10px;padding:1px 4px" data-rprint="${esc(x.Receipt)}">Print</button>`+
-        `<button class="ghost" style="font-size:10px;padding:1px 4px" data-rshare="${esc(x.Receipt)}">Share</button>`+
+
         (_canEditRec?`<button class="ghost" style="font-size:10px;padding:1px 4px" onclick="openReceiptEdit('${esc(x.Receipt)}',${x.Amount},'${esc(x.Date)}','${esc(x.Mode||'')}','${esc(x.Note||'')}',${x.Penalty||0})">Edit</button>`:'')+
       `</div></td>`
       +`</tr>`);
@@ -1775,11 +1775,20 @@ async function loadOverdueLoans(minDays){
 }
 
 function promptAndPrintNotice(loanId, noticeType, overridePenaltyPct){
-  const today=new Date().toISOString().split('T')[0];
-  const entered=prompt('Notice Date (leave blank for today):', today);
-  if(entered===null) return;
-  printNotice(loanId, noticeType, overridePenaltyPct, (entered||'').trim()||today);
+  const _today=new Date().toISOString().split('T')[0];
+  const _nName=noticeType===1?'First Notice':noticeType===2?'Second Notice':'Final Notice';
+  const _pct=overridePenaltyPct||3;
+  openModal('Set Notice Date — '+_nName,
+    '<div style="padding:8px 0">'+
+    '<p style="font-size:13px;color:#374151;margin-bottom:12px">Select the date to appear on the <b>'+esc(_nName)+'</b> for Loan <b>'+esc(loanId)+'</b>:</p>'+
+    '<input type="date" id="notice_date_input" value="'+_today+'" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px;font-size:15px;display:block;margin-bottom:14px" />'+
+    '<div style="display:flex;gap:8px;justify-content:flex-end">'+
+    '<button class="ghost" onclick="closeModal()">Cancel</button>'+
+    '<button class="primary" onclick="var _d=document.getElementById(\'notice_date_input\').value;closeModal();setTimeout(function(){printNotice(\''+loanId+'\','+noticeType+','+_pct+',_d||\'' +_today+ '\');},150);">Generate Notice</button>'+
+    '</div></div>'
+  );
 }
+
 async function printNotice(loanId, noticeType, overridePenaltyPct, noticeDate){
   try{
     const{notice:n}=await api('loan_notice',{loanId,noticeType,overridePenaltyPct:overridePenaltyPct||null});
@@ -2082,7 +2091,7 @@ async function printLoanApproval(loanId){
     // Get schedule summary
     const schRes=await api('loan_schedule',{loanId}).catch(()=>null);
     const s=(schRes&&schRes.result&&schRes.result.summary)?schRes.result.summary:{};
-    const now=noticeDate?new Date(noticeDate).toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric',timeZone:'Asia/Kolkata'}):new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric',timeZone:'Asia/Kolkata'});
+    const now=new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric',timeZone:'Asia/Kolkata'});
     // Compute end date from first EMI + (tenure-1) periods
     let endDate='—';
     try{
