@@ -1741,7 +1741,13 @@ async function showLoanDetail(loanId){
     const body=`<div class="summary" style="max-height:70vh;overflow-y:auto">`+
       pairs.map(([k,v])=>`<div><span>${k}:</span><b>${v}</b></div>`).join('')+
       `</div>`;
-    openModal('Loan Details — '+esc(l.loan_id), body+'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="ghost" onclick="closeModal()">Close</button><button class="ghost" data-loan="'+esc(l.loan_id)+'" onclick="closeModal()">View Schedule</button></div>');
+    lastLoanDetailId=l.loan_id;
+    openModal('Loan Details — '+esc(l.loan_id), body+
+      '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">'+
+      '<button class="ghost" onclick="closeModal()">Close</button>'+
+      '<button class="ghost" data-loan="'+esc(l.loan_id)+'" onclick="closeModal()">View Schedule</button>'+
+      '<button class="primary" style="font-size:11px" onclick="closeModal();setTimeout(()=>printLoanApproval(lastLoanDetailId),200)">Sanction Letter</button>'+
+      '</div>');
   }catch(err){showToast('Error: '+err.message,'err');}
 }
 
@@ -2050,6 +2056,115 @@ function r10f(label,val){return `<tr><td style="padding:5px 10px;border:1px soli
 function foirClear(){
   ['foir_cibil','foir_income','foir_existing','foir_loan','foir_rate','foir_tenure'].forEach(id=>{const el=$(id);if(el)el.value='';});
   const r=$('foir_result');if(r)r.innerHTML='<p style="color:#6b7280;font-size:13px;text-align:center;padding:20px">Fill in all fields to see results.</p>';
+}
+
+
+/* ── LOAN APPROVAL LETTER ──────────────────────────────────── */
+let lastLoanDetailId=null; // track which loan detail is open
+
+async function printLoanApproval(loanId){
+  if(!loanId){showToast('Open a loan detail first','err');return;}
+  try{
+    // Get full loan details
+    const l=await api('loan_get_full',{loanId});
+    // Get schedule summary
+    const schRes=await api('loan_schedule',{loanId}).catch(()=>null);
+    const s=(schRes&&schRes.result&&schRes.result.summary)?schRes.result.summary:{};
+    const now=new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric',timeZone:'Asia/Kolkata'});
+    // Compute end date from first EMI + (tenure-1) periods
+    let endDate='—';
+    try{
+      const firstEmiRaw=l.first_emi_date||l.FirstEMIDate||l.disbursement_date;
+      if(firstEmiRaw){
+        const firstEmi=new Date(firstEmiRaw);
+        const freq=(l.frequency||l.Frequency||'Monthly').toLowerCase();
+        const tenure=Number(s.effTenure||s.nominalTenure||l.tenure_months||l.TenureMonths||12);
+        if(freq==='daily') firstEmi.setDate(firstEmi.getDate()+tenure-1);
+        else firstEmi.setMonth(firstEmi.getMonth()+tenure-1);
+        endDate=firstEmi.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+      }
+    }catch(e){}
+    const lId=l.loan_id||l.LoanID||loanId;
+    const borrower=l.borrower||l.Borrower||'';
+    const memberId=l.member_id||l.MemberID||'—';
+    const loanType=l.loan_type||l.LoanType||'—';
+    const method=l.method||l.Method||'Flat';
+    const freq=l.frequency||l.Frequency||'Monthly';
+    const rateAnnual=((l.rate_annual||l.RateAnnual||0)*100).toFixed(2);
+    const tenure=l.tenure_months||l.TenureMonths||'—';
+    const sanctionDate=fmtIN(l.sanction_date||l.SanctionDate);
+    const disbDate=fmtIN(l.disbursement_date||l.DisbursementDate);
+    const firstEmiDate=fmtIN(l.first_emi_date||l.FirstEMIDate);
+    const principal=l.amount||l.Amount||0;
+    const effEMI=s.effEMI||s.baseEMI||0;
+    const totalRep=s.totalRepayable||0;
+    const g1=l.g1_name||l.G1Name;
+    const g2=l.g2_name||l.G2Name;
+    const body=
+      // Header
+      `<div style="text-align:center;border-bottom:3px double #1a3a8f;padding-bottom:14px;margin-bottom:18px">`+
+        `<img src="${LOGO_URL}" style="width:64px;height:64px;object-fit:contain" onerror="this.style.display='none'"/>`+
+        `<div style="font-size:22px;font-weight:800;color:#1a3a8f;margin-top:6px">${esc(BANK)}</div>`+
+        `<div style="font-size:11px;color:#555;margin-top:2px;letter-spacing:.06em;text-transform:uppercase">Loan Sanction Letter</div>`+
+      `</div>`+
+      // Ref + Date
+      `<div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:14px">`+
+        `<span>Loan A/c: <b>${esc(lId)}</b></span>`+
+        `<span>Date: <b>${now}</b></span>`+
+      `</div>`+
+      // Salutation
+      `<div style="font-size:11px;margin-bottom:14px;line-height:1.7">`+
+        `Dear <b>${esc(borrower)}</b>,<br/><br/>`+
+        `We are pleased to inform you that your loan application has been sanctioned by <b>${esc(BANK)}</b>. `+
+        `The details of the sanctioned loan are as follows:`+
+      `</div>`+
+      // Details table
+      `<table style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:16px"><tbody>`+
+        rw('Member ID',          memberId)+
+        rw('Member Name',        borrower)+
+        rw('Loan Account No.',   lId)+
+        rw('Loan Type',          loanType)+
+        rw('Sanction Date',      sanctionDate)+
+        rw('Disbursement Date',  disbDate)+
+        rw('Principal Amount',   rupee(principal))+
+        rw('Interest Rate',      rateAnnual+'% per annum ('+method+' Rate)')+
+        rw('Tenure',             tenure+' months')+
+        rw('Repayment Frequency',freq)+
+        rw('Period EMI',         rupee(effEMI))+
+        rw('First EMI Date',     firstEmiDate)+
+        rw('Last EMI Date',      endDate)+
+        rw('Total Repayable',    rupee(totalRep))+
+        (g1?rw('Guarantor 1', esc(g1)+(l.g1_member_id||l.G1MemberID?' — '+(l.g1_member_id||l.G1MemberID):'')):'')+
+        (g2?rw('Guarantor 2', esc(g2)+(l.g2_member_id||l.G2MemberID?' — '+(l.g2_member_id||l.G2MemberID):'')):'')+
+      `</tbody></table>`+
+      // Terms
+      `<div style="font-size:10px;line-height:1.7;margin-bottom:22px">`+
+        `Please note that this loan is subject to the rules and bye-laws of <b>${esc(BANK)}</b>. `+
+        `Kindly ensure timely repayment as per the above schedule to avoid penalty interest. `+
+        `This is a computer-generated document and serves as official confirmation of loan sanction.`+
+      `</div>`+
+      // Signatory (right-aligned, no member signature)
+      `<div style="display:flex;justify-content:flex-end">`+
+        `<div style="text-align:center">`+
+          `<div style="border-top:1px solid #111;width:190px;margin-bottom:5px"></div>`+
+          `<div style="font-size:10px;font-weight:600">Authorised Signatory</div>`+
+          `<div style="font-size:10px;color:#555">${esc(BANK)}</div>`+
+        `</div>`+
+      `</div>`+
+      // Footer
+      `<div style="margin-top:18px;border-top:1px solid #e5e7eb;padding-top:6px;font-size:8px;color:#9ca3af;text-align:center">`+
+        `${esc(BANK)} · ${now}`+
+      `</div>`;
+    printDoc(body,'@page{size:A4;margin:1.5cm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:10px;margin:0}','');
+  }catch(err){showToast('Error generating letter: '+err.message,'err');}
+}
+function rw(label,val){
+  return `<tr><td style="padding:6px 10px;border:1px solid #e5e7eb;font-weight:600;width:44%;background:#f9fafb;font-size:10px">${esc(String(label))}</td><td style="padding:6px 10px;border:1px solid #e5e7eb;font-size:10px">${val}</td></tr>`;
+}
+function fmtIN(d){
+  if(!d)return '—';
+  try{return new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});}
+  catch(e){return String(d);}
 }
 
 /* ── MODAL ───────────────────────────────────────────────────── */
