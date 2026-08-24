@@ -653,6 +653,7 @@ async function loadLedger(){
       `<td style="font-size:11px">${esc(x.Mode||'')}</td><td style="color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.Note||'')}</td>`+
       `<td><div style="display:flex;flex-direction:column;gap:2px">`+
         `<button class="ghost" style="font-size:10px;padding:1px 4px" data-rprint="${esc(x.Receipt)}">Print</button>`+
+        `<button class="ghost" style="font-size:10px;padding:1px 4px" data-rshare="${esc(x.Receipt)}">Share</button>`+
         (_canEditRec?`<button class="ghost" style="font-size:10px;padding:1px 4px" onclick="openReceiptEdit('${esc(x.Receipt)}',${x.Amount},'${esc(x.Date)}','${esc(x.Mode||'')}','${esc(x.Note||'')}',${x.Penalty||0})">Edit</button>`:'')+
       `</div></td>`
       +`</tr>`);
@@ -682,6 +683,10 @@ const receiptSummary=r=>{
   pairs.push(['Operator',esc(r.operator)]);
   return summaryHtml(pairs);
 };
+async function sharePastReceipt(receiptNo){
+  try{const{receipt}=await api('receipt_print',{loanId:curLoanId,receiptNo});pdfReceiptObj(receipt);}
+  catch(err){showToast('Error: '+err.message,'err');}
+}
 async function printPastReceipt(receiptNo){
   try{const{receipt}=await api('receipt_print',{loanId:curLoanId,receiptNo});printReceiptObj(receipt);}
   catch(err){alert(err.message);}
