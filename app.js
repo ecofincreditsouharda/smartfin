@@ -623,8 +623,7 @@ function renderLoanList(){
   if(!rows.length){$('r_loanlist').innerHTML='<p class="msg">No matching loans.</p>';return;}
   const cols=Object.keys(rows[0]); const money=/amount|emi|repayable|interest|total|principal|balance|paid/i;
   let h='<table><tr>'+cols.map(c=>`<th>${esc(c)}</th>`).join('')+'<th></th></tr>';
-  rows.forEach(r=>{h+='<tr>'+cols.map(c=>`<td>${money.test(c)?rupee(r[c]):esc(r[c])}</td>`).join('')+
-    `<td><button class="ghost" data-openledger="${esc(r[cols[0]])}">Collect / View</button></td></tr>`;});
+  rows.forEach(r=>{const _lid=esc(r[cols[0]]);h+=`<tr style="cursor:pointer" onclick="openLedger('${_lid}')">` +cols.map(c=>`<td>${money.test(c)?rupee(r[c]):esc(r[c])}</td>`).join('')+`<td><button class="ghost" onclick="event.stopPropagation();openLedger('${_lid}')">Collect / View</button></td></tr>`;});
   $('r_loanlist').innerHTML=h+'</table>';
 }
 function openLedger(id){if(!id)return;$('r_LoanId').value=id;loadLedger();}
@@ -760,23 +759,15 @@ function printReceiptObj(r){
 /* PDF receipt (PWA only) — Portrait credit-card size via blob URL (#8) */
 function pdfReceiptObj(r){
   if(!r){alert('No receipt selected.');return;}
-  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-    @page{size:54mm 86mm;margin:2mm 3mm}
-    *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'Courier New',Courier,monospace;font-size:7.5pt;color:#000;width:50mm;background:#fff}
-    .rc{width:100%;text-align:center}.rl{width:26px;height:26px;object-fit:contain;display:block;margin:2px auto 3px}
-    .bn{font-size:9.5pt;font-weight:bold;letter-spacing:.5px;margin-bottom:1px}
-    .st{font-size:7pt;margin-bottom:3px;font-style:italic}
-    pre{font-size:7pt;white-space:pre;text-align:left;margin-top:3px;line-height:1.4}
-  </style></head><body>${buildReceiptHtml(r)}</body></html>`;
-  const blob=new Blob([html],{type:'text/html'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;a.download=`receipt_${r.receiptNo||'receipt'}.html`;
-  document.body.appendChild(a);a.click();
-  setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},1500);
-  showToast('📄 Receipt saved — open in browser and Print → Save as PDF','ok');
+  const rcss=["@page{size:76mm 127mm;margin:2mm 3mm}",
+    "*{margin:0;padding:0;box-sizing:border-box}",
+    "body{font-family:'Courier New',Courier,monospace;font-size:8pt;color:#000;width:72mm}",
+    ".rc{width:100%;text-align:center}.rl{width:30px;height:30px;object-fit:contain;display:block;margin:2px auto 3px}",
+    ".bn{font-size:10pt;font-weight:bold}.st{font-size:7.5pt}",
+    "pre{font-size:7.5pt;white-space:pre;line-height:1.45}"].join("");
+  printDoc(buildReceiptHtml(r), rcss, '');
 }
+
 function printHeader(subtitle){
   return `<div class="hd"><img src="${LOGO_URL}" class="lg" onerror="this.style.display='none'"/>`+
     `<div><h2>${esc(BANK)}</h2><h3>${esc(subtitle)}</h3></div></div>`;
