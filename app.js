@@ -1774,21 +1774,27 @@ async function loadOverdueLoans(minDays){
         `<td class="num" style="color:#dc2626">${rupee(l.arrears)}</td>`+
         `<td>${esc(l.frequency||'Monthly')}</td>`+
         `<td style="white-space:nowrap"><div style="display:flex;flex-direction:column;gap:2px">`+
-          (l.daysMissed>=7 ?`<button class="ghost" style="font-size:10px;padding:1px 6px;color:#dc2626" onclick="printNotice('${esc(l.loanId)}',1,${l.penaltyRate||3})">1st Notice</button>`:'')+ 
-          (l.daysMissed>=14?`<button class="ghost" style="font-size:10px;padding:1px 6px;color:#b45309" onclick="printNotice('${esc(l.loanId)}',2,${l.penaltyRate||3})">2nd Notice</button>`:'')+ 
-          (l.daysMissed>=21?`<button class="ghost" style="font-size:10px;padding:1px 6px;color:#7f1d1d" onclick="printNotice('${esc(l.loanId)}',3,${l.penaltyRate||3})">Final Notice</button>`:'')+
+          (l.daysMissed>=7 ?`<button class="ghost" style="font-size:10px;padding:1px 6px;color:#dc2626" onclick="promptAndPrintNotice('${esc(l.loanId)}',1,${l.penaltyRate||3})">1st Notice</button>`:'')+ 
+          (l.daysMissed>=14?`<button class="ghost" style="font-size:10px;padding:1px 6px;color:#b45309" onclick="promptAndPrintNotice('${esc(l.loanId)}',2,${l.penaltyRate||3})">2nd Notice</button>`:'')+ 
+          (l.daysMissed>=21?`<button class="ghost" style="font-size:10px;padding:1px 6px;color:#7f1d1d" onclick="promptAndPrintNotice('${esc(l.loanId)}',3,${l.penaltyRate||3})">Final Notice</button>`:'')+
         `</div></td></tr>`;
     });
     el.innerHTML=h+'</tbody></table>';
   }catch(err){el.innerHTML=`<p class="err">${err.message}</p>`;}
 }
 
-async function printNotice(loanId, noticeType, overridePenaltyPct){
+function promptAndPrintNotice(loanId, noticeType, overridePenaltyPct){
+  const today=new Date().toISOString().split('T')[0];
+  const entered=prompt('Notice Date (leave blank for today):', today);
+  if(entered===null) return;
+  printNotice(loanId, noticeType, overridePenaltyPct, (entered||'').trim()||today);
+}
+async function printNotice(loanId, noticeType, overridePenaltyPct, noticeDate){
   try{
     const{notice:n}=await api('loan_notice',{loanId,noticeType,overridePenaltyPct:overridePenaltyPct||null});
     const noticeName=noticeType===1?'FIRST NOTICE':noticeType===2?'SECOND NOTICE':'FINAL NOTICE';
     const urgencyColor=noticeType===1?'#dc2626':noticeType===2?'#b45309':'#7f1d1d';
-    const now=new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric',timeZone:'Asia/Kolkata'});
+    const now=noticeDate?new Date(noticeDate).toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric',timeZone:'Asia/Kolkata'}):new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric',timeZone:'Asia/Kolkata'});
     // Receipt rows
     let receiptRows='';
     (n.receipts||[]).forEach((r,i)=>{receiptRows+=`<tr><td>${i+1}</td><td>${esc(r.date)}</td><td style="text-align:right">${rupee(r.amount)}</td><td>${esc(r.mode||'')}</td></tr>`;});
@@ -2085,7 +2091,7 @@ async function printLoanApproval(loanId){
     // Get schedule summary
     const schRes=await api('loan_schedule',{loanId}).catch(()=>null);
     const s=(schRes&&schRes.result&&schRes.result.summary)?schRes.result.summary:{};
-    const now=new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric',timeZone:'Asia/Kolkata'});
+    const now=noticeDate?new Date(noticeDate).toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric',timeZone:'Asia/Kolkata'}):new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric',timeZone:'Asia/Kolkata'});
     // Compute end date from first EMI + (tenure-1) periods
     let endDate='—';
     try{
@@ -2125,7 +2131,7 @@ async function printLoanApproval(loanId){
       // Ref + Date
       `<div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:14px">`+
         `<span>Loan A/c: <b>${esc(lId)}</b></span>`+
-        `<span>Date: <b>${now}</b></span>`+
+        `<span>Date: <b>${esc(sanctionDate)}</b></span>`+
       `</div>`+
       // Salutation
       `<div style="font-size:11px;margin-bottom:14px;line-height:1.7">`+
