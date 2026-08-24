@@ -579,6 +579,7 @@ function fillReg(key,f,id){
   if(key==='loans'){setV('l_Borrower',f.Borrower);setV('l_MemberID',f.MemberID||f.member_id);setV('l_LoanType',f.LoanType||f.loan_type);
     setV('l_Branch',f.Branch||f.branch);setV('l_Amount',f.Amount||f.amount);setV('l_RatePct',(Number(f.RateAnnual||f.rate_annual)||0)*100);
   if($('l_PenaltyRate'))$('l_PenaltyRate').value=(Number(f.penalty_rate||f.PenaltyRate||0.03)*100).toFixed(1);
+  if($('l_EnquiryCode'))$('l_EnquiryCode').value=f.enquiry_code||f.EnquiryCode||'';
     setV('l_TenureMonths',f.TenureMonths||f.tenure_months);setV('l_Method',f.Method||f.method||'Flat');setV('l_Frequency',f.Frequency||f.frequency||'Monthly');
     setV('l_SanctionDate',f.SanctionDate||f.sanction_date);setV('l_DisbursementDate',f.DisbursementDate||f.disbursement_date);
     setV('l_FirstEMIDate',f.FirstEMIDate||f.first_emi_date);setV('l_CustomEMI',f.CustomEMI||f.custom_emi);
@@ -815,7 +816,8 @@ function loanFromForm(){return{Borrower:val('l_Borrower'),MemberID:val('l_Member
   DisbursementDate:val('l_DisbursementDate'),FirstEMIDate:val('l_FirstEMIDate'),CustomEMI:val('l_CustomEMI'),
   Collector:val('l_Collector'),G1Name:val('l_G1Name'),G1MemberID:val('l_G1MemberID'),
   G2Name:val('l_G2Name'),G2MemberID:val('l_G2MemberID'),Recommendation:val('l_Recommendation'),
-  PenaltyRate:val('l_PenaltyRate')?Number(val('l_PenaltyRate')):null};}
+  PenaltyRate:val('l_PenaltyRate')?Number(val('l_PenaltyRate')):null,
+  EnquiryCode:val('l_EnquiryCode')||''};}
 async function previewLoan(){
   $('l_msg').textContent='Calculating…';
   try{const{result,meta}=await api('loan_preview',{loan:loanFromForm()});
@@ -1857,72 +1859,194 @@ async function printNotice(loanId, noticeType, overridePenaltyPct){
 
 /* ══ FOIR CALCULATOR ════════════════════════════════════════ */
 function initFOIR(){ calcFOIR(); }
+function clampCibil(){
+  const el=$('foir_cibil');if(!el||!el.value)return;
+  const v=Number(el.value);
+  if(v>900){el.value='900';}
+  else if(v<300&&v>0){el.value='300';}
+  calcFOIR();
+}
+function fmtCurrencyInput(el){
+  const raw=String(el.value).replace(/[^0-9]/g,'');
+  if(!raw){el.value='';el.dataset.raw='';return;}
+  el.dataset.raw=raw;
+  el.value=Number(raw).toLocaleString('en-IN');
+}
+function getCurrencyVal(id){
+  const el=$(id);if(!el)return 0;
+  return Number((el.dataset&&el.dataset.raw?el.dataset.raw:el.value||'0').replace(/[^0-9.]/g,''))||0;
+}
 function calcFOIR(){
-  const cibil    = Number($('foir_cibil')?.value||0);
-  const income   = Number($('foir_income')?.value||0);
-  const existing = Number($('foir_existing')?.value||0);
-  const loanAmt  = Number($('foir_loan')?.value||0);
-  const rate     = Number($('foir_rate')?.value||0);
-  const tenureYr = Number($('foir_tenure')?.value||0);
-  const resEl    = $('foir_result');
+  const cibil  =Number($('foir_cibil')?.value||0);
+  const income =getCurrencyVal('foir_income');
+  const existing=getCurrencyVal('foir_existing');
+  const loanAmt=getCurrencyVal('foir_loan');
+  const rate   =Number($('foir_rate')?.value||0);
+  const tenureYr=Number($('foir_tenure')?.value||0);
+  const method =$('foir_method')?.value||'flat';
+  const resEl  =$('foir_result');
   if(!income||!loanAmt||!rate||!tenureYr){
-    if(resEl) resEl.innerHTML='<p style="color:#6b7280;font-size:13px;text-align:center;padding:20px">Fill in all fields to see results.</p>';
+    if(resEl)resEl.innerHTML='<p style="color:#6b7280;font-size:13px;text-align:center;padding:20px">Fill in all fields to see results.</p>';
     return;
   }
-  // Flat rate EMI
-  const totalInterest = loanAmt * (rate/100) * tenureYr;
-  const totalPayable  = loanAmt + totalInterest;
-  const newEMI        = totalPayable / (tenureYr * 12);
-  // FOIR
-  const totalObligation = existing + newEMI;
-  const foir = (totalObligation / income) * 100;
-  // Verdict
-  let verdict, color, bg, icon;
-  if(cibil >= 700 && foir <= 50){
-    verdict='APPROVED'; color='#16a34a'; bg='#f0fdf4'; icon='✓';
-  } else if(cibil>=650 && cibil<=699 && foir<=50){
-    verdict='REVIEW REQUIRED'; color='#d97706'; bg='#fffbeb'; icon='⚠';
+  let newEMI,totalInterest,totalPayable;
+  if(method==='reducing'){
+    const mrate=rate/100/12;const N=Math.round(tenureYr*12);
+    newEMI=mrate===0?loanAmt/N:loanAmt*mrate*Math.pow(1+mrate,N)/(Math.pow(1+mrate,N)-1);
+    newEMI=Math.round(newEMI);totalPayable=newEMI*N;totalInterest=totalPayable-loanAmt;
   } else {
-    verdict='REJECTED'; color='#dc2626'; bg='#fef2f2'; icon='✕';
+    totalInterest=loanAmt*(rate/100)*tenureYr;totalPayable=loanAmt+totalInterest;
+    newEMI=Math.round(totalPayable/(tenureYr*12));
   }
+  const totalObligation=existing+newEMI;
+  const foir=(totalObligation/income)*100;
+  let verdict,color,bg,icon;
+  if(cibil>=700&&foir<=50){verdict='APPROVED';color='#16a34a';bg='#f0fdf4';icon='✓';}
+  else if(cibil>=650&&cibil<=699&&foir<=50){verdict='REVIEW REQUIRED';color='#d97706';bg='#fffbeb';icon='⚠';}
+  else{verdict='REJECTED';color='#dc2626';bg='#fef2f2';icon='✕';}
   const reasons=[];
-  if(cibil<650) reasons.push('CIBIL score below 650');
-  if(foir>50)   reasons.push('FOIR exceeds 50% ('+foir.toFixed(1)+'%)');
-  if(resEl) resEl.innerHTML=
+  if(cibil>0&&cibil<650)reasons.push('CIBIL below 650');
+  if(foir>50)reasons.push('FOIR '+foir.toFixed(1)+'% > 50%');
+  if(resEl)resEl.innerHTML=
     `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">`+
-      statBox('New Monthly EMI',rupee(Math.round(newEMI)),'#1d4ed8')+
+      statBox('New Monthly EMI',rupee(newEMI),'#1d4ed8')+
       statBox('FOIR',foir.toFixed(1)+'%',foir>50?'#dc2626':foir>40?'#d97706':'#16a34a')+
       statBox('Total Payable',rupee(Math.round(totalPayable)),'#374151')+
     `</div>`+
     `<div style="background:${bg};border:2px solid ${color};border-radius:10px;padding:16px;text-align:center;margin-bottom:14px">`+
-      `<div style="font-size:32px;font-weight:900;color:${color}">${icon} ${verdict}</div>`+
-      (reasons.length?`<div style="font-size:12px;color:${color};margin-top:6px">${reasons.join(' · ')}</div>`:'')+ 
+      `<div style="font-size:28px;font-weight:900;color:${color}">${icon} ${verdict}</div>`+
+      (reasons.length?`<div style="font-size:12px;color:${color};margin-top:6px">${reasons.join(' · ')}</div>`:'')+
     `</div>`+
     `<div style="font-size:11px;background:#f9fafb;border-radius:8px;padding:12px">`+
       `<div style="font-weight:700;margin-bottom:6px;font-size:12px">Breakdown</div>`+
-      detailRow('Loan Amount', rupee(loanAmt))+
-      detailRow('Flat Rate', rate+'% p.a.')+
-      detailRow('Tenure', tenureYr+' yr ('+(tenureYr*12)+' months)')+
-      detailRow('Total Interest (Flat)', rupee(Math.round(totalInterest)))+
-      detailRow('Total Payable', rupee(Math.round(totalPayable)))+
+      detailRow('Loan Amount',rupee(loanAmt))+
+      detailRow('Method',method==='reducing'?'Reducing (Cut)':'Flat Rate')+
+      detailRow('Rate',rate+'% p.a.')+
+      detailRow('Tenure',tenureYr+' yr ('+Math.round(tenureYr*12)+' mo)')+
+      detailRow('Total Interest',rupee(Math.round(totalInterest)))+
+      detailRow('Total Payable',rupee(Math.round(totalPayable)))+
       `<div style="border-top:1px solid #e5e7eb;margin:6px 0"></div>`+
-      detailRow('Net Monthly Income', rupee(income))+
-      detailRow('Existing EMIs', rupee(existing))+
-      detailRow('New EMI', rupee(Math.round(newEMI)))+
-      detailRow('Total Obligations', rupee(Math.round(totalObligation)))+
-      detailRow('FOIR', foir.toFixed(2)+'%','font-weight:700;color:'+(foir>50?'#dc2626':'#16a34a'))+
+      detailRow('Net Monthly Income',rupee(income))+
+      detailRow('Existing EMIs',rupee(existing))+
+      detailRow('New EMI',rupee(newEMI))+
+      detailRow('Total Obligations',rupee(Math.round(totalObligation)))+
+      detailRow('FOIR',foir.toFixed(2)+'%','font-weight:700;color:'+(foir>50?'#dc2626':'#16a34a'))+
       `<div style="border-top:1px solid #e5e7eb;margin:6px 0"></div>`+
-      detailRow('CIBIL Score', cibil,'color:'+(cibil>=700?'#16a34a':cibil>=650?'#d97706':'#dc2626')+';font-weight:700')+
+      detailRow('CIBIL',String(cibil),'color:'+(cibil>=700?'#16a34a':cibil>=650?'#d97706':'#dc2626')+';font-weight:700')+
     `</div>`;
 }
-function statBox(label,val,color){
-  return `<div style="background:white;border:1px solid #e5e7eb;border-top:3px solid ${color};border-radius:8px;padding:12px;text-align:center">`+
-    `<div style="font-size:10px;color:#6b7280;font-weight:600;text-transform:uppercase;margin-bottom:4px">${label}</div>`+
-    `<div style="font-size:20px;font-weight:700;color:${color}">${val}</div></div>`;
+let foirEnquiries=[];
+function loadFoirEnquiries(){try{foirEnquiries=JSON.parse(localStorage.getItem('foirEnquiries')||'[]');}catch(e){foirEnquiries=[];}}
+function saveFoirEnquiries(){localStorage.setItem('foirEnquiries',JSON.stringify(foirEnquiries));}
+function submitFOIR(){
+  const name=($('foir_name')?.value||'').trim();
+  const cibil=Number($('foir_cibil')?.value||0);
+  const income=getCurrencyVal('foir_income');
+  const existing=getCurrencyVal('foir_existing');
+  const loanAmt=getCurrencyVal('foir_loan');
+  const rate=Number($('foir_rate')?.value||0);
+  const tenureYr=Number($('foir_tenure')?.value||0);
+  const method=$('foir_method')?.value||'flat';
+  if(!name){showToast('Enter applicant name','err');$('foir_name')?.focus();return;}
+  if(!cibil){showToast('Enter CIBIL Score','err');$('foir_cibil')?.focus();return;}
+  if(!income||!loanAmt||!rate||!tenureYr){showToast('Fill all fields','err');return;}
+  let newEMI,totalInterest,totalPayable;
+  if(method==='reducing'){
+    const mrate=rate/100/12;const N=Math.round(tenureYr*12);
+    newEMI=mrate===0?loanAmt/N:Math.round(loanAmt*mrate*Math.pow(1+mrate,N)/(Math.pow(1+mrate,N)-1));
+    totalPayable=newEMI*N;totalInterest=totalPayable-loanAmt;
+  } else {
+    totalInterest=loanAmt*(rate/100)*tenureYr;
+    totalPayable=loanAmt+totalInterest;
+    newEMI=Math.round(totalPayable/(tenureYr*12));
+  }
+  const foir=Math.round((existing+newEMI)/income*10000)/100;
+  const verdict=cibil>=700&&foir<=50?'APPROVED':cibil>=650&&cibil<=699&&foir<=50?'REVIEW REQUIRED':'REJECTED';
+  loadFoirEnquiries();
+  const seq=String(foirEnquiries.length+1).padStart(3,'0');
+  const yr=new Date().getFullYear().toString().slice(-2);
+  const code='ENQ-'+yr+'-'+seq;
+  foirEnquiries.unshift({code,name,cibil,income,existing,loanAmt,rate,tenureYr,method,
+    newEMI:Math.round(newEMI),totalInterest:Math.round(totalInterest),
+    totalPayable:Math.round(totalPayable),foir,verdict,
+    date:new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric',timeZone:'Asia/Kolkata'})});
+  saveFoirEnquiries();
+  showToast('Saved — Code: '+code,'ok');
+  foirClear();
+  renderFoirList();
 }
-function detailRow(label,val,style){
-  return `<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11px"><span style="color:#6b7280">${esc(label)}</span><span style="${style||''}">${val}</span></div>`;
+function renderFoirList(){
+  loadFoirEnquiries();
+  const el=$('foir_list');if(!el)return;
+  if(!foirEnquiries.length){el.innerHTML='<p style="color:#6b7280;font-size:13px;text-align:center;padding:20px">No enquiries yet.</p>';return;}
+  let h='<table style="table-layout:fixed;width:100%"><colgroup>'
+    +'<col style="width:100px"><col style="min-width:100px"><col style="width:60px">'
+    +'<col style="width:80px"><col style="width:80px"><col style="width:70px"><col style="width:75px"><col style="width:80px"></colgroup>'
+    +'<thead><tr><th>Code</th><th>Name</th><th>CIBIL</th><th class="num">Loan</th><th class="num">EMI</th><th class="num">FOIR</th><th>Verdict</th><th></th></tr></thead><tbody>';
+  foirEnquiries.forEach((e,i)=>{
+    const vc=e.verdict==='APPROVED'?'#16a34a':e.verdict==='REVIEW REQUIRED'?'#d97706':'#dc2626';
+    h+=`<tr><td style="font-weight:700;font-size:11px;white-space:nowrap">${esc(e.code)}</td>`+
+      `<td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px">${esc(e.name)}</td>`+
+      `<td style="font-size:11px;color:${e.cibil>=700?'#16a34a':e.cibil>=650?'#d97706':'#dc2626'};font-weight:600">${e.cibil}</td>`+
+      `<td class="num" style="font-size:11px">${rupee(e.loanAmt)}</td>`+
+      `<td class="num" style="font-size:11px">${rupee(e.newEMI)}</td>`+
+      `<td class="num" style="font-size:11px;color:${vc};font-weight:700">${e.foir}%</td>`+
+      `<td style="color:${vc};font-size:10px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.verdict)}</td>`+
+      `<td><div style="display:flex;flex-direction:column;gap:2px">`+
+        `<button class="ghost" style="font-size:10px;padding:1px 5px" onclick="editFoirEnquiry(${i})">Edit</button>`+
+        `<button class="ghost" style="font-size:10px;padding:1px 5px" onclick="printFoirEnquiry(${i})">Print</button>`+
+        `<button class="ghost" style="font-size:10px;padding:1px 5px;color:#dc2626" onclick="deleteFoirEnquiry(${i})">Delete</button>`+
+      `</div></td></tr>`;
+  });
+  el.innerHTML=h+'</tbody></table>';
 }
+function editFoirEnquiry(i){
+  loadFoirEnquiries();const e=foirEnquiries[i];if(!e)return;
+  if($('foir_name'))$('foir_name').value=e.name||'';
+  if($('foir_cibil'))$('foir_cibil').value=e.cibil||'';
+  if($('foir_income')){$('foir_income').value=(e.income||0).toLocaleString('en-IN');$('foir_income').dataset.raw=String(e.income||0);}
+  if($('foir_existing')){$('foir_existing').value=(e.existing||0).toLocaleString('en-IN');$('foir_existing').dataset.raw=String(e.existing||0);}
+  if($('foir_loan')){$('foir_loan').value=(e.loanAmt||0).toLocaleString('en-IN');$('foir_loan').dataset.raw=String(e.loanAmt||0);}
+  if($('foir_method'))$('foir_method').value=e.method||'flat';
+  if($('foir_rate'))$('foir_rate').value=e.rate||'';
+  if($('foir_tenure'))$('foir_tenure').value=e.tenureYr||'';
+  foirEnquiries.splice(i,1);saveFoirEnquiries();
+  calcFOIR();showToast('Editing '+e.code+' — modify and Submit','ok');
+}
+function deleteFoirEnquiry(i){
+  loadFoirEnquiries();if(!confirm('Delete '+foirEnquiries[i]?.code+'?'))return;
+  foirEnquiries.splice(i,1);saveFoirEnquiries();renderFoirList();
+}
+function printFoirEnquiry(i){
+  loadFoirEnquiries();const e=foirEnquiries[i];if(!e)return;
+  const vc=e.verdict==='APPROVED'?'#16a34a':e.verdict==='REVIEW REQUIRED'?'#d97706':'#dc2626';
+  const body=
+    `<div style="text-align:center;border-bottom:2px solid #1a3a8f;padding-bottom:12px;margin-bottom:16px">`+
+      `<img src="${LOGO_URL}" style="width:56px;height:56px;object-fit:contain" onerror="this.style.display='none'"/>`+
+      `<div style="font-size:20px;font-weight:800;color:#1a3a8f;margin-top:6px">${esc(BANK)}</div>`+
+      `<div style="font-size:11px;color:#555;letter-spacing:.04em">LOAN ELIGIBILITY — FOIR REPORT</div>`+
+    `</div>`+
+    `<div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:14px">`+
+      `<span>Enquiry Code: <b>${esc(e.code)}</b></span><span>Date: <b>${esc(e.date)}</b></span>`+
+    `</div>`+
+    `<table style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:16px"><tbody>`+
+      r10f('Applicant Name',esc(e.name))+r10f('CIBIL Score','<span style="color:'+vc+';font-weight:700">'+e.cibil+'</span>')+
+      r10f('Net Monthly Income',rupee(e.income))+r10f('Existing Monthly EMIs',rupee(e.existing))+
+      r10f('Loan Amount',rupee(e.loanAmt))+r10f('Method',e.method==='reducing'?'Reducing (Cut)':'Flat Rate')+
+      r10f('Rate',e.rate+'% p.a.')+r10f('Tenure',e.tenureYr+' yr ('+Math.round(e.tenureYr*12)+' mo)')+
+      r10f('Monthly EMI',rupee(e.newEMI))+r10f('Total Interest',rupee(e.totalInterest))+
+      r10f('Total Payable',rupee(e.totalPayable))+r10f('FOIR','<span style="color:'+vc+';font-weight:700">'+e.foir+'%</span>')+
+    `</tbody></table>`+
+    `<div style="background:${e.verdict==='APPROVED'?'#f0fdf4':e.verdict==='REVIEW REQUIRED'?'#fffbeb':'#fef2f2'};border:2px solid ${vc};border-radius:8px;padding:14px;text-align:center;margin-bottom:20px">`+
+      `<div style="font-size:22px;font-weight:900;color:${vc}">${e.verdict==='APPROVED'?'✓':e.verdict==='REVIEW REQUIRED'?'⚠':'✕'} ${esc(e.verdict)}</div>`+
+    `</div>`+
+    `<div style="display:flex;justify-content:flex-end;margin-top:20px">`+
+      `<div style="text-align:center"><div style="border-top:1px solid #333;width:170px;margin-bottom:4px"></div>`+
+      `<div style="font-size:10px">Authorised Signatory<br/><b>${esc(BANK)}</b></div></div>`+
+    `</div>`;
+  printDoc(body,'@page{size:A4;margin:1.5cm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:10px;margin:0}','');
+}
+function r10f(label,val){return `<tr><td style="padding:5px 10px;border:1px solid #e5e7eb;font-weight:600;width:45%;background:#f9fafb">${label}</td><td style="padding:5px 10px;border:1px solid #e5e7eb">${val}</td></tr>`;}
 function foirClear(){
   ['foir_cibil','foir_income','foir_existing','foir_loan','foir_rate','foir_tenure'].forEach(id=>{const el=$(id);if(el)el.value='';});
   const r=$('foir_result');if(r)r.innerHTML='<p style="color:#6b7280;font-size:13px;text-align:center;padding:20px">Fill in all fields to see results.</p>';
