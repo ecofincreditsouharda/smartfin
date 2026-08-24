@@ -212,7 +212,8 @@
           Rules: APPROVED if CIBIL ≥ 700 &amp; FOIR ≤ 50% · REVIEW if CIBIL 650–699 &amp; FOIR ≤ 50% · REJECTED otherwise
         </p>
         <div class="actions" style="margin-top:12px">
-          <button class="primary" onclick="submitFOIR()">Submit &amp; Generate Enquiry Code</button>
+          <button class="primary" onclick="calcFOIR();document.getElementById('foir_result').scrollIntoView({behavior:'smooth',block:'nearest'})">Preview</button>
+          <button class="ghost" onclick="submitFOIR()">Save Enquiry</button>
           <button class="ghost" onclick="foirClear()">Clear</button>
         </div>
       </div>
