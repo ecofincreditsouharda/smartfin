@@ -1882,6 +1882,16 @@ function getCurrencyVal(id){
   const el=$(id);if(!el)return 0;
   return Number((el.dataset&&el.dataset.raw?el.dataset.raw:el.value||'0').replace(/[^0-9.]/g,''))||0;
 }
+function statBox(label,val,color){
+  return '<div style="background:white;border:1px solid #e5e7eb;border-top:3px solid '+color+';border-radius:8px;padding:12px;text-align:center">'+
+    '<div style="font-size:10px;color:#6b7280;font-weight:600;text-transform:uppercase;margin-bottom:4px">'+label+'</div>'+
+    '<div style="font-size:20px;font-weight:700;color:'+color+'">'+val+'</div></div>';
+}
+function detailRow(label,val,style){
+  return '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11px">'+
+    '<span style="color:#6b7280">'+label+'</span>'+
+    '<span style="'+(style||'')+'">'+val+'</span></div>';
+}
 function calcFOIR(){
   const cibil  =Number($('foir_cibil')?.value||0);
   const income =getCurrencyVal('foir_income');
