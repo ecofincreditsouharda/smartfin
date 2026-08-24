@@ -191,21 +191,38 @@
         <div class="card-head"><h2>Loan Eligibility &amp; FOIR Calculator</h2>
           <button class="ghost" onclick="foirClear()">Clear</button>
         </div>
-        <p style="font-size:12px;color:var(--muted);margin:0 0 14px">Calculate Fixed Obligation to Income Ratio and loan eligibility instantly.</p>
-        <div class="grid" style="gap:12px;margin-bottom:16px">
+        <p style="font-size:12px;color:var(--muted);margin:0 0 14px">Fill in all fields. Results update automatically. Click Submit to save and get an Enquiry Code.</p>
+        <div class="grid" style="gap:12px;margin-bottom:14px">
+          <label>Applicant Name<input id="foir_name" placeholder="Full name" oninput="calcFOIR()" /></label>
           <label>CIBIL Score (300–900)<input id="foir_cibil" type="number" placeholder="e.g. 750" oninput="calcFOIR()" onblur="clampCibil()" /></label>
           <label>Net Monthly Income (₹)<input id="foir_income" type="number" min="0" placeholder="e.g. 50000" oninput="calcFOIR()" /></label>
-          <label>Existing Monthly EMIs (₹)<input id="foir_existing" type="number" min="0" placeholder="0" oninput="calcFOIR()" /></label>
+          <label>Existing Monthly EMIs (₹)<input id="foir_existing" type="number" min="0" value="0" oninput="calcFOIR()" /></label>
           <label>New Loan Amount (₹)<input id="foir_loan" type="number" min="0" placeholder="e.g. 200000" oninput="calcFOIR()" /></label>
-          <label>Flat Interest Rate (% p.a.)<input id="foir_rate" type="number" min="0" max="100" step="0.1" placeholder="e.g. 18" oninput="calcFOIR()" /></label>
+          <label>Interest Method<select id="foir_method" onchange="calcFOIR()">
+            <option value="flat">Flat Rate</option>
+            <option value="reducing">Reducing (Cut) Rate</option>
+          </select></label>
+          <label>Interest Rate (% p.a.)<input id="foir_rate" type="number" min="0" max="100" step="0.1" placeholder="e.g. 18" oninput="calcFOIR()" /></label>
           <label>Tenure (Years)<input id="foir_tenure" type="number" min="0.1" step="0.5" placeholder="e.g. 2" oninput="calcFOIR()" /></label>
         </div>
         <div id="foir_result" style="min-height:60px">
           <p style="color:#6b7280;font-size:13px;text-align:center;padding:20px">Fill in all fields to see results.</p>
         </div>
-        <p style="font-size:10px;color:var(--muted);margin-top:12px">
+        <p style="font-size:10px;color:var(--muted);margin-top:10px">
           Rules: APPROVED if CIBIL ≥ 700 &amp; FOIR ≤ 50% · REVIEW if CIBIL 650–699 &amp; FOIR ≤ 50% · REJECTED otherwise
         </p>
+        <div class="actions" style="margin-top:12px">
+          <button class="primary" onclick="submitFOIR()">Submit &amp; Generate Enquiry Code</button>
+          <button class="ghost" onclick="foirClear()">Clear</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Enquiry List</h2>
+          <button class="ghost" onclick="renderFoirList()">Refresh</button>
+        </div>
+        <div id="foir_list" class="scrolly-list">
+          <p style="color:#6b7280;font-size:13px;text-align:center;padding:20px">No enquiries yet.</p>
+        </div>
       </div>
     </section>
 
