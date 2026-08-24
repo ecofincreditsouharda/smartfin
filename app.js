@@ -1808,7 +1808,7 @@ async function printNotice(loanId, noticeType, overridePenaltyPct, noticeDate){
       `</div>`+
       // Date + Ref
       `<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:14px">`+
-        `<span>Date: <b>${esc(n.generatedOn)}</b></span>`+
+        `<span>Date: <b>${esc(now)}</b></span>`+
         `<span>Ref: <b>${esc(n.loanId)}</b></span>`+
       `</div>`+
       // To
