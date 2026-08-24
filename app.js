@@ -269,12 +269,12 @@ function logout(){
 }
 
 /* ── MODULE PERMISSIONS (localStorage per userId) ────────────── */
-const ALL_MODULES=['dashboard','members','loans','repayments','deposits','savings','shares','transfers','society','expenses','reports','approvals','loan-history','notices','settings','users','activity','account'];
+const ALL_MODULES=['dashboard','members','loans','repayments','deposits','savings','shares','transfers','society','expenses','reports','approvals','loan-history','notices','foir','settings','users','activity','account'];
 const DEFAULT_MODULES={
   Admin: ALL_MODULES,
-  CEO: ['dashboard','members','loans','loan-history','notices','repayments','deposits','savings','shares','transfers','society','expenses','reports','approvals','account'],
-  BranchManager: ['dashboard','members','loans','loan-history','notices','repayments','deposits','savings','shares','transfers','expenses','reports','approvals','settings','account'],
-  Operator: ['dashboard','members','loans','repayments','deposits','savings','shares','expenses','account'],
+  CEO: ['dashboard','members','loans','loan-history','notices','foir','repayments','deposits','savings','shares','transfers','society','expenses','reports','approvals','account'],
+  BranchManager: ['dashboard','members','loans','loan-history','notices','foir','repayments','deposits','savings','shares','transfers','expenses','reports','approvals','settings','account'],
+  Operator: ['dashboard','members','loans','foir','repayments','deposits','savings','shares','expenses','account'],
   Collector: ['dashboard','repayments','account'],
   Director: ['dashboard','loans','reports','approvals','account'],
 };
@@ -397,7 +397,7 @@ async function populateBranchSelects(){
 }
 const VIEW_TITLES={dashboard:'Dashboard',members:'Members',loans:'Loans',repayments:'Repayments',
   deposits:'Fixed Deposits',savings:'Savings',shares:'Share Capital',transfers:'Transfers',
-  society:'Society Bank',expenses:'Expenses',reports:'Reports',approvals:'Loan Approvals','loan-history':'Loan History',
+  society:'Society Bank',expenses:'Expenses',reports:'Reports',approvals:'Loan Approvals',foir:'FOIR Calculator','loan-history':'Loan History',
   settings:'Settings',users:'Users',activity:'Activity Log',account:'My Account'};
 function showView(v){
   document.querySelectorAll('.view').forEach(s=>s.hidden=true);
@@ -413,6 +413,7 @@ function refresh(v, manual=false){
   if(v==='loans'){loadLoansList();}
   if(v==='loan-history'){loadLoanHistory();}
   if(v==='notices'){loadOverdueLoans(Number($('notice_days')?.value||7));}
+  if(v==='foir'){initFOIR();}
   if(v==='deposits')    loadList('deposits_list','d_list',null,'deposits');
   if(v==='savings')     loadSavingsList();
   if(v==='shares'){loadShareSummary();loadSharesList();}
@@ -675,7 +676,9 @@ const receiptSummary=r=>{
     ['Borrower',esc(r.borrower)],['Mode',esc(r.mode)+(r.ref?' ('+esc(r.ref)+')':'')],['This payment',rupee(r.amount)]];
   if(r.penalty&&Number(r.penalty)>0) pairs.push(['Penalty',rupee(r.penalty)+(r.penaltyType?' ('+esc(r.penaltyType)+')':'')]);
   pairs.push(['EMIs paid till now',r.emisPaid],['Amount paid till now',rupee(r.amountPaidTillNow)],
-    ['Pending loan amount',rupee(r.pendingAmount)],['Operator',esc(r.operator)]);
+    ['Pending loan amount',rupee(r.pendingAmount)]);
+  if(r.arrears&&Number(r.arrears)>0) pairs.push(['Arrears (overdue)',`<b style="color:#dc2626">${rupee(r.arrears)}</b>`]);
+  pairs.push(['Operator',esc(r.operator)]);
   return summaryHtml(pairs);
 };
 async function printPastReceipt(receiptNo){
@@ -740,6 +743,7 @@ function buildReceiptHtml(r){
     `<div class="st">Loan Repayment Receipt</div>`+
     `<pre>${D}\nReceipt : ${esc(r.receiptNo)}\nDate    : ${esc(r.date)}\nLoan ID : ${esc(r.loanId)}\nBorrower: ${esc(r.borrower)}\nMode    : ${esc(r.mode)}${r.ref?' ('+esc(r.ref)+')':''}\n${D}\nEMIs    : ${r.emisPaid}\nPaid    : ${inr(r.amountPaidTillNow)}\nBalance : ${inr(r.pendingAmount)}\n`+
     (r.penalty&&Number(r.penalty)>0?`Penalty : ${inr(r.penalty)} (${esc(r.penaltyType||'Late')})\n`:'')+
+    (r.arrears&&Number(r.arrears)>0?`ARREARS : ${inr(r.arrears)}\n`:'')+
     `${D}\nOperator: ${esc(r.operator)}\n${D}\n      ** THANK YOU **\n Computer Generated Receipt\n   No Signature Required</pre></div>`;
 }
 const receiptCss=`@page{size:72mm auto;margin:2mm 3mm}*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Courier New',Courier,monospace;font-size:8.5pt;color:#000;width:66mm;background:#fff}.rc{width:100%;text-align:center}.rl{width:32px;height:32px;object-fit:contain;display:block;margin:2px auto 3px}.bn{font-size:11pt;font-weight:bold;letter-spacing:.5px;margin-bottom:1px}.st{font-size:8pt;margin-bottom:3px;font-style:italic}pre{font-family:'Courier New',Courier,monospace;font-size:8pt;white-space:pre;text-align:left;margin-top:4px;line-height:1.45}`;
@@ -1850,6 +1854,80 @@ async function printNotice(loanId, noticeType, overridePenaltyPct){
   }catch(err){showToast('Error: '+err.message,'err');}
 }
 
+
+/* ══ FOIR CALCULATOR ════════════════════════════════════════ */
+function initFOIR(){ calcFOIR(); }
+function calcFOIR(){
+  const cibil    = Number($('foir_cibil')?.value||0);
+  const income   = Number($('foir_income')?.value||0);
+  const existing = Number($('foir_existing')?.value||0);
+  const loanAmt  = Number($('foir_loan')?.value||0);
+  const rate     = Number($('foir_rate')?.value||0);
+  const tenureYr = Number($('foir_tenure')?.value||0);
+  const resEl    = $('foir_result');
+  if(!income||!loanAmt||!rate||!tenureYr){
+    if(resEl) resEl.innerHTML='<p style="color:#6b7280;font-size:13px;text-align:center;padding:20px">Fill in all fields to see results.</p>';
+    return;
+  }
+  // Flat rate EMI
+  const totalInterest = loanAmt * (rate/100) * tenureYr;
+  const totalPayable  = loanAmt + totalInterest;
+  const newEMI        = totalPayable / (tenureYr * 12);
+  // FOIR
+  const totalObligation = existing + newEMI;
+  const foir = (totalObligation / income) * 100;
+  // Verdict
+  let verdict, color, bg, icon;
+  if(cibil >= 700 && foir <= 50){
+    verdict='APPROVED'; color='#16a34a'; bg='#f0fdf4'; icon='✓';
+  } else if(cibil>=650 && cibil<=699 && foir<=50){
+    verdict='REVIEW REQUIRED'; color='#d97706'; bg='#fffbeb'; icon='⚠';
+  } else {
+    verdict='REJECTED'; color='#dc2626'; bg='#fef2f2'; icon='✕';
+  }
+  const reasons=[];
+  if(cibil<650) reasons.push('CIBIL score below 650');
+  if(foir>50)   reasons.push('FOIR exceeds 50% ('+foir.toFixed(1)+'%)');
+  if(resEl) resEl.innerHTML=
+    `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">`+
+      statBox('New Monthly EMI',rupee(Math.round(newEMI)),'#1d4ed8')+
+      statBox('FOIR',foir.toFixed(1)+'%',foir>50?'#dc2626':foir>40?'#d97706':'#16a34a')+
+      statBox('Total Payable',rupee(Math.round(totalPayable)),'#374151')+
+    `</div>`+
+    `<div style="background:${bg};border:2px solid ${color};border-radius:10px;padding:16px;text-align:center;margin-bottom:14px">`+
+      `<div style="font-size:32px;font-weight:900;color:${color}">${icon} ${verdict}</div>`+
+      (reasons.length?`<div style="font-size:12px;color:${color};margin-top:6px">${reasons.join(' · ')}</div>`:'')+ 
+    `</div>`+
+    `<div style="font-size:11px;background:#f9fafb;border-radius:8px;padding:12px">`+
+      `<div style="font-weight:700;margin-bottom:6px;font-size:12px">Breakdown</div>`+
+      detailRow('Loan Amount', rupee(loanAmt))+
+      detailRow('Flat Rate', rate+'% p.a.')+
+      detailRow('Tenure', tenureYr+' yr ('+(tenureYr*12)+' months)')+
+      detailRow('Total Interest (Flat)', rupee(Math.round(totalInterest)))+
+      detailRow('Total Payable', rupee(Math.round(totalPayable)))+
+      `<div style="border-top:1px solid #e5e7eb;margin:6px 0"></div>`+
+      detailRow('Net Monthly Income', rupee(income))+
+      detailRow('Existing EMIs', rupee(existing))+
+      detailRow('New EMI', rupee(Math.round(newEMI)))+
+      detailRow('Total Obligations', rupee(Math.round(totalObligation)))+
+      detailRow('FOIR', foir.toFixed(2)+'%','font-weight:700;color:'+(foir>50?'#dc2626':'#16a34a'))+
+      `<div style="border-top:1px solid #e5e7eb;margin:6px 0"></div>`+
+      detailRow('CIBIL Score', cibil,'color:'+(cibil>=700?'#16a34a':cibil>=650?'#d97706':'#dc2626')+';font-weight:700')+
+    `</div>`;
+}
+function statBox(label,val,color){
+  return `<div style="background:white;border:1px solid #e5e7eb;border-top:3px solid ${color};border-radius:8px;padding:12px;text-align:center">`+
+    `<div style="font-size:10px;color:#6b7280;font-weight:600;text-transform:uppercase;margin-bottom:4px">${label}</div>`+
+    `<div style="font-size:20px;font-weight:700;color:${color}">${val}</div></div>`;
+}
+function detailRow(label,val,style){
+  return `<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11px"><span style="color:#6b7280">${esc(label)}</span><span style="${style||''}">${val}</span></div>`;
+}
+function foirClear(){
+  ['foir_cibil','foir_income','foir_existing','foir_loan','foir_rate','foir_tenure'].forEach(id=>{const el=$(id);if(el)el.value='';});
+  const r=$('foir_result');if(r)r.innerHTML='<p style="color:#6b7280;font-size:13px;text-align:center;padding:20px">Fill in all fields to see results.</p>';
+}
+
 /* ── MODAL ───────────────────────────────────────────────────── */
 function openModal(title,html){$('modal_title').textContent=title||'';$('modal_body').innerHTML=html;$('modal').hidden=false;}
 function closeModal(){$('modal').hidden=true;$('modal_body').innerHTML='';}
@@ -2429,7 +2507,7 @@ function loadModulePerms(){
   const allowed=getModulePerms(userId,role);
   const MODULE_LABELS={dashboard:'Dashboard',members:'Members',loans:'Loans',repayments:'Repayments',
     deposits:'Fixed Deposits',savings:'Savings',shares:'Share Capital',transfers:'Transfers',society:'Society Bank',
-    expenses:'Expenses',reports:'Reports',approvals:'Loan Approvals','loan-history':'Loan History',settings:'Settings',users:'Users',activity:'Activity Log',account:'My Account'};
+    expenses:'Expenses',reports:'Reports',approvals:'Loan Approvals',foir:'FOIR Calculator','loan-history':'Loan History',settings:'Settings',users:'Users',activity:'Activity Log',account:'My Account'};
   let h='';
   ALL_MODULES.forEach(mod=>{
     const checked=allowed.includes(mod)?'checked':'';
