@@ -2201,17 +2201,34 @@ async function loadMemberPortalAdmin(){
     rows.forEach(r=>{
       const active=r['Portal Access']==='Active';
       h+=`<tr><td style="font-weight:600">${esc(r['Member ID'])}</td><td>${esc(r['Name'])}</td><td>${esc(r['Branch'])}</td>`+
-        `<td><span style="color:${active?'#16a34a':'#9ca3af'};font-weight:600">${esc(r['Portal Access'])}</span></td>`+
-        `<td style="font-size:11px">${esc(r['Password Set'])}</td>`+
-        `<td style="white-space:nowrap"><div style="display:flex;gap:4px">`+
-          `<button class="ghost" style="font-size:10px;padding:2px 8px" onclick="viewMemberPortal('${esc(r['Member ID'])}')">View Portal</button>`+
-          `<button class="ghost" style="font-size:10px;padding:2px 8px;color:#dc2626" onclick="resetMemberPassword('${esc(r['Member ID'])}','${esc(r['Name'])}')">Reset PW</button>`+
+        `<td><div style="display:flex;flex-direction:column;gap:2px">`+
+          `<button class="ghost" style="font-size:10px;padding:2px 8px" onclick="viewMemberPortal('${esc(r['Member ID'])}')">View</button>`+
+          `<button class="ghost" style="font-size:10px;padding:2px 8px;color:#1d4ed8" onclick="setMemberPassword('${esc(r['Member ID'])}','${esc(r['Name'])}')">Set PW</button>`+
+          `<button class="ghost" style="font-size:10px;padding:2px 8px;color:${r['Portal Access']==='Disabled'?'#16a34a':'#dc2626'}" onclick="toggleMemberDisable('${esc(r['Member ID'])}','${esc(r['Name'])}',${r['Portal Access']==='Disabled'?'false':'true'})">${r['Portal Access']==='Disabled'?'Enable':'Disable'}</button>`+
         `</div></td></tr>`;
     });
     el.innerHTML=h+'</tbody></table>';
   }catch(err){el.innerHTML=`<p class="err">${err.message}</p>`;}
 }
 
+async function setMemberPassword(memberId, name){
+  const newPw=prompt('Set portal password for '+name+' ('+memberId+').\n\nEnter password (blank = auto-generate):');
+  if(newPw===null) return;
+  try{
+    const res=await api('member_admin_reset',{memberId,newPassword:newPw||null});
+    showToast('Password set: '+res.newPassword+' (tap to copy)','ok');
+    navigator.clipboard&&navigator.clipboard.writeText(res.newPassword).catch(()=>{});
+    loadMemberPortalAdmin();
+  }catch(err){showToast('Error: '+err.message,'err');}
+}
+async function toggleMemberDisable(memberId, name, disable){
+  if(!confirm((disable?'Disable':'Re-enable')+' portal access for '+name+' ('+memberId+')?')) return;
+  try{
+    await api('member_disable',{memberId,disable});
+    showToast('Portal '+(disable?'disabled':'re-enabled')+' for '+name,'ok');
+    loadMemberPortalAdmin();
+  }catch(err){showToast('Error: '+err.message,'err');}
+}
 async function resetMemberPassword(memberId, name){
   const newPw=prompt(`Reset password for ${name} (${memberId}).
 
