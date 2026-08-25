@@ -350,7 +350,8 @@
           <label>Open Date<input id="s_OpenDate" type="date" /></label>
           <label>Nominee<input id="s_Nominee" /></label>
         </div>
-        <div class="actions"><button id="s_open" class="primary">Open account</button><button type="button" class="ghost" data-clear="savings">Clear</button><span id="s_msg" class="msg"></span></div></div>
+        <div id="s_NewIdWrap" style="display:none;margin-top:8px"><label style="font-size:12px;font-weight:600">Change Account ID (optional)<input id="s_NewId" placeholder="Leave blank to keep current ID" /></label></div>
+        <div class="actions"><button id="s_open" class="primary">Open account</button><button type="button" id="s_cancel_edit" class="ghost" style="display:none" onclick="cancelEdit('savings')">Cancel Edit</button><button type="button" class="ghost" data-clear="savings">Clear</button><span id="s_msg" class="msg"></span></div></div>
       <div class="card"><div class="card-head"><h2>Savings accounts</h2><span style="display:flex;gap:8px"><button class="ghost" onclick="printTable('Savings Accounts',getCurrentTableHtml('s_list'))">Print</button><button class="ghost" data-refresh="savings">Refresh</button></span></div>
         <div class="grid" style="margin-bottom:10px"><label>Search savings<input id="s_search" placeholder="name · member ID · phone · savings ID" /></label></div>
         <div class="scrolly-list" id="s_list"></div></div>
