@@ -1,6 +1,6 @@
 /* ── CONFIG ──────────────────────────────────────────────────── */
 const WEB_APP_URL = 'https://tgopjjtamvoftzdfvzuc.supabase.co/functions/v1/api';
-const IDLE_MS = 180 * 1000;
+const IDLE_MS = 60 * 1000;
 
 let session = null, lastSchedule = null, lastMeta = null, lastReceipt = null, curLoanId = '';
 let editing = { type:null, id:null }, lastVoucher = null, repLoans = [];
@@ -2224,66 +2224,57 @@ async function loadMemberPortalAdmin(){
   }catch(err){el.innerHTML=`<p class="err">${err.message}</p>`;}
 }
 
-async function setMemberPassword(memberId, name){
-  const newPw=prompt('Set portal password for '+name+' ('+memberId+').\n\nEnter password (blank = auto-generate):');
-  if(newPw===null) return;
-  try{
-    const res=await api('member_admin_reset',{memberId,newPassword:newPw||null});
-    showToast('Password set: '+res.newPassword+' (tap to copy)','ok');
-    navigator.clipboard&&navigator.clipboard.writeText(res.newPassword).catch(()=>{});
-    loadMemberPortalAdmin();
-  }catch(err){showToast('Error: '+err.message,'err');}
+function copyMpwResult(){var p=document.getElementById("mpw_result");if(p&&navigator.clipboard)navigator.clipboard.writeText(p.textContent).then(()=>showToast("Copied!",true));}
+function mpwToggle(){var e=document.getElementById("mpw_input");if(e)e.type=e.type==="password"?"text":"password";}
+function setMemberPassword(memberId, name){
+  openModal('Set Portal Password — '+name,
+    '<div style="padding:6px 0">'+
+    '<p style="font-size:13px;color:#374151;margin-bottom:12px">Set a login password for <b>'+esc(name)+'</b> (<b>'+esc(memberId)+'</b>).</p>'+
+    '<label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">New Password</label>'+
+    '<div style="position:relative;margin-bottom:8px">'+
+      '<input type="password" id="mpw_input" class="form-control" placeholder="Min 6 characters" style="padding-right:44px" />'+
+      '<button type="button" onclick="mpwToggle()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#94a3b8;font-size:16px">👁</button>'+
+
+    '</div>'+
+    '<p style="font-size:11px;color:#9ca3af;margin-bottom:16px">Leave blank to auto-generate a secure password.</p>'+
+    '<div id="mpw_err" style="background:#fee2e2;color:#dc2626;border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:12px;display:none"></div>'+
+    '<div style="display:flex;gap:8px;justify-content:flex-end">'+
+      '<button class="ghost" onclick="closeModal()">Cancel</button>'+
+      '<button class="primary" id="mpw_confirm_btn" data-mid="'+esc(memberId)+'" data-nm="'+esc(name)+'" onclick="confirmSetPassword(this.dataset.mid,this.dataset.nm)">Set Password</button>'+
+    '</div></div>'
+  );
+  setTimeout(()=>{const el=document.getElementById('mpw_input');if(el)el.focus();},100);
 }
-async function viewMemberActivity(memberId, name){
-  openModal('Activity Log — '+name+' ('+memberId+')',
-    '<div id="mpa_activity_content"><p class="msg">Loading…</p></div>');
+async function confirmSetPassword(memberId, name){
+  const inp=document.getElementById('mpw_input');
+  const errEl=document.getElementById('mpw_err');
+  const pw=inp?inp.value.trim():'';
+  if(pw&&pw.length<6){if(errEl){errEl.textContent='Password must be at least 6 characters.';errEl.style.display='block';}return;}
+  if(errEl) errEl.style.display='none';
   try{
-    const res=await api('member_activity_log',{memberId});
-    const logs=res.logs||[];
-    if(!logs.length){
-      $('mpa_activity_content').innerHTML='<div style="padding:16px;text-align:center"><p style="color:#9ca3af;margin-bottom:8px">No portal activity recorded yet.</p><p style="font-size:12px;color:#9ca3af">Activity appears here after the member logs in to the portal, or when admin actions are taken.</p></div>';
-      return;
-    }
-    let h='<table style="width:100%;border-collapse:collapse;font-size:12px">'+
-      '<thead><tr style="background:#f3f4f6"><th style="padding:6px 8px;text-align:left">Date/Time</th><th style="padding:6px 8px;text-align:left">Activity</th><th style="padding:6px 8px;text-align:left">Detail</th></tr></thead><tbody>';
-    logs.forEach(l=>{
-      const dt=l.performed_at?new Date(l.performed_at).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Asia/Kolkata'}):'—';
-      h+=`<tr style="border-bottom:1px solid #f3f4f6">
-        <td style="padding:6px 8px;white-space:nowrap;font-size:11px;color:#374151">${esc(dt)}</td>
-        <td style="padding:6px 8px;font-weight:500">${esc(l.action||'')}</td>
-        <td style="padding:6px 8px;color:#6b7280;font-size:11px">${esc(l.detail||'')}</td>
-      </tr>`;
-    });
-    $('mpa_activity_content').innerHTML=h+'</tbody></table>';
+    const res=await api('member_admin_reset',{memberId,newPassword:pw||null});
+    closeModal();
+    const generatedPw=res.newPassword;
+    openModal('Password Set',
+      '<div style="text-align:center;padding:8px 0">'+
+      '<div style="font-size:40px;margin-bottom:10px">✅</div>'+
+      '<p style="font-size:13px;color:#374151;margin-bottom:12px">Password for <b>'+esc(name)+'</b> has been set.</p>'+
+      '<div style="background:#f0fdf4;border:2px solid #16a34a;border-radius:10px;padding:14px;margin-bottom:12px">'+
+        '<div style="font-size:11px;color:#6b7280;margin-bottom:4px">Share with member:</div>'+
+        '<div style="font-size:24px;font-weight:800;color:#0f172a;letter-spacing:.08em" id="mpw_result">'+esc(generatedPw)+'</div>'+
+      '</div>'+
+      '<button class="ghost" style="font-size:11px;padding:6px 16px;margin-bottom:8px" onclick="copyMpwResult()">📋 Copy Password</button>'+
+      '<p style="font-size:11px;color:#9ca3af;margin-bottom:14px">Member can change it after logging in.</p>'+
+      '<button class="primary" onclick="closeModal()">Done</button>'+
+      '</div>'
+    );
+    loadMemberPortalAdmin();
   }catch(err){
-    $('mpa_activity_content').innerHTML=`<p class="err">${err.message}</p>`;
+    if(errEl){errEl.textContent=err.message;errEl.style.display='block';}
+    else showToast('Error: '+err.message,'err');
   }
 }
-function toggleMemberDisable(memberId, name, disable){
-  const title = disable ? 'Disable Portal Access' : 'Re-enable Portal Access';
-  const color = disable ? '#dc2626' : '#16a34a';
-  const icon  = disable ? '🔒' : '🔓';
-  const msg   = disable
-    ? `Member <b>${esc(name)}</b> (${esc(memberId)}) will no longer be able to log in to the member portal.`
-    : `Member <b>${esc(name)}</b> (${esc(memberId)}) will be re-enabled. They will need their password to log in.`;
-  openModal(title,
-    `<div style="padding:8px 0">
-      <div style="text-align:center;font-size:36px;margin-bottom:12px">${icon}</div>
-      <p style="font-size:14px;color:#374151;margin-bottom:20px;text-align:center">${msg}</p>
-      <div style="display:flex;gap:10px;justify-content:flex-end">
-        <button class="ghost" onclick="closeModal()">Cancel</button>
-        <button class="primary" style="background:${color}" onclick="closeModal();confirmToggleDisable('${esc(memberId)}','${esc(name)}',${disable})">${disable?'Yes, Disable':'Yes, Enable'}</button>
-      </div>
-    </div>`
-  );
-}
-async function confirmToggleDisable(memberId, name, disable){
-  try{
-    await api('member_disable',{memberId,disable});
-    showToast('Portal '+(disable?'disabled':'re-enabled')+' for '+name,'ok');
-    loadMemberPortalAdmin();
-  }catch(err){showToast('Error: '+err.message,'err');}
-}
+
 async function resetMemberPassword(memberId, name){
   const newPw=prompt(`Reset password for ${name} (${memberId}).
 
@@ -2345,19 +2336,18 @@ async function printFDCertificate(depositId){
         }
       }catch(e){}
     }
-    // Compute values
-    const amount=Number(dep.Amount||dep.amount||0);
-    const rate=Number(dep['Rate (%)']||dep.Rate||dep.rate_annual||0);
-    const tenure=Number(dep['Tenure (mo)']||dep.Tenure||dep.tenure_months||12);
-    const rateDecimal=rate>1?rate/100:rate;
-    const interest=Math.round(amount*rateDecimal*tenure/12);
-    const maturity=amount+interest;
-    const startDate=dep['Start Date']||dep.StartDate||dep.start_date||'';
-    let matDate='—';
-    try{const sd=new Date(startDate);sd.setMonth(sd.getMonth()+tenure);matDate=sd.toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'});}catch(e){}
-    const startFmt=startDate?new Date(startDate).toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'}):'—';
-    const now=new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'});
-    const certNo='FDC-'+depositId;
+    // Read fields — depositsList now returns all needed fields
+    const amount    = Number(dep.Amount||0);
+    const ratePct   = Number(dep['Rate (%)']||0);       // already in % (e.g. 8.5)
+    const tenure    = Number(dep['Tenure (mo)']||12);
+    const startDate = dep['Start Date']||'';
+    const memberId2 = dep['Member ID']||'';
+    const matValue  = Number(dep['Maturity Value']||0);
+    const matDateStr= dep['Maturity Date']||'';         // already formatted by backend
+    const startFmt  = startDate ? new Date(startDate).toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'}) : '—';
+    // Issue date = date of deposit (not today)
+    const issueDate = startFmt;
+    const certNo    = 'FDC-'+depositId;
     const body=
       // Header
       `<div style="text-align:center;border-bottom:3px double #0f2057;padding-bottom:16px;margin-bottom:18px">`+
@@ -2368,7 +2358,7 @@ async function printFDCertificate(depositId){
       // Cert no + date
       `<div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:16px">`+
         `<span>Certificate No: <b>${esc(certNo)}</b></span>`+
-        `<span>Issue Date: <b>${now}</b></span>`+
+        `<span>Issue Date: <b>${issueDate}</b></span>`+
       `</div>`+
       // This certifies
       `<div style="font-size:11px;line-height:1.8;margin-bottom:16px;background:#f0f4ff;border-left:4px solid #0f2057;padding:12px 16px;border-radius:4px">`+
@@ -2377,17 +2367,17 @@ async function printFDCertificate(depositId){
       // Details table
       `<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:20px">`+
         fdRow('Deposit ID',        depositId)+
-        fdRow('Member ID',         mid||'—')+
+        fdRow('Member ID',         memberId2||mid||'—')+
         fdRow('Depositor Name',    memName)+
         fdRow('Branch',            memBranch)+
         fdRow('Deposit Amount',    rupee(amount))+
-        fdRow('Rate of Interest',  (rate>1?rate:Math.round(rateDecimal*10000)/100)+'% per annum')+
-        fdRow('Tenure',            tenure+' months')+
+        fdRow('Rate of Interest',  ratePct.toFixed(2)+'% per annum (Simple Interest)')+
+        fdRow('Tenure',            tenure+' month'+(tenure===1?'':'s'))+
         fdRow('Date of Deposit',   startFmt)+
-        fdRow('Date of Maturity',  matDate)+
+        fdRow('Date of Maturity',  matDateStr||'—')+
         `<tr style="background:#0f2057;color:#fff">`+
           `<td style="padding:8px 12px;font-weight:700;font-size:12px">Maturity Amount</td>`+
-          `<td style="padding:8px 12px;font-weight:700;font-size:13px">${rupee(maturity)}</td>`+
+          `<td style="padding:8px 12px;font-weight:700;font-size:13px">${rupee(matValue)}</td>`+
         `</tr>`+
       `</table>`+
       // Note
