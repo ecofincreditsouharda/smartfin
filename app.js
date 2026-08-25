@@ -1,6 +1,6 @@
 /* ── CONFIG ──────────────────────────────────────────────────── */
 const WEB_APP_URL = 'https://tgopjjtamvoftzdfvzuc.supabase.co/functions/v1/api';
-const IDLE_MS = 60 * 1000;
+const IDLE_MS = 180 * 1000;
 
 let session = null, lastSchedule = null, lastMeta = null, lastReceipt = null, curLoanId = '';
 let editing = { type:null, id:null }, lastVoucher = null, repLoans = [];
@@ -517,6 +517,7 @@ function renderListHtml(rows,target,linkKind,editKey){
       if(linkKind==='member') h+=`<button class="ghost" data-member="${esc(id)}">View</button> `;
       if(editKey==='expenses') h+=`<button class="ghost" data-voucher="${esc(id)}">Voucher</button> `;
       if(editKey) h+=`<button class="ghost" data-edit="${esc(editKey)}:${esc(id)}">Edit</button>`;
+      if(editKey==='deposits') h+=` <button class="ghost" onclick="printFDCertificate('${esc(id)}')">Certificate</button>`;
       h+='</td>';}h+='</tr>';});
   $(target).innerHTML=h+'</table>';
 }
@@ -2322,6 +2323,102 @@ async function viewMemberPortal(memberId){
     if(!pd.loans.filter(l=>l.status!=='Closed').length) h+='<p style="color:#9ca3af;font-size:12px;margin-top:8px">No active loans.</p>';
     $('mpa_view_content').innerHTML=h;
   }catch(err){$('mpa_view_content').innerHTML=`<p class="err">${err.message}</p>`;}
+}
+
+
+/* ── FD CERTIFICATE ─────────────────────────────────────────── */
+async function printFDCertificate(depositId){
+  try{
+    // Find deposit in allDeposits cache
+    const dep=(allDeposits||[]).find(d=>(d['Deposit ID']||d.DepositID||d.deposit_id||'').toString()===depositId.toString());
+    if(!dep){showToast('Deposit not found — refresh the list first','err');return;}
+    // Get member details
+    const mid=dep['Member ID']||dep.MemberID||dep.member_id||'';
+    let memName=dep.Depositor||dep.depositor||'';
+    let memBranch=dep.Branch||dep.branch||'';
+    if(mid){
+      try{
+        const mr=await api('reg_get',{key:'deposits',id:depositId});
+        if(mr&&mr.fields){
+          memName=mr.fields.Depositor||memName;
+          memBranch=mr.fields.Branch||memBranch;
+        }
+      }catch(e){}
+    }
+    // Compute values
+    const amount=Number(dep.Amount||dep.amount||0);
+    const rate=Number(dep['Rate (%)']||dep.Rate||dep.rate_annual||0);
+    const tenure=Number(dep['Tenure (mo)']||dep.Tenure||dep.tenure_months||12);
+    const rateDecimal=rate>1?rate/100:rate;
+    const interest=Math.round(amount*rateDecimal*tenure/12);
+    const maturity=amount+interest;
+    const startDate=dep['Start Date']||dep.StartDate||dep.start_date||'';
+    let matDate='—';
+    try{const sd=new Date(startDate);sd.setMonth(sd.getMonth()+tenure);matDate=sd.toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'});}catch(e){}
+    const startFmt=startDate?new Date(startDate).toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'}):'—';
+    const now=new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'});
+    const certNo='FDC-'+depositId;
+    const body=
+      // Header
+      `<div style="text-align:center;border-bottom:3px double #0f2057;padding-bottom:16px;margin-bottom:18px">`+
+        `<img src="${LOGO_URL}" style="height:60px;object-fit:contain" onerror="this.style.display='none'"/>`+
+        `<div style="font-size:22px;font-weight:800;color:#0f2057;margin-top:8px">${esc(BANK)}</div>`+
+        `<div style="font-size:11px;color:#555;margin-top:3px;letter-spacing:.06em;text-transform:uppercase">Fixed Deposit Certificate</div>`+
+      `</div>`+
+      // Cert no + date
+      `<div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:16px">`+
+        `<span>Certificate No: <b>${esc(certNo)}</b></span>`+
+        `<span>Issue Date: <b>${now}</b></span>`+
+      `</div>`+
+      // This certifies
+      `<div style="font-size:11px;line-height:1.8;margin-bottom:16px;background:#f0f4ff;border-left:4px solid #0f2057;padding:12px 16px;border-radius:4px">`+
+        `This is to certify that the following Fixed Deposit has been accepted by <b>${esc(BANK)}</b>:`+
+      `</div>`+
+      // Details table
+      `<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:20px">`+
+        fdRow('Deposit ID',        depositId)+
+        fdRow('Member ID',         mid||'—')+
+        fdRow('Depositor Name',    memName)+
+        fdRow('Branch',            memBranch)+
+        fdRow('Deposit Amount',    rupee(amount))+
+        fdRow('Rate of Interest',  (rate>1?rate:Math.round(rateDecimal*10000)/100)+'% per annum')+
+        fdRow('Tenure',            tenure+' months')+
+        fdRow('Date of Deposit',   startFmt)+
+        fdRow('Date of Maturity',  matDate)+
+        `<tr style="background:#0f2057;color:#fff">`+
+          `<td style="padding:8px 12px;font-weight:700;font-size:12px">Maturity Amount</td>`+
+          `<td style="padding:8px 12px;font-weight:700;font-size:13px">${rupee(maturity)}</td>`+
+        `</tr>`+
+      `</table>`+
+      // Note
+      `<div style="font-size:10px;color:#555;line-height:1.7;margin-bottom:24px;padding:10px 14px;border:1px solid #e5e7eb;border-radius:6px">`+
+        `<b>Note:</b> This certificate is subject to the rules and bye-laws of ${esc(BANK)}. `+
+        `The deposit will be renewed/paid as per the option selected at the time of opening. `+
+        `This is a computer-generated certificate.`+
+      `</div>`+
+      // Signature block
+      `<div style="display:flex;justify-content:space-between;margin-top:48px;font-size:10px">`+
+        `<div style="text-align:center;width:200px">`+
+          `<div style="height:60px;border-bottom:1px solid #333;margin-bottom:5px;display:flex;align-items:flex-end;justify-content:center">`+
+            `<span style="color:#bbb;font-size:9px">SEAL</span>`+
+          `</div>`+
+          `<div>Branch Manager Seal</div>`+
+        `</div>`+
+        `<div style="text-align:center;width:200px">`+
+          `<div style="height:60px;border-bottom:1px solid #333;margin-bottom:5px"></div>`+
+          `<div>Authorised Signatory</div>`+
+          `<div style="font-weight:700;margin-top:2px">${esc(BANK)}</div>`+
+        `</div>`+
+      `</div>`+
+      // Footer
+      `<div style="margin-top:14px;border-top:1px solid #e5e7eb;padding-top:6px;font-size:8px;color:#9ca3af;text-align:center">`+
+        `${esc(BANK)} · Fixed Deposit Certificate · ${now}`+
+      `</div>`;
+    printDoc(body,'@page{size:A4;margin:1.5cm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:11px;margin:0}','');
+  }catch(err){showToast('Error: '+err.message,'err');}
+}
+function fdRow(label,val){
+  return `<tr><td style="padding:7px 12px;border:1px solid #e5e7eb;font-weight:600;width:45%;background:#f9fafb;font-size:10px">${esc(String(label))}</td><td style="padding:7px 12px;border:1px solid #e5e7eb;font-size:11px">${val}</td></tr>`;
 }
 
 /* ── MODAL ───────────────────────────────────────────────────── */
