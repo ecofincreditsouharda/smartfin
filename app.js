@@ -2191,6 +2191,12 @@ function fmtIN(d){
 
 
 /* ══ MEMBERS PORTAL ADMIN ═══════════════════════════════════ */
+function mpaDisableBtn(r){
+  const mid=esc(r['Member ID']),nm=esc(r['Name']),st=r['Portal Access'];
+  if(st==='Active') return '<button class="ghost" style="font-size:10px;padding:2px 8px;color:#dc2626" data-mpd="'+mid+'" data-mpn="'+nm+'" data-mpdis="true" onclick="toggleMemberDisable(this.dataset.mpd,this.dataset.mpn,true)">Disable</button>';
+  if(st==='Disabled') return '<button class="ghost" style="font-size:10px;padding:2px 8px;color:#16a34a;font-weight:700" data-mpd="'+mid+'" data-mpn="'+nm+'" onclick="toggleMemberDisable(this.dataset.mpd,this.dataset.mpn,false)">Enable</button>';
+  return '';
+}
 async function loadMemberPortalAdmin(){
   const el=$('mpa_list');if(!el)return;
   el.innerHTML='<p class="msg">Loading…</p>';
@@ -2210,7 +2216,7 @@ async function loadMemberPortalAdmin(){
         `<td><div style="display:flex;flex-direction:column;gap:2px">`+
           `<button class="ghost" style="font-size:10px;padding:2px 8px" onclick="viewMemberPortal('${esc(r['Member ID'])}')">View</button>`+
           `<button class="ghost" style="font-size:10px;padding:2px 8px;color:#1d4ed8" onclick="setMemberPassword('${esc(r['Member ID'])}','${esc(r['Name'])}')">Set PW</button>`+
-          `<button class="ghost" style="font-size:10px;padding:2px 8px;color:${r['Portal Access']==='Disabled'?'#16a34a':'#dc2626'}" onclick="toggleMemberDisable('${esc(r['Member ID'])}','${esc(r['Name'])}',${r['Portal Access']==='Disabled'?'false':'true'})">${r['Portal Access']==='Disabled'?'Enable':'Disable'}</button>`+
+          `${mpaDisableBtn(r)}`+
         `</div></td></tr>`;
     });
     el.innerHTML=h+'</tbody></table>';
@@ -2234,7 +2240,7 @@ async function viewMemberActivity(memberId, name){
     const res=await api('member_activity_log',{memberId});
     const logs=res.logs||[];
     if(!logs.length){
-      $('mpa_activity_content').innerHTML='<p class="msg" style="color:#9ca3af">No activity recorded yet.</p>';
+      $('mpa_activity_content').innerHTML='<div style="padding:16px;text-align:center"><p style="color:#9ca3af;margin-bottom:8px">No portal activity recorded yet.</p><p style="font-size:12px;color:#9ca3af">Activity appears here after the member logs in to the portal, or when admin actions are taken.</p></div>';
       return;
     }
     let h='<table style="width:100%;border-collapse:collapse;font-size:12px">'+
