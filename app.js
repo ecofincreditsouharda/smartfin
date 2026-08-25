@@ -500,7 +500,7 @@ function filterList(rows,query,target,linkKind,editKey){
 }
 function renderListHtml(rows,target,linkKind,editKey){
   if(!rows||!rows.length){$(target).innerHTML='<p class="msg">Nothing to show.</p>';return;}
-  const cols=Object.keys(rows[0]); const money=/amount|emi|repayable|value|paid|balance|arrears|min|capital|collected|interest|total|fee|charge|penalty|principal|rate(?!\s*%)/i;
+  const cols=Object.keys(rows[0]).filter(c=>!c.startsWith('_')); const money=/amount|emi|repayable|value|paid|balance|arrears|min|capital|collected|interest|total|fee|charge|penalty|principal|rate(?!\s*%)/i;
   const hasBtn=linkKind||editKey;
   let h='<table><tr>'+cols.map(c=>`<th>${esc(c)}</th>`).join('')+(hasBtn?'<th></th>':'')+' </tr>';
   rows.forEach(r=>{const id=r[cols[0]];
@@ -533,7 +533,7 @@ function clearForm(section){
     members:['m_FullName','m_DOB','m_Phone','m_Branch','m_Address','m_Aadhaar','m_PAN','m_BankName','m_BankAccount','m_IFSC','m_ShareCapitalCollected'],
     loans:['l_Borrower','l_MemberID','l_LoanType','l_Amount','l_RatePct','l_TenureMonths','l_SanctionDate','l_DisbursementDate','l_FirstEMIDate','l_CustomEMI','l_G1Name','l_G1MemberID','l_G2Name','l_G2MemberID','l_NewId'],
     deposits:['d_MemberID','d_Depositor','d_Amount','d_RatePct','d_TenureMonths','d_StartDate','d_PayoutMode','d_Nominee','d_Remarks'],
-    savings:['s_MemberID','s_MemberName','s_Rate','s_MinBalance','s_OpenDate','s_Nominee'],
+    savings:['s_MemberID','s_MemberName','s_Rate','s_MinBalance','s_OpenDate','s_Nominee','s_NewId'],
   shares:['sh_MemberID','sh_MemberName','sh_Shares','sh_AmtPerShare','sh_Total','sh_Date','sh_Note'],
     expenses:['e_Date','e_Description','e_Amount','e_Remarks','e_To'],
     passbook:['pb_SavingsID','pb_from','pb_to'],
@@ -545,17 +545,18 @@ function clearForm(section){
   if(section==='members'){$('m_msg').textContent='';clearEdit();}
   if(section==='passbook'){$('pb_summary').innerHTML='';if($('pb_rows'))$('pb_rows').innerHTML='';}
 }
-const EDIT_BTN={loans:'l_add',deposits:'d_add',expenses:'e_add',member:'m_add'};
-const EDIT_VIEW={loans:'loans',deposits:'deposits',expenses:'expenses',member:'members'};
-const EDIT_MSG={loans:'l_msg',deposits:'d_msg',expenses:'e_msg',member:'m_msg'};
+const EDIT_BTN={loans:'l_add',deposits:'d_add',expenses:'e_add',member:'m_add',savings:'s_open'};
+const EDIT_VIEW={loans:'loans',deposits:'deposits',expenses:'expenses',member:'members',savings:'savings'};
+const EDIT_MSG={loans:'l_msg',deposits:'d_msg',expenses:'e_msg',member:'m_msg',savings:'s_msg'};
 function clearEdit(){
   editing={type:null,id:null};
   setText('l_add','Confirm & Save');$('l_add').hidden=true;
   setText('d_add','Confirm & Save');$('d_add').hidden=true;
   setText('e_add','Add expense');
   setText('m_add','Add member');
+  setText('s_open','Open account');
   // Hide all edit-mode UI elements
-  ['l_NewIdWrap','m_NewIdWrap','m_CurIdWrap'].forEach(id=>{const el=$(id);if(el)el.style.display='none';});
+  ['l_NewIdWrap','m_NewIdWrap','m_CurIdWrap','s_NewIdWrap'].forEach(id=>{const el=$(id);if(el)el.style.display='none';});
   if($('m_NewId'))$('m_NewId').value='';
   ['l_cancel_edit','d_cancel_edit','m_cancel_edit'].forEach(id=>{const el=$(id);if(el)el.style.display='none';});
 }
@@ -919,12 +920,58 @@ async function fdWithdraw(){
 }
 
 /* ── SAVINGS ─────────────────────────────────────────────────── */
+async function startSavingsEdit(savingsId){
+  try{
+    const{fields}=await api('reg_get',{key:'savings',id:savingsId});
+    // Fill form
+    setV('s_MemberID',    fields.MemberID||'');
+    setV('s_MemberName',  fields.MemberName||'');
+    setSelectValue('s_Branch', fields.Branch||'');
+    setV('s_Rate',        fields.Rate||'');
+    setV('s_MinBalance',  fields.MinBalance||'');
+    setV('s_OpenDate',    fields.OpenDate||'');
+    setV('s_Nominee',     fields.Nominee||'');
+    if($('s_Remarks'))setV('s_Remarks', fields.Remarks||'');
+    // Show change ID field
+    const cidWrap=$('s_NewIdWrap');
+    if(cidWrap){cidWrap.style.display='';setV('s_NewId','');if($('s_NewId'))$('s_NewId').placeholder='Leave blank to keep '+savingsId;}
+    else{
+      // Create it dynamically if not in HTML
+    }
+    editing={type:'savings',id:savingsId};
+    const btn=$('s_open');if(btn){setText('s_open','Update Account');btn.hidden=false;}
+    const msg=$('s_msg');if(msg)msg.textContent='Editing '+savingsId+' — change fields then Update.';
+    // Show cancel button
+    const cBtn=$('s_cancel_edit');if(cBtn)cBtn.style.display='inline-flex';
+    // Scroll to form
+    const card=document.querySelector('#view-savings .card.add-only');
+    if(card)card.scrollIntoView({behavior:'smooth',block:'start'});
+  }catch(err){showToast('Error: '+err.message,'err');}
+}
+
 async function savingsOpen(){
   $('s_msg').textContent='Saving…';
-  try{const{savingsId}=await api('savings_open',{account:{MemberID:val('s_MemberID'),MemberName:val('s_MemberName'),
-    Branch:val('s_Branch'),Rate:Number(val('s_Rate'))/100,MinBalance:val('s_MinBalance'),
-    OpenDate:val('s_OpenDate'),Nominee:val('s_Nominee')}});
-    $('s_msg').textContent='Opened '+savingsId;loadList('savings_list','s_list');
+  try{
+    if(editing.type==='savings'){
+      // EDIT MODE
+      const newId=($('s_NewId')&&val('s_NewId').trim())||'';
+      const fields={MemberID:val('s_MemberID'),MemberName:val('s_MemberName'),
+        Branch:val('s_Branch'),Rate:val('s_Rate'),MinBalance:val('s_MinBalance'),
+        Nominee:val('s_Nominee'),NewSavingsID:newId};
+      if($('s_Remarks'))fields.Remarks=val('s_Remarks');
+      const res=await api('reg_edit',{key:'savings',id:editing.id,fields});
+      $('s_msg').textContent='Updated '+(res.id||editing.id);
+      if(newId&&newId!==editing.id) showToast('Savings ID renamed to '+newId,'ok');
+      clearEdit();setText('s_open','Open Account');
+      const cBtn=$('s_cancel_edit');if(cBtn)cBtn.style.display='none';
+      const cidWrap=$('s_NewIdWrap');if(cidWrap)cidWrap.style.display='none';
+      loadSavingsList();return;
+    }
+    // ADD MODE
+    const{savingsId}=await api('savings_open',{account:{MemberID:val('s_MemberID'),MemberName:val('s_MemberName'),
+      Branch:val('s_Branch'),Rate:Number(val('s_Rate'))/100,MinBalance:val('s_MinBalance'),
+      OpenDate:val('s_OpenDate'),Nominee:val('s_Nominee')}});
+    $('s_msg').textContent='Opened '+savingsId;loadSavingsList();
   }catch(err){$('s_msg').textContent='';alert(err.message);}
 }
 async function savingsTxn(){
@@ -1674,6 +1721,7 @@ function renderSavingsList(rows){
       `<td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px">${esc(r.Nominee||'—')}</td>`+
       (canAct?`<td><div style="display:flex;flex-direction:column;gap:2px">`+
         `<button class="ghost" style="font-size:10px;padding:1px 5px" onclick="openSavingsPassbook('${sid}')">Passbook</button>`+
+        `<button class="ghost" style="font-size:10px;padding:1px 5px" onclick="startSavingsEdit('${sid}')">Edit</button>`+
         `<button class="ghost" style="font-size:10px;padding:1px 5px;color:#dc2626" onclick="closeSavingsAccount('${sid}')">Close</button>`+
         `</div></td>`:'')+`</tr>`;
   });
@@ -2341,14 +2389,14 @@ async function printFDCertificate(depositId){
         }
       }catch(e){}
     }
-    // Read fields — depositsList now returns all needed fields
+    // Read fields — display fields + _ prefixed hidden fields
     const amount    = Number(dep.Amount||0);
-    const ratePct   = Number(dep['Rate (%)']||0);       // already in % (e.g. 8.5)
+    const ratePct   = Number(dep['Rate (%)']||0);
     const tenure    = Number(dep['Tenure (mo)']||12);
-    const startDate = dep['Start Date']||'';
+    const startDate = dep['_Start Date']||dep['Start Date']||'';
     const memberId2 = dep['Member ID']||'';
     const matValue  = Number(dep['Maturity Value']||0);
-    const matDateStr= dep['Maturity Date']||'';         // already formatted by backend
+    const matDateStr= dep['Maturity Date']||'';
     const startFmt  = startDate ? new Date(startDate).toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'}) : '—';
     // Issue date = date of deposit (not today)
     const issueDate = startFmt;
