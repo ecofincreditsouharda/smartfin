@@ -2210,7 +2210,7 @@ async function loadMemberPortalAdmin(){
         `<td style="font-weight:600">${esc(r['Member ID'])}</td>`+
         `<td>${esc(r['Name'])}</td>`+
         `<td style="font-size:11px">${esc(r['Branch'])}</td>`+
-        `<td><span style="color:${statusColor};font-weight:600;font-size:12px">${esc(r['Portal Access'])}</span></td>`+
+        `<td><span style="color:${statusColor};font-weight:600;font-size:12px">${esc(r['Portal Access'])}</span>${r['Status Detail']?'<br><span style="font-size:10px;color:#d97706">'+esc(r['Status Detail'])+'</span>':''}</td>`+
         `<td style="font-size:11px;color:#374151">${esc(r['Last Login']||'—')}</td>`+
         `<td style="font-size:11px"><button class="ghost" style="font-size:10px;padding:1px 6px" onclick="viewMemberActivity('${esc(r['Member ID'])}','${esc(r['Name'])}')">View Log</button></td>`+
         `<td><div style="display:flex;flex-direction:column;gap:2px">`+
@@ -2258,8 +2258,25 @@ async function viewMemberActivity(memberId, name){
     $('mpa_activity_content').innerHTML=`<p class="err">${err.message}</p>`;
   }
 }
-async function toggleMemberDisable(memberId, name, disable){
-  if(!confirm((disable?'Disable':'Re-enable')+' portal access for '+name+' ('+memberId+')?')) return;
+function toggleMemberDisable(memberId, name, disable){
+  const title = disable ? 'Disable Portal Access' : 'Re-enable Portal Access';
+  const color = disable ? '#dc2626' : '#16a34a';
+  const icon  = disable ? '🔒' : '🔓';
+  const msg   = disable
+    ? `Member <b>${esc(name)}</b> (${esc(memberId)}) will no longer be able to log in to the member portal.`
+    : `Member <b>${esc(name)}</b> (${esc(memberId)}) will be re-enabled. They will need their password to log in.`;
+  openModal(title,
+    `<div style="padding:8px 0">
+      <div style="text-align:center;font-size:36px;margin-bottom:12px">${icon}</div>
+      <p style="font-size:14px;color:#374151;margin-bottom:20px;text-align:center">${msg}</p>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="ghost" onclick="closeModal()">Cancel</button>
+        <button class="primary" style="background:${color}" onclick="closeModal();confirmToggleDisable('${esc(memberId)}','${esc(name)}',${disable})">${disable?'Yes, Disable':'Yes, Enable'}</button>
+      </div>
+    </div>`
+  );
+}
+async function confirmToggleDisable(memberId, name, disable){
   try{
     await api('member_disable',{memberId,disable});
     showToast('Portal '+(disable?'disabled':'re-enabled')+' for '+name,'ok');
