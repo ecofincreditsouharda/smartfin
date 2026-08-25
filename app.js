@@ -517,8 +517,12 @@ function renderListHtml(rows,target,linkKind,editKey){
       }
       if(linkKind==='member') h+=`<button class="ghost" data-member="${esc(id)}">View</button> `;
       if(editKey==='expenses') h+=`<button class="ghost" data-voucher="${esc(id)}">Voucher</button> `;
-      if(editKey) h+=`<button class="ghost" data-edit="${esc(editKey)}:${esc(id)}">Edit</button>`;
-      if(editKey==='deposits') h+=` <button class="ghost" onclick="printFDCertificate('${esc(id)}')">Certificate</button>`;
+      if(editKey){
+        h+='<div style="display:flex;flex-direction:column;gap:2px">';
+        h+=`<button class="ghost" style="font-size:10px;padding:2px 6px" data-edit="${esc(editKey)}:${esc(id)}">Edit</button>`;
+        if(editKey==='deposits') h+=`<button class="ghost" style="font-size:10px;padding:2px 6px" onclick="printFDCertificate('${esc(id)}')">Certificate</button>`;
+        h+='</div>';
+      }
       h+='</td>';}h+='</tr>';});
   $(target).innerHTML=h+'</table>';
 }
@@ -3001,17 +3005,7 @@ function loadModulePerms(){
   $('mp_perms').innerHTML=h;
   if($('mp_actions'))$('mp_actions').style.display='flex';
 }
-function saveModulePerms(){
-  const userId=val('mp_user');if(!userId)return;
-  const allowed=ALL_MODULES.filter(m=>{const cb=$('mp_'+m);return cb&&cb.checked;});
-  setModulePerms(userId,allowed);
-  if($('mp_msg'))$('mp_msg').textContent='Saved.';
-  showToast('Module permissions saved','ok');
-  // Re-apply sidebar immediately for the affected user
-  if(session&&session.userId===userId){
-    applyModulePerms(userId,session.role);
-  }
-}
+// saveModulePerms — defined below (async version with DB sync)
 function resetModulePerms(){
   const userId=val('mp_user');if(!userId)return;
   localStorage.removeItem('modperms_'+userId);
