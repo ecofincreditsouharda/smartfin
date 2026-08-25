@@ -1,4 +1,3 @@
-
 /* ── CONFIG ──────────────────────────────────────────────────── */
 const WEB_APP_URL = 'https://tgopjjtamvoftzdfvzuc.supabase.co/functions/v1/api';
 const IDLE_MS = 60 * 1000;
@@ -270,7 +269,7 @@ function logout(){
 }
 
 /* ── MODULE PERMISSIONS (localStorage per userId) ────────────── */
-const ALL_MODULES=['dashboard','members','loans','repayments','deposits','savings','shares','transfers','society','expenses','reports','approvals','loan-history','notices','foir','settings','users','activity','account'];
+const ALL_MODULES=['dashboard','members','loans','repayments','deposits','savings','shares','transfers','society','expenses','reports','approvals','loan-history','notices','foir','member-portal-admin','settings','users','activity','account'];
 const DEFAULT_MODULES={
   Admin: ALL_MODULES,
   CEO: ['dashboard','members','loans','loan-history','notices','foir','repayments','deposits','savings','shares','transfers','society','expenses','reports','approvals','account'],
@@ -398,7 +397,7 @@ async function populateBranchSelects(){
 }
 const VIEW_TITLES={dashboard:'Dashboard',members:'Members',loans:'Loans',repayments:'Repayments',
   deposits:'Fixed Deposits',savings:'Savings',shares:'Share Capital',transfers:'Transfers',
-  society:'Society Bank',expenses:'Expenses',reports:'Reports',approvals:'Loan Approvals',foir:'FOIR Calculator','loan-history':'Loan History',
+  society:'Society Bank',expenses:'Expenses',reports:'Reports',approvals:'Loan Approvals',foir:'FOIR Calculator','member-portal-admin':'Members Portal','loan-history':'Loan History',
   settings:'Settings',users:'Users',activity:'Activity Log',account:'My Account'};
 function showView(v){
   document.querySelectorAll('.view').forEach(s=>s.hidden=true);
@@ -415,6 +414,7 @@ function refresh(v, manual=false){
   if(v==='loan-history'){loadLoanHistory();}
   if(v==='notices'){loadOverdueLoans(Number($('notice_days')?.value||7));}
   if(v==='foir'){initFOIR();}
+  if(v==='member-portal-admin'){loadMemberPortalAdmin();}
   if(v==='deposits')    loadList('deposits_list','d_list',null,'deposits');
   if(v==='savings')     loadSavingsList();
   if(v==='shares'){loadShareSummary();loadSharesList();}
@@ -2189,6 +2189,70 @@ function fmtIN(d){
   catch(e){return String(d);}
 }
 
+
+/* ══ MEMBERS PORTAL ADMIN ═══════════════════════════════════ */
+async function loadMemberPortalAdmin(){
+  const el=$('mpa_list');if(!el)return;
+  el.innerHTML='<p class="msg">Loading…</p>';
+  try{
+    const{rows}=await api('member_portal_list');
+    if(!rows||!rows.length){el.innerHTML='<p class="msg">No members found.</p>';return;}
+    let h='<table><thead><tr><th>Member ID</th><th>Name</th><th>Branch</th><th>Portal</th><th>Password Set</th><th></th></tr></thead><tbody>';
+    rows.forEach(r=>{
+      const active=r['Portal Access']==='Active';
+      h+=`<tr><td style="font-weight:600">${esc(r['Member ID'])}</td><td>${esc(r['Name'])}</td><td>${esc(r['Branch'])}</td>`+
+        `<td><span style="color:${active?'#16a34a':'#9ca3af'};font-weight:600">${esc(r['Portal Access'])}</span></td>`+
+        `<td style="font-size:11px">${esc(r['Password Set'])}</td>`+
+        `<td style="white-space:nowrap"><div style="display:flex;gap:4px">`+
+          `<button class="ghost" style="font-size:10px;padding:2px 8px" onclick="viewMemberPortal('${esc(r['Member ID'])}')">View Portal</button>`+
+          `<button class="ghost" style="font-size:10px;padding:2px 8px;color:#dc2626" onclick="resetMemberPassword('${esc(r['Member ID'])}','${esc(r['Name'])}')">Reset PW</button>`+
+        `</div></td></tr>`;
+    });
+    el.innerHTML=h+'</tbody></table>';
+  }catch(err){el.innerHTML=`<p class="err">${err.message}</p>`;}
+}
+
+async function resetMemberPassword(memberId, name){
+  const newPw=prompt(`Reset password for ${name} (${memberId}).
+
+Enter new password (leave blank to auto-generate):`);
+  if(newPw===null) return;
+  try{
+    const res=await api('member_admin_reset',{memberId,newPassword:newPw||null});
+    showToast(`Password reset. New password: ${res.newPassword}`,'ok');
+    navigator.clipboard&&navigator.clipboard.writeText(res.newPassword);
+    loadMemberPortalAdmin();
+  }catch(err){showToast('Error: '+err.message,'err');}
+}
+
+async function viewMemberPortal(memberId){
+  openModal('Member Portal — '+memberId,
+    '<div id="mpa_view_content"><p class="msg">Loading…</p></div>');
+  try{
+    const res=await api('member_portal_data',{memberId,adminOverride:true,password:''});
+    const pd=res;
+    pd.loans=pd.loans||[];pd.savings=pd.savings||[];pd.deposits=pd.deposits||[];
+    const m=pd.member||{};
+    const loanBal=(pd.loans).reduce((a,l)=>a+Number(l.balance||0),0);
+    const arrears=(pd.loans).reduce((a,l)=>a+Number(l.arrears||0),0);
+    let h=`<div style="font-size:13px;line-height:1.8">
+      <b>${esc(m.full_name||'')} (${esc(m.member_id||'')})</b> · ${esc(m.branch||'')} · ${esc(m.phone||'')}<br>
+      Loans: ${pd.loans.length} · Balance: ${rupee(loanBal)} · Arrears: <span style="color:${arrears>0?'#dc2626':'#16a34a'}">${rupee(arrears)}</span><br>
+      Savings: ${pd.savings.length} acct(s) · FDs: ${pd.deposits.length}<br>
+      Portal password: <b>${res.hasPassword?'Set (since '+( res.passwordSetAt?new Date(res.passwordSetAt).toLocaleDateString('en-IN'):'')+')':'Not set yet'}</b>
+    </div>
+    <div style="margin-top:14px"><b style="font-size:12px">Active Loans:</b></div>`;
+    (pd.loans).filter(l=>l.status!=='Closed').forEach(l=>{
+      h+=`<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px;margin-top:8px;font-size:12px">
+        <b>${esc(l.loanId)}</b> · ${rupee(l.amount)} · Balance: ${rupee(l.balance)} · Arrears: <span style="color:#dc2626">${rupee(l.arrears)}</span><br>
+        EMI: ${rupee(l.effEMI)} · Next due: ${esc(l.nextDue||'—')} · Receipts: ${(l.receipts||[]).length}
+      </div>`;
+    });
+    if(!pd.loans.filter(l=>l.status!=='Closed').length) h+='<p style="color:#9ca3af;font-size:12px;margin-top:8px">No active loans.</p>';
+    $('mpa_view_content').innerHTML=h;
+  }catch(err){$('mpa_view_content').innerHTML=`<p class="err">${err.message}</p>`;}
+}
+
 /* ── MODAL ───────────────────────────────────────────────────── */
 function openModal(title,html){$('modal_title').textContent=title||'';$('modal_body').innerHTML=html;$('modal').hidden=false;}
 function closeModal(){$('modal').hidden=true;$('modal_body').innerHTML='';}
@@ -2768,7 +2832,7 @@ function loadModulePerms(){
   const allowed=getModulePerms(userId,role);
   const MODULE_LABELS={dashboard:'Dashboard',members:'Members',loans:'Loans',repayments:'Repayments',
     deposits:'Fixed Deposits',savings:'Savings',shares:'Share Capital',transfers:'Transfers',society:'Society Bank',
-    expenses:'Expenses',reports:'Reports',approvals:'Loan Approvals',foir:'FOIR Calculator','loan-history':'Loan History',settings:'Settings',users:'Users',activity:'Activity Log',account:'My Account'};
+    expenses:'Expenses',reports:'Reports',approvals:'Loan Approvals',foir:'FOIR Calculator','member-portal-admin':'Members Portal','loan-history':'Loan History',settings:'Settings',users:'Users',activity:'Activity Log',account:'My Account'};
   let h='';
   ALL_MODULES.forEach(mod=>{
     const checked=allowed.includes(mod)?'checked':'';
