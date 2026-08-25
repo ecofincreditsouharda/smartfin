@@ -372,6 +372,7 @@ async function start(user){
     el.style.display=(el.tagName==='BUTTON')?'inline-flex':'block';
   });
   // Apply per-user module permissions (overrides defaults)
+  if(role!=='Admin'){try{const pr=await api('user_get_perms',{userId:user.userId});if(pr&&pr.perms&&pr.perms.length)setModulePerms(user.userId,pr.perms);}catch(e){}}
   applyModulePerms(user.userId, role);
   // Show PDF button in PWA
   if($('r_pdf')) $('r_pdf').style.display=isPWA()?'inline-flex':'none';
@@ -2402,7 +2403,7 @@ async function printFDCertificate(depositId){
       `</div>`+
       // Footer
       `<div style="margin-top:14px;border-top:1px solid #e5e7eb;padding-top:6px;font-size:8px;color:#9ca3af;text-align:center">`+
-        `${esc(BANK)} · Fixed Deposit Certificate · ${now}`+
+        `${esc(BANK)} · Fixed Deposit Certificate · Issue Date: ${issueDate}`+
       `</div>`;
     printDoc(body,'@page{size:A4;margin:1.5cm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:11px;margin:0}','');
   }catch(err){showToast('Error: '+err.message,'err');}
@@ -3329,4 +3330,17 @@ async function resetAll(){
   $('reset_msg').textContent='Deleting…';
   try{const{message}=await api('reset_all',{confirm:'CONFIRMED'});$('reset_msg').textContent=message;$('reset_confirm').value='';}
   catch(err){$('reset_msg').textContent=err.message;}
+}async function saveModulePerms(){
+  const userId=val('mp_user');if(!userId)return;
+  const allowed=ALL_MODULES.filter(m=>{const cb=$('mp_'+m);return cb&&cb.checked;});
+  setModulePerms(userId,allowed);
+  try{
+    await api('user_set_perms',{userId,perms:allowed});
+    if($('mp_msg'))$('mp_msg').textContent='Saved.';
+    showToast('Permissions saved for user','ok');
+  }catch(e){
+    if($('mp_msg'))$('mp_msg').textContent='Saved locally.';
+    showToast('Server error: '+e.message,'err');
+  }
+  if(session&&session.userId===userId) applyModulePerms(userId,session.role);
 }
