@@ -2197,10 +2197,16 @@ async function loadMemberPortalAdmin(){
   try{
     const{rows}=await api('member_portal_list');
     if(!rows||!rows.length){el.innerHTML='<p class="msg">No members found.</p>';return;}
-    let h='<table><thead><tr><th>Member ID</th><th>Name</th><th>Branch</th><th>Portal</th><th>Password Set</th><th></th></tr></thead><tbody>';
+    let h='<table><thead><tr><th>Member ID</th><th>Name</th><th>Branch</th><th>Status</th><th>Last Login</th><th>Activity</th><th></th></tr></thead><tbody>';
     rows.forEach(r=>{
-      const active=r['Portal Access']==='Active';
-      h+=`<tr><td style="font-weight:600">${esc(r['Member ID'])}</td><td>${esc(r['Name'])}</td><td>${esc(r['Branch'])}</td>`+
+      const statusColor=r['Portal Access']==='Active'?'#16a34a':r['Portal Access']==='Disabled'?'#dc2626':'#9ca3af';
+      h+=`<tr>`+
+        `<td style="font-weight:600">${esc(r['Member ID'])}</td>`+
+        `<td>${esc(r['Name'])}</td>`+
+        `<td style="font-size:11px">${esc(r['Branch'])}</td>`+
+        `<td><span style="color:${statusColor};font-weight:600;font-size:12px">${esc(r['Portal Access'])}</span></td>`+
+        `<td style="font-size:11px;color:#374151">${esc(r['Last Login']||'—')}</td>`+
+        `<td style="font-size:11px"><button class="ghost" style="font-size:10px;padding:1px 6px" onclick="viewMemberActivity('${esc(r['Member ID'])}','${esc(r['Name'])}')">View Log</button></td>`+
         `<td><div style="display:flex;flex-direction:column;gap:2px">`+
           `<button class="ghost" style="font-size:10px;padding:2px 8px" onclick="viewMemberPortal('${esc(r['Member ID'])}')">View</button>`+
           `<button class="ghost" style="font-size:10px;padding:2px 8px;color:#1d4ed8" onclick="setMemberPassword('${esc(r['Member ID'])}','${esc(r['Name'])}')">Set PW</button>`+
@@ -2220,6 +2226,31 @@ async function setMemberPassword(memberId, name){
     navigator.clipboard&&navigator.clipboard.writeText(res.newPassword).catch(()=>{});
     loadMemberPortalAdmin();
   }catch(err){showToast('Error: '+err.message,'err');}
+}
+async function viewMemberActivity(memberId, name){
+  openModal('Activity Log — '+name+' ('+memberId+')',
+    '<div id="mpa_activity_content"><p class="msg">Loading…</p></div>');
+  try{
+    const res=await api('member_activity_log',{memberId});
+    const logs=res.logs||[];
+    if(!logs.length){
+      $('mpa_activity_content').innerHTML='<p class="msg" style="color:#9ca3af">No activity recorded yet.</p>';
+      return;
+    }
+    let h='<table style="width:100%;border-collapse:collapse;font-size:12px">'+
+      '<thead><tr style="background:#f3f4f6"><th style="padding:6px 8px;text-align:left">Date/Time</th><th style="padding:6px 8px;text-align:left">Activity</th><th style="padding:6px 8px;text-align:left">Detail</th></tr></thead><tbody>';
+    logs.forEach(l=>{
+      const dt=l.performed_at?new Date(l.performed_at).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Asia/Kolkata'}):'—';
+      h+=`<tr style="border-bottom:1px solid #f3f4f6">
+        <td style="padding:6px 8px;white-space:nowrap;font-size:11px;color:#374151">${esc(dt)}</td>
+        <td style="padding:6px 8px;font-weight:500">${esc(l.action||'')}</td>
+        <td style="padding:6px 8px;color:#6b7280;font-size:11px">${esc(l.detail||'')}</td>
+      </tr>`;
+    });
+    $('mpa_activity_content').innerHTML=h+'</tbody></table>';
+  }catch(err){
+    $('mpa_activity_content').innerHTML=`<p class="err">${err.message}</p>`;
+  }
 }
 async function toggleMemberDisable(memberId, name, disable){
   if(!confirm((disable?'Disable':'Re-enable')+' portal access for '+name+' ('+memberId+')?')) return;
