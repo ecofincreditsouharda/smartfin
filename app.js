@@ -1405,7 +1405,7 @@ async function loadActivityLog(forceRefresh) {
       // Support both "Action" and "action" keys for safety
       const action = r.Action||r.action||'';
       const c = action.includes('Deleted')?'#dc2626':action.includes('Added')?'#16a34a':action.includes('Edited')?'#d97706':'#374151';
-      h += `<tr><td style="white-space:nowrap;font-size:11px">${esc(r.Time||r.time||'')}</td>` +
+      h += `<tr><td style="white-space:nowrap;font-size:11px">${fmtActivityTime(r.Time||r.time||'')}</td>` +
         `<td><b>${esc(r.User||r.user||'')}</b></td>` +
         `<td style="color:${c};font-weight:600">${esc(action)}</td>` +
         `<td>${esc(r.Target||r.target||'')}</td>` +
@@ -2245,6 +2245,24 @@ function fmtIN(d){
 
 
 /* ══ MEMBERS PORTAL ADMIN ═══════════════════════════════════ */
+async function viewMemberActivity(memberId, name){
+  openModal('Activity Log — '+name+' ('+memberId+')',
+    '<div id="mpa_activity_content"><p class="msg">Loading…</p></div>');
+  try{
+    const res=await api('member_activity_log',{memberId});
+    const logs=res.logs||[];
+    if(!logs.length){
+      $('mpa_activity_content').innerHTML='<div style="padding:16px;text-align:center"><p style="color:#9ca3af">No activity recorded yet.</p></div>';
+      return;
+    }
+    let h='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#f3f4f6"><th style="padding:6px 8px;white-space:nowrap">Date/Time (IST)</th><th style="padding:6px 8px">Activity</th><th style="padding:6px 8px">Detail</th><th style="padding:6px 8px">By</th></tr></thead><tbody>';
+    logs.forEach(function(l){
+      const dt=fmtActivityTime(l.performed_at);
+      h+='<tr style="border-bottom:1px solid #f3f4f6"><td style="padding:6px 8px;white-space:nowrap;font-size:11px">'+esc(dt)+'</td><td style="padding:6px 8px;font-weight:500">'+esc(l.action||'')+'</td><td style="padding:6px 8px;color:#6b7280;font-size:11px">'+esc(l.detail||'')+'</td><td style="padding:6px 8px;font-size:11px;color:#6b7280">'+esc(l.user_name||'')+'</td></tr>';
+    });
+    $('mpa_activity_content').innerHTML=h+'</tbody></table></div>';
+  }catch(err){$('mpa_activity_content').innerHTML='<p class="err">'+esc(err.message)+'</p>';}
+}
 function mpaDisableBtn(r){
   const mid=esc(r['Member ID']),nm=esc(r['Name']),st=r['Portal Access'];
   if(st==='Active') return '<button class="ghost" style="font-size:10px;padding:2px 8px;color:#dc2626" data-mpd="'+mid+'" data-mpn="'+nm+'" data-mpdis="true" onclick="toggleMemberDisable(this.dataset.mpd,this.dataset.mpn,true)">Disable</button>';
