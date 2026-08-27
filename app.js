@@ -9,9 +9,23 @@ let HQ_ADDRESS = '', HQ_PHONE = '', COMMON_EMAIL = '';
 const $ = id => document.getElementById(id);
 const val = id => ($(id) ? $(id).value : '');
 function fmtActivityTime(ts){
-  if(!ts||ts==='—') return '—';
-  try{return new Date(ts).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true});}
-  catch(e){return ts;}
+  if(!ts||ts==='—'||ts==='') return '—';
+  // If already formatted by backend (contains comma = "15 Jan 2024, 2:30 pm"), return as-is
+  if(ts.indexOf(',')!==-1) return ts;
+  // Raw ISO string — convert manually to IST (+5:30)
+  try{
+    const dt=new Date(ts);
+    if(isNaN(dt.getTime())) return ts;
+    const ist=new Date(dt.getTime()+(5*60+30)*60*1000);
+    const dd=String(ist.getUTCDate()).padStart(2,'0');
+    const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][ist.getUTCMonth()];
+    const yr=ist.getUTCFullYear();
+    let hh=ist.getUTCHours();
+    const mm=String(ist.getUTCMinutes()).padStart(2,'0');
+    const ampm=hh>=12?'pm':'am';
+    hh=hh%12||12;
+    return dd+' '+mo+' '+yr+', '+hh+':'+mm+' '+ampm;
+  }catch(e){return ts;}
 }
 const rupee = n => {
   if(n===''||n==null) return '';
@@ -2301,6 +2315,37 @@ async function loadMemberPortalAdmin(){
 }
 
 function copyMpwResult(){var p=document.getElementById("mpw_result");if(p&&navigator.clipboard)navigator.clipboard.writeText(p.textContent).then(()=>showToast("Copied!",true));}
+
+function cTD(btn){confirmToggleDisable(btn.dataset.mid,btn.dataset.nm,btn.dataset.dis==='true');}
+function toggleMemberDisable(memberId, name, disable){
+  const title=disable?'Disable Portal Access':'Re-enable Portal Access';
+  const color=disable?'#dc2626':'#16a34a';
+  const icon=disable?'🔒':'🔓';
+  const msg=disable
+    ?'Member <b>'+esc(name)+'</b> ('+esc(memberId)+') will no longer be able to log in to the member portal.'
+    :'Member <b>'+esc(name)+'</b> ('+esc(memberId)+') will be re-enabled. Admin must set a new password before they can log in.';
+  openModal(title,
+    '<div style="padding:8px 0">'+
+    '<div style="text-align:center;font-size:36px;margin-bottom:12px">'+icon+'</div>'+
+    '<p style="font-size:14px;color:#374151;margin-bottom:20px;text-align:center">'+msg+'</p>'+
+    '<div style="display:flex;gap:10px;justify-content:flex-end">'+
+      '<button class="ghost" onclick="closeModal()">Cancel</button>'+
+      '<button class="primary" id="confirm_dis_btn" style="background:'+color+'" '+
+        'data-mid="'+esc(memberId)+'" data-nm="'+esc(name)+'" data-dis="'+disable+'" '+
+        'onclick="cTD(this)">'+
+        (disable?'Yes, Disable':'Yes, Enable')+
+      '</button>'+
+    '</div></div>'
+  );
+}
+async function confirmToggleDisable(memberId, name, disable){
+  try{
+    await api('member_disable',{memberId, disable});
+    showToast('Portal '+(disable?'disabled':'re-enabled')+' for '+name,'ok');
+    closeModal();
+    loadMemberPortalAdmin();
+  }catch(err){showToast('Error: '+err.message,'err');}
+}
 function mpwToggle(){var e=document.getElementById("mpw_input");if(e)e.type=e.type==="password"?"text":"password";}
 function setMemberPassword(memberId, name){
   openModal('Set Portal Password — '+name,
