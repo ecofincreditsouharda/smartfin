@@ -8,6 +8,11 @@ let BANK = 'ECOSMART', APP_NAME = 'ECOSMART', LOGO_URL = 'logo.png';
 let HQ_ADDRESS = '', HQ_PHONE = '', COMMON_EMAIL = '';
 const $ = id => document.getElementById(id);
 const val = id => ($(id) ? $(id).value : '');
+function fmtActivityTime(ts){
+  if(!ts||ts==='—') return '—';
+  try{return new Date(ts).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true});}
+  catch(e){return ts;}
+}
 const rupee = n => {
   if(n===''||n==null) return '';
   const num=Number(String(n).replace(/[^0-9.\-]/g,''));
