@@ -1420,17 +1420,19 @@ async function loadActivityLog(forceRefresh) {
       return;
     }
     let h = '<table><thead><tr>' +
-      ['Time','User','Action','Target','Detail'].map(c=>`<th>${c}</th>`).join('') +
+      ['Time','User','Action','Target','Detail',''].map(c=>`<th>${c}</th>`).join('') +
       '</tr></thead><tbody>';
     rows.forEach(r => {
       // Support both "Action" and "action" keys for safety
       const action = r.Action||r.action||'';
       const c = action.includes('Deleted')?'#dc2626':action.includes('Added')?'#16a34a':action.includes('Edited')?'#d97706':'#374151';
+      const rId=r._id||'';const rSrc=r._source||'audit_log';const rTgt=r.Target||r.target||'';
       h += `<tr><td style="white-space:nowrap;font-size:11px">${fmtActivityTime(r.Time||r.time||'')}</td>` +
         `<td><b>${esc(r.User||r.user||'')}</b></td>` +
         `<td style="color:${c};font-weight:600">${esc(action)}</td>` +
-        `<td>${esc(r.Target||r.target||'')}</td>` +
-        `<td style="color:#6b7280;font-size:12px">${esc(r.Detail||r.detail||'')}</td></tr>`;
+        `<td>${esc(rTgt)}</td>` +
+        `<td style="color:#6b7280;font-size:12px">${esc(r.Detail||r.detail||'')}</td>` +
+        `<td><button class="ghost" style="font-size:10px;padding:1px 5px;color:#dc2626" onclick="deleteActivityEntry('${esc(rSrc)}','${esc(rId)}','${esc(rTgt)}','${esc(action)}')" title="Delete this entry">✕</button></td></tr>`;
     });
     el.innerHTML = h + `</tbody></table><div style="font-size:11px;color:#6b7280;padding:6px 4px">${rows.length} entries shown</div>`;
   } catch(err) {
@@ -1441,6 +1443,70 @@ async function loadActivityLog(forceRefresh) {
 
 
 /* ── EXPENSES FILTER ────────────────────────────────────── */
+async function deleteActivityEntry(source, id, target, action){
+  if(!confirm('Delete this activity entry?\n\nAction: '+action+'\nTarget: '+target+'\n\nThis cannot be undone.')) return;
+  try{
+    await api('activity_delete_entry',{source, id, target, action});
+    showToast('Entry deleted','ok');
+    // Remove from cached rows and re-render
+    _actAllRows = _actAllRows.filter(r=>(r._id&&r._id!==id)||(r.Target!==target||r.Action!==action));
+    loadActivityLog();
+  }catch(err){showToast('Error: '+err.message,'err');}
+}
+
+async function deleteActivityRange(){
+  const from=val('act_del_from');
+  const to=val('act_del_to');
+  if(!from||!to){showToast('Please select both From and To dates','err');return;}
+  if(from>to){showToast('From date must be before To date','err');return;}
+  openModal('Confirm Delete Range',
+    '<div style="padding:8px 0">'+
+    '<div style="text-align:center;font-size:36px;margin-bottom:12px">⚠️</div>'+
+    '<p style="font-size:14px;color:#374151;margin-bottom:8px;text-align:center">Delete <b>ALL data</b> from <b>'+esc(from)+'</b> to <b>'+esc(to)+'</b>?</p>'+
+    '<p style="font-size:12px;color:#dc2626;text-align:center;margin-bottom:20px">This includes loans, repayments, members, expenses, savings transactions and activity logs created in this period. <b>Cannot be undone.</b></p>'+
+    '<div style="display:flex;gap:10px;justify-content:flex-end">'+
+    '<button class="ghost" onclick="closeModal()">Cancel</button>'+
+    '<button class="primary" style="background:#dc2626" id="del_range_btn" data-from="'+esc(from)+'" data-to="'+esc(to)+'" onclick="confirmDeleteRange(this.dataset.from,this.dataset.to)">Yes, Delete Everything</button>'+
+    '</div></div>'
+  );
+}
+async function confirmDeleteRange(from, to){
+  closeModal();
+  try{
+    const res=await api('activity_delete_range',{fromDate:from,toDate:to});
+    _actAllRows=[];
+    loadActivityLog(true);
+    // Show restore option with batch ID
+    const batchId=res.batchId||'';
+    openModal('Range Deleted ✓',
+      '<div style="text-align:center;padding:8px 0">'+
+      '<div style="font-size:36px;margin-bottom:10px">🗑️</div>'+
+      '<p style="font-size:13px;color:#374151;margin-bottom:14px">'+esc(res.message||'Deleted')+'</p>'+
+      (batchId?
+        '<div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:12px;margin-bottom:14px">'+
+        '<div style="font-size:11px;font-weight:700;color:#92400e;margin-bottom:4px">RESTORE KEY — Save this!</div>'+
+        '<div style="font-size:13px;font-family:monospace;color:#0f172a;word-break:break-all" id="batch_id_display">'+esc(batchId)+'</div>'+
+        '<button class="ghost" style="font-size:11px;margin-top:6px" onclick="copyBatchId(this)" data-bid="'+esc(batchId)+'">📋 Copy</button>'+
+        '</div>'+
+        '<button class="primary" style="background:#d97706;margin-right:8px" data-bid="'+esc(batchId)+'" onclick="restoreBatchFromBtn(this)">↩ Restore This Delete</button>':'')+
+      '<button class="ghost" style="margin-top:10px" onclick="closeModal()">Close</button>'+
+      '</div>'
+    );
+  }catch(err){showToast('Error: '+err.message,'err');}
+}
+function restoreBatchFromBtn(btn){restoreRange(btn.dataset.bid);}
+async function restoreRange(batchId){
+  if(!batchId){showToast('No batch ID','err');return;}
+  if(!confirm('Restore all data from this batch? This will re-insert all deleted records.')) return;
+  try{
+    closeModal();
+    const res=await api('activity_restore_range',{batchId});
+    showToast('Restored '+res.restoredCount+' records','ok');
+    _actAllRows=[];
+    loadActivityLog(true);
+  }catch(err){showToast('Error: '+err.message,'err');}
+}
+
 let expAllRows = [];
 // Override renderListHtml for expenses to cache rows
 const _origLoadList = loadList;
@@ -2316,6 +2382,7 @@ async function loadMemberPortalAdmin(){
   }catch(err){el.innerHTML=`<p class="err">${err.message}</p>`;}
 }
 
+function copyBatchId(btn){var b=btn.dataset.bid;if(b&&navigator.clipboard)navigator.clipboard.writeText(b).then(()=>showToast("Batch ID copied",true));}
 function copyMpwResult(){var p=document.getElementById("mpw_result");if(p&&navigator.clipboard)navigator.clipboard.writeText(p.textContent).then(()=>showToast("Copied!",true));}
 
 function cTD(btn){confirmToggleDisable(btn.dataset.mid,btn.dataset.nm,btn.dataset.dis==='true');}
