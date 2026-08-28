@@ -11,25 +11,17 @@ const val = id => ($(id) ? $(id).value : '');
 function fmtActivityTime(ts){
   if(!ts||ts==='') return '—';
   try{
-    // Normalise: Supabase may return '2024-01-15 08:30:00+00' (space, not T)
-    const clean=ts.replace(' ','T').replace('+00','Z');
-    const dt=new Date(clean);
+    // new Date() handles ISO 8601 with timezone offset natively in all browsers
+    // e.g. '2026-08-18T10:18:14.245317+00:00' or '2026-08-18 10:18:14+00:00'
+    const clean = ts.indexOf('T')===-1 ? ts.replace(' ','T') : ts;
+    const dt = new Date(clean);
     if(isNaN(dt.getTime())) return ts;
-    // Use Intl in browser (always has IANA data); fallback to manual +5:30
-    try{
-      return dt.toLocaleString('en-IN',{timeZone:'Asia/Kolkata',
-        day:'2-digit',month:'short',year:'numeric',
-        hour:'2-digit',minute:'2-digit',hour12:true});
-    }catch(e2){
-      // Intl failed — manual offset
-      const ist=new Date(dt.getTime()+(5*60+30)*60*1000);
-      const dd=String(ist.getUTCDate()).padStart(2,'0');
-      const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][ist.getUTCMonth()];
-      const yr=ist.getUTCFullYear();
-      let hh=ist.getUTCHours(); const mm=String(ist.getUTCMinutes()).padStart(2,'0');
-      const ap=hh>=12?'pm':'am'; hh=hh%12||12;
-      return dd+' '+mo+' '+yr+', '+hh+':'+mm+' '+ap;
-    }
+    // Browser Intl always has Asia/Kolkata
+    return dt.toLocaleString('en-IN',{
+      timeZone:'Asia/Kolkata',
+      day:'2-digit',month:'short',year:'numeric',
+      hour:'2-digit',minute:'2-digit',hour12:true
+    });
   }catch(e){return ts;}
 }
 const rupee = n => {
