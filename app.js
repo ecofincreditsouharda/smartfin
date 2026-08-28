@@ -11,12 +11,17 @@ const val = id => ($(id) ? $(id).value : '');
 function fmtActivityTime(ts){
   if(!ts||ts==='') return '—';
   try{
-    // new Date() handles ISO 8601 with timezone offset natively in all browsers
-    // e.g. '2026-08-18T10:18:14.245317+00:00' or '2026-08-18 10:18:14+00:00'
+    // Date-only string (no time component) — show date only
+    if(/^\d{4}-\d{2}-\d{2}$/.test(ts.trim())){
+      const [y,m,d]=ts.trim().split('-');
+      const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(m)-1];
+      return d+' '+mo+' '+y;
+    }
+    // Full timestamp — normalise space separator then parse
     const clean = ts.indexOf('T')===-1 ? ts.replace(' ','T') : ts;
     const dt = new Date(clean);
     if(isNaN(dt.getTime())) return ts;
-    // Browser Intl always has Asia/Kolkata
+    // Intl gives correct IST in all browsers
     return dt.toLocaleString('en-IN',{
       timeZone:'Asia/Kolkata',
       day:'2-digit',month:'short',year:'numeric',
