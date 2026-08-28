@@ -675,10 +675,10 @@ async function loadLedger(){
       else {$('r_bal_warn').style.display='none';}
     }
     let rh='<table style="table-layout:fixed;width:100%">'
-      +'<colgroup><col style="width:22%"><col style="width:11%"><col style="width:13%"><col style="width:11%"><col style="width:auto"><col style="width:54px"></colgroup>'
-      +'<thead><tr><th>Receipt No</th><th>Date</th><th class="num">Amount</th><th>Mode</th><th>Note</th><th></th></tr></thead><tbody>';
+      +'<colgroup><col style="width:19%"><col style="width:10%"><col style="width:11%"><col style="width:9%"><col style="width:16%"><col style="width:auto"><col style="width:54px"></colgroup>'
+      +'<thead><tr><th>Receipt No</th><th>Date</th><th class="num">Amount</th><th>Mode</th><th>UTR / Ref No</th><th>Note</th><th></th></tr></thead><tbody>';
     ledger.receipts.forEach(x=>rh+=`<tr><td style="font-size:11px">${esc(x.Receipt)}</td><td style="white-space:nowrap">${esc(x.Date)}</td><td class="num">${rupee(x.Amount)}</td>`+
-      `<td style="font-size:11px">${esc(x.Mode||'')}${x.Mode==='UPI'&&x.Ref?'<br><span style="font-size:10px;color:#6b7280;font-family:monospace">UTR: '+esc(x.Ref)+'</span>':''}</td><td style="color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.Note||'')}</td>`+
+      `<td style="font-size:11px">${esc(x.Mode||'')}</td><td style="font-size:11px;font-family:monospace;color:#374151">${esc(x.Ref||'—')}</td><td style="color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.Note||'')}</td>`+
       `<td><div style="display:flex;flex-direction:column;gap:2px">`+
         `<button class="ghost" style="font-size:10px;padding:1px 4px" data-rprint="${esc(x.Receipt)}">Print</button>`+
 
