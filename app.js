@@ -683,6 +683,7 @@ async function loadLedger(){
         `<button class="ghost" style="font-size:10px;padding:1px 4px" data-rprint="${esc(x.Receipt)}">Print</button>`+
 
         (_canEditRec?`<button class="ghost" style="font-size:10px;padding:1px 4px" onclick="openReceiptEdit('${esc(x.Receipt)}',${x.Amount},'${esc(x.Date)}','${esc(x.Mode||'')}','${esc(x.Note||'')}',${x.Penalty||0})">Edit</button>`:'')+
+        (_canEditRec?`<button class="ghost" style="font-size:10px;padding:1px 4px;color:#dc2626" data-rdel="${esc(x.Receipt)}" data-ramt="${x.Amount}" data-rmode="${esc(x.Mode||'')}" data-rdate="${esc(x.Date)}" onclick="confirmDeleteReceipt(this)">Delete</button>`:'')+
       `</div></td>`
       +`</tr>`);
     $('r_recCard').hidden=false;$('r_receipts').innerHTML=rh+'</tbody></table>';
@@ -694,8 +695,33 @@ async function addReceipt(){
   const mode=val('r_Mode');
   if(mode==='UPI'&&!val('r_Utr').trim()){alert('Please enter the UTR number for UPI.');return;}
   $('r_msg').textContent='Saving…';
-  try{const{receipt}=await api('repayment_add',{repayment:{LoanID:id,Date:val('r_Date'),
-    Amount:val('r_Amount'),Mode:mode,Ref:val('r_Utr'),Note:val('r_Note'),PenaltyAmount:val('r_Penalty')||0,PenaltyType:val('r_PenaltyType')}});
+  try{
+    const res=await api('repayment_add',{repayment:{LoanID:id,Date:val('r_Date'),
+      Amount:val('r_Amount'),Mode:mode,Ref:val('r_Utr'),Note:val('r_Note'),PenaltyAmount:val('r_Penalty')||0,PenaltyType:val('r_PenaltyType')}});
+    // Duplicate UTR detected
+    if(res.duplicate){
+      $('r_msg').textContent='';
+      const e=res.existingReceipt||{};
+      openModal('⚠️ Duplicate '+esc(res.mode)+' Reference',
+        '<div style="padding:4px 0">'+
+        '<p style="font-size:13px;color:#dc2626;font-weight:700;text-align:center;margin-bottom:12px">This reference number has already been recorded.</p>'+
+        '<div style="background:#fef2f2;border:2px solid #fecaca;border-radius:10px;padding:14px;text-align:center;margin-bottom:14px">'+
+          '<div style="font-size:11px;color:#9ca3af;margin-bottom:4px">'+esc(res.mode)+' Reference / UTR Number</div>'+
+          '<div style="font-size:22px;font-weight:800;font-family:monospace;color:#dc2626;letter-spacing:.05em">'+esc(res.utrNumber)+'</div>'+
+        '</div>'+
+        '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:14px;background:#f9fafb;border-radius:8px;overflow:hidden">'+
+          '<tr style="background:#f3f4f6"><td style="padding:8px 12px;color:#6b7280;font-weight:600;width:45%">Existing Receipt No.</td><td style="padding:8px 12px;font-weight:700">'+esc(e.receiptNo||'—')+'</td></tr>'+
+          '<tr><td style="padding:8px 12px;color:#6b7280;font-weight:600">Loan ID</td><td style="padding:8px 12px">'+esc(e.loanId||'—')+'</td></tr>'+
+          '<tr style="background:#f3f4f6"><td style="padding:8px 12px;color:#6b7280;font-weight:600">Payment Date</td><td style="padding:8px 12px">'+esc(e.date||'—')+'</td></tr>'+
+          '<tr><td style="padding:8px 12px;color:#6b7280;font-weight:600">Amount</td><td style="padding:8px 12px;font-weight:700">'+rupee(e.amount||0)+'</td></tr>'+
+        '</table>'+
+        '<p style="font-size:11px;color:#6b7280;text-align:center;margin-bottom:14px">Please verify with the member. If this is a different transaction, please check the UTR number and try again.</p>'+
+        '<div style="text-align:center"><button class="primary" onclick="closeModal()">OK, Go Back</button></div>'+
+        '</div>'
+      );
+      return;
+    }
+    const receipt=res.receipt;
     lastReceipt=receipt;$('r_msg').textContent='Receipt '+receipt.receiptNo;$('r_Amount').value='';
     $('r_receiptBox').hidden=false;$('r_receiptView').innerHTML=receiptSummary(receipt);loadLedger();
     if($('r_pdf'))$('r_pdf').style.display=isPWA()?'inline-flex':'none';
@@ -1718,6 +1744,39 @@ function printClosedLoan(){
 }
 
 /* ══ REPAYMENT RECEIPT EDIT ══════════════════════════════════ */
+function confirmDeleteReceipt(btn){
+  const receiptNo=btn.dataset.rdel;
+  const amount=Number(btn.dataset.ramt||0);
+  const mode=btn.dataset.rmode||'';
+  const date=btn.dataset.rdate||'';
+  openModal('Delete Receipt — '+esc(receiptNo),
+    '<div style="padding:4px 0">'+
+    '<div style="text-align:center;font-size:40px;margin-bottom:10px">🗑️</div>'+
+    '<p style="font-size:14px;color:#374151;text-align:center;margin-bottom:14px">Are you sure you want to delete this receipt?</p>'+
+    '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px;margin-bottom:14px">'+
+      '<table style="width:100%;border-collapse:collapse;font-size:12px">'+
+        '<tr><td style="color:#6b7280;padding:4px 0;width:45%">Receipt No.</td><td style="font-weight:700">'+esc(receiptNo)+'</td></tr>'+
+        '<tr><td style="color:#6b7280;padding:4px 0">Date</td><td>'+esc(date)+'</td></tr>'+
+        '<tr><td style="color:#6b7280;padding:4px 0">Amount</td><td style="font-weight:700">'+rupee(amount)+'</td></tr>'+
+        '<tr><td style="color:#6b7280;padding:4px 0">Mode</td><td>'+esc(mode)+'</td></tr>'+
+      '</table>'+
+    '</div>'+
+    '<p style="font-size:11px;color:#dc2626;text-align:center;margin-bottom:16px"><b>Warning:</b> This will also remove the matching society transaction. If the loan was closed, it will be reopened. The next receipt sequence will automatically adjust.</p>'+
+    '<div style="display:flex;gap:10px;justify-content:flex-end">'+
+      '<button class="ghost" onclick="closeModal()">Cancel</button>'+
+      '<button class="primary" style="background:#dc2626" data-rcno="'+esc(receiptNo)+'" onclick="doDeleteReceipt(this.dataset.rcno)">Yes, Delete Receipt</button>'+
+    '</div></div>'
+  );
+}
+async function doDeleteReceipt(receiptNo){
+  closeModal();
+  try{
+    const res=await api('repayment_delete',{receiptNo});
+    showToast('Receipt '+receiptNo+' deleted','ok');
+    if(res.loanId) loadLedger(res.loanId);
+    else loadLedger();
+  }catch(err){showToast('Error: '+err.message,'err');}
+}
 function openReceiptEdit(receiptNo,amount,date,mode,note,penalty){
   editingReceipt=receiptNo;
   openModal('Edit Receipt '+receiptNo,
