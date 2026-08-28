@@ -653,6 +653,14 @@ GRANT ALL ON public.share_txns TO service_role;</pre>
           <label style="margin:0">To<input id="act_to" type="date" /></label>
           <button class="ghost" onclick="loadActivityLog()" style="align-self:flex-end;margin-bottom:2px">Filter</button>
         </div>
+        <div style="display:flex;gap:8px;align-items:center;margin:6px 0 4px;padding:8px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;flex-wrap:wrap">
+          <span style="font-size:12px;font-weight:600;color:#dc2626">Delete Range:</span>
+          <label style="margin:0;font-size:12px">From<input id="act_del_from" type="date" style="margin-left:4px" /></label>
+          <label style="margin:0;font-size:12px">To<input id="act_del_to" type="date" style="margin-left:4px" /></label>
+          <button class="ghost" style="color:#dc2626;border-color:#fecaca;font-size:12px" onclick="deleteActivityRange()">Delete This Range</button>
+          <span style="font-size:11px;color:#9ca3af">Deletes ALL data (loans, repayments, members, etc.) created in this period.</span>
+        </div>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap"><span style="font-size:12px;font-weight:600;color:#d97706">↩ Restore:</span><input id="act_restore_batch" placeholder="Paste Restore Key (Batch ID)" style="font-size:12px;padding:4px 8px;border:1px solid #fcd34d;border-radius:6px;flex:1;min-width:200px" /><button class="ghost" style="color:#d97706;border-color:#fcd34d;font-size:12px" onclick="restoreRange(document.getElementById('act_restore_batch').value.trim())">Restore</button></div>
         <div id="act_setup_msg" hidden style="background:#fef3c7;border-radius:8px;padding:14px;margin-bottom:12px">
           <b>Setup required:</b> Run this SQL in Supabase:
           <pre style="background:#f8f9fb;padding:10px;border-radius:6px;font-size:11px;margin-top:8px;overflow:auto">CREATE TABLE IF NOT EXISTS public.audit_log (
