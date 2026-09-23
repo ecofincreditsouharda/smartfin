@@ -652,7 +652,7 @@ function renderLoanList(){
   if(!rows.length){$('r_loanlist').innerHTML='<p class="msg">No matching loans.</p>';return;}
   const cols=Object.keys(rows[0]); const money=/amount|emi|repayable|interest|total|principal|balance|paid/i;
   let h='<table><tr>'+cols.map(c=>`<th>${esc(c)}</th>`).join('')+'<th></th></tr>';
-  rows.forEach(r=>{const _lid=esc(r[cols[0]]);h+=`<tr style="cursor:pointer" onclick="openLedger('${_lid}')">` +cols.map(c=>`<td>${money.test(c)?rupee(r[c]):esc(r[c])}</td>`).join('')+`<td><button class="ghost" onclick="event.stopPropagation();openLedger('${_lid}')">Collect / View</button></td></tr>`;});
+  rows.forEach(r=>{const _lid=esc(r[cols[0]]);h+=`<tr style="cursor:pointer" onclick="openLedger('${_lid}')">` +cols.map(c=>`<td>${money.test(c)?rupee(r[c]):esc(r[c])}</td>`).join('')+`<td><div style="display:flex;flex-direction:column;gap:2px"><button class="ghost" style="font-size:10px;padding:2px 5px" onclick="event.stopPropagation();openLedger('${_lid}')">Collect</button><button class="ghost" style="font-size:10px;padding:2px 5px" onclick="event.stopPropagation();openLedger('${_lid}')">View</button></div></td></tr>`;});
   $('r_loanlist').innerHTML=h+'</table>';
 }
 function openLedger(id){if(!id)return;$('r_LoanId').value=id;loadLedger();}
@@ -675,10 +675,10 @@ async function loadLedger(){
       else {$('r_bal_warn').style.display='none';}
     }
     let rh='<table style="table-layout:fixed;width:100%">'
-      +'<colgroup><col style="width:19%"><col style="width:10%"><col style="width:11%"><col style="width:9%"><col style="width:16%"><col style="width:auto"><col style="width:54px"></colgroup>'
+      +'<colgroup><col style="width:22%"><col style="width:9%"><col style="width:10%"><col style="width:8%"><col style="width:14%"><col style="width:auto"><col style="width:52px"></colgroup>'
       +'<thead><tr><th>Receipt No</th><th>Date</th><th class="num">Amount</th><th>Mode</th><th>UTR / Ref No</th><th>Note</th><th></th></tr></thead><tbody>';
-    ledger.receipts.forEach(x=>rh+=`<tr><td style="font-size:11px">${esc(x.Receipt)}</td><td style="white-space:nowrap">${esc(x.Date)}</td><td class="num">${rupee(x.Amount)}</td>`+
-      `<td style="font-size:11px">${esc(x.Mode||'')}</td><td style="font-size:11px;font-family:monospace;color:#374151">${esc(x.Ref||'—')}</td><td style="color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.Note||'')}</td>`+
+        ledger.receipts.forEach(x=>rh+=`<tr style="white-space:nowrap"><td style="font-size:10px;overflow:hidden;text-overflow:ellipsis">${esc(x.Receipt)}</td><td>${esc(x.Date)}</td><td class="num">${rupee(x.Amount)}</td>`+
+      `<td style="font-size:11px">${esc(x.Mode||'')} </td><td style="font-size:10px;font-family:monospace;color:#374151;overflow:hidden;text-overflow:ellipsis">${esc(x.Ref||'—')}</td><td style="color:#6b7280;overflow:hidden;text-overflow:ellipsis">${esc(x.Note||'')} </td>`+
       `<td><div style="display:flex;flex-direction:column;gap:2px">`+
         `<button class="ghost" style="font-size:10px;padding:1px 4px" data-rprint="${esc(x.Receipt)}">Print</button>`+
 
@@ -724,6 +724,7 @@ async function addReceipt(){
     const receipt=res.receipt;
     lastReceipt=receipt;$('r_msg').textContent='Receipt '+receipt.receiptNo;$('r_Amount').value='';
     $('r_receiptBox').hidden=false;$('r_receiptView').innerHTML=receiptSummary(receipt);loadLedger();
+    loadRepaymentLoans(); // refresh loan list so arrears/collected update
     if($('r_pdf'))$('r_pdf').style.display=isPWA()?'inline-flex':'none';
   }catch(err){$('r_msg').textContent='';alert(err.message);}
 }
@@ -877,6 +878,16 @@ async function previewLoan(){
   }catch(err){$('l_msg').textContent='';alert(err.message);}
 }
 async function addLoan(){
+  // FOIR EnquiryCode required for new loans (not edits or previews)
+  if(editing.type!=='loans'){
+    const _eCode=val('l_EnquiryCode').trim();
+    if(!_eCode){
+      alert('FOIR Enquiry Code is required before creating a Loan ID.\nPlease enter the Enquiry Code (e.g. ENQ-24-001).');
+      if($('l_EnquiryCode'))$('l_EnquiryCode').focus();
+      $('l_msg').textContent='';
+      return;
+    }
+  }
   $('l_msg').textContent='Saving…';
   try{
     if(editing.type==='loans'){
@@ -1775,6 +1786,7 @@ async function doDeleteReceipt(receiptNo){
     showToast('Receipt '+receiptNo+' deleted','ok');
     if(res.loanId) loadLedger(res.loanId);
     else loadLedger();
+    loadRepaymentLoans(); // refresh loan list
   }catch(err){showToast('Error: '+err.message,'err');}
 }
 function openReceiptEdit(receiptNo,amount,date,mode,note,penalty){
