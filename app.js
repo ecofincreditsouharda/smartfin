@@ -657,6 +657,17 @@ function renderLoanList(){
 }
 function openLedger(id){if(!id)return;$('r_LoanId').value=id;loadLedger();}
 function minimiseLedger(){['r_ledgerHead','r_addCard','r_recCard','r_schedCard'].forEach(x=>$(x).hidden=true);}
+function buildReceiptSortBar(count){
+  const sd=receiptSortOrder==='desc';
+  const on="background:#1a3a8f;color:#fff;border-color:#1a3a8f";
+  return ["<div style=\"display:flex;align-items:center;gap:8px;margin-bottom:6px\">",
+    "<span style=\"font-size:11px;color:#6b7280;font-weight:600\">Sort:</span>",
+    "<button class=\"ghost\" style=\"font-size:11px;padding:2px 10px;"+(sd?on:"")+" data-so=\"desc\" onclick=\"setSortOrder(this)\">Newest First</button>",
+    "<button class=\"ghost\" style=\"font-size:11px;padding:2px 10px;"+(!sd?on:"")+" data-so=\"asc\" onclick=\"setSortOrder(this)\">Oldest First</button>",
+    "<span style=\"margin-left:auto;font-size:11px;color:#9ca3af\">"+count+" receipt(s)</span>",
+    "</div>"].join("");
+}
+function setSortOrder(btn){receiptSortOrder=btn.dataset.so;loadLedger();}
 async function loadLedger(){
   const id=val('r_LoanId').trim();if(!id)return;curLoanId=id;
   try{const{ledger}=await api('repayment_ledger',{loanId:id});const s=ledger.summary;
@@ -674,10 +685,17 @@ async function loadLedger(){
       if(bal>0){$('r_bal_warn').style.display='block';$('r_bal_warn').textContent='Balance remaining: '+rupee(bal);}
       else {$('r_bal_warn').style.display='none';}
     }
+    // Sort receipts
+    const _sorted=[...(ledger.receipts||[])].sort((a,b)=>{
+      const da=new Date(a._rawDate||a.Date||0).getTime();
+      const db2=new Date(b._rawDate||b.Date||0).getTime();
+      return receiptSortOrder==='asc'?da-db2:db2-da;
+    });
+    const sortBar=buildReceiptSortBar(_sorted.length);
     let rh='<table style="table-layout:fixed;width:100%">'
       +'<colgroup><col style="width:22%"><col style="width:9%"><col style="width:10%"><col style="width:8%"><col style="width:14%"><col style="width:auto"><col style="width:52px"></colgroup>'
       +'<thead><tr><th>Receipt No</th><th>Date</th><th class="num">Amount</th><th>Mode</th><th>UTR / Ref No</th><th>Note</th><th></th></tr></thead><tbody>';
-        ledger.receipts.forEach(x=>rh+=`<tr style="white-space:nowrap"><td style="font-size:10px;overflow:hidden;text-overflow:ellipsis">${esc(x.Receipt)}</td><td>${esc(x.Date)}</td><td class="num">${rupee(x.Amount)}</td>`+
+        _sorted.forEach(x=>rh+=`<tr style="white-space:nowrap"><td style="font-size:10px;overflow:hidden;text-overflow:ellipsis">${esc(x.Receipt)}</td><td>${esc(x.Date)}</td><td class="num">${rupee(x.Amount)}</td>`+
       `<td style="font-size:11px">${esc(x.Mode||'')} </td><td style="font-size:10px;font-family:monospace;color:#374151;overflow:hidden;text-overflow:ellipsis">${esc(x.Ref||'—')}</td><td style="color:#6b7280;overflow:hidden;text-overflow:ellipsis">${esc(x.Note||'')} </td>`+
       `<td><div style="display:flex;flex-direction:column;gap:2px">`+
         `<button class="ghost" style="font-size:10px;padding:1px 4px" data-rprint="${esc(x.Receipt)}">Print</button>`+
@@ -686,7 +704,7 @@ async function loadLedger(){
         (_canEditRec?`<button class="ghost" style="font-size:10px;padding:1px 4px;color:#dc2626" data-rdel="${esc(x.Receipt)}" data-ramt="${x.Amount}" data-rmode="${esc(x.Mode||'')}" data-rdate="${esc(x.Date)}" onclick="confirmDeleteReceipt(this)">Delete</button>`:'')+
       `</div></td>`
       +`</tr>`);
-    $('r_recCard').hidden=false;$('r_receipts').innerHTML=rh+'</tbody></table>';
+    $('r_recCard').hidden=false;$('r_receipts').innerHTML=sortBar+rh+'</tbody></table>';
     $('r_schedCard').hidden=false;$('r_sched').innerHTML=schedTable(ledger.schedule);
   }catch(err){alert(err.message);}
 }
@@ -3593,4 +3611,4 @@ async function resetAll(){
     showToast('Server error: '+e.message,'err');
   }
   if(session&&session.userId===userId) applyModulePerms(userId,session.role);
-}
+}let receiptSortOrder='desc';
