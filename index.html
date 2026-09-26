@@ -88,6 +88,11 @@
 
     <!-- MEMBERS -->
     <section class="view" id="view-members" hidden>
+      <div class="sub-nav" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+        <button class="subnav-btn active" data-sub="add-member" onclick="switchMembersTab('add-member',this)">Add Member</button>
+        <button class="subnav-btn" data-sub="members-list" onclick="switchMembersTab('members-list',this)">Members List</button>
+      </div>
+      <div id="members-panel-add-member">
       <div class="card add-only"><h2>Add member</h2>
         <div class="grid">
           <label>Full Name<input id="m_FullName" /></label>
@@ -110,14 +115,25 @@
         </div>
         <div class="actions"><button id="m_add" class="primary">Add member</button><button type="button" class="ghost" data-clear="members">Clear</button><button type="button" class="ghost" id="m_cancel_edit" style="display:none;color:#dc2626" onclick="cancelEdit('member')">Cancel edit</button><span id="m_msg" class="msg"></span></div>
       </div>
-      <div class="card"><div class="card-head"><h2>Members</h2><span style="display:flex;gap:8px"><button class="ghost" onclick="printMemberList()">Print List</button><button class="ghost" data-refresh="members">Refresh</button></span></div>
+      <div class="card"><div class="card-head"><h2>Members</h2><button class="ghost" style="font-size:12px" onclick="downloadMembersCSV()">⬇ Download CSV</button><span style="display:flex;gap:8px"><button class="ghost" onclick="printMemberList()">Print List</button><button class="ghost" data-refresh="members">Refresh</button></span></div>
         <div class="grid" style="margin-bottom:10px"><label>Search members<input id="m_search" placeholder="name · member ID · phone" /></label></div>
         <div class="scrolly-list" id="m_list"></div></div>
+      </div><!-- end members-panel-add-member -->
+      <div id="members-panel-members-list" style="display:none">
+      </div><!-- end members-panel-members-list -->
       <div class="card" id="m_card" hidden><div class="card-head"><h2>Member details</h2><span><button class="ghost" id="m_print_detail">🖨 Print</button><button class="ghost" style="color:#dc2626" id="m_delete">🗑 Delete</button><button class="ghost" id="m_close">✕ Close</button></span></div><div id="m_detail"></div></div>
     </section>
 
     <!-- LOANS -->
     <section class="view" id="view-loans" hidden>
+      <!-- Sub-navigation -->
+      <div class="sub-nav" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+        <button class="subnav-btn active" data-sub="add-loan" onclick="switchLoansTab('add-loan',this)">Add Loan</button>
+        <button class="subnav-btn" data-sub="active-loans" onclick="switchLoansTab('active-loans',this)">Active Loans</button>
+        <button class="subnav-btn" data-sub="all-loans" onclick="switchLoansTab('all-loans',this)">All Loans</button>
+      </div>
+      <!-- ADD LOAN PANEL -->
+      <div id="loans-panel-add-loan">
       <div class="card add-only"><h2>Add a loan</h2>
         <div class="grid">
           <label>Borrower<input id="l_Borrower" /></label>
@@ -161,6 +177,27 @@
         </span></div>
         <div class="grid" style="margin-bottom:10px"><label>Search loans<input id="l_search" placeholder="name · member ID · phone" /></label></div>
         <div class="scrolly-list" id="l_list"></div></div>
+      </div><!-- end loans-panel-add-loan -->
+      <!-- ACTIVE LOANS PANEL -->
+      <div id="loans-panel-active-loans" style="display:none">
+        <div class="card">
+          <div class="card-head"><h2>Active Loans</h2>
+            <button class="ghost" onclick="loadLoansList(true)">Refresh</button>
+          </div>
+          <div style="margin-bottom:8px"><input id="l_active_search" placeholder="Search loans…" oninput="filterActiveLoans()" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:6px;font-size:13px" /></div>
+          <div class="scrolly-list" id="l_active_list" style="min-height:300px"></div>
+        </div>
+      </div>
+      <!-- ALL LOANS PANEL -->
+      <div id="loans-panel-all-loans" style="display:none">
+        <div class="card">
+          <div class="card-head"><h2>All Loans</h2>
+            <button class="ghost" onclick="loadLoansList(true)">Refresh</button>
+          </div>
+          <div style="margin-bottom:8px"><input id="l_all_search" placeholder="Search loans…" oninput="filterAllLoans()" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:6px;font-size:13px" /></div>
+          <div class="scrolly-list" id="l_all_list" style="min-height:300px"></div>
+        </div>
+      </div>
     </section>
 
     <!-- LOAN NOTICES -->
