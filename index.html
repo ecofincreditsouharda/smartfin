@@ -8,6 +8,13 @@
 <link rel="apple-touch-icon" href="logo.png" />
 <title>ECOSMART</title>
 <link rel="stylesheet" href="style.css" />
+<style>
+@keyframes slideDown{from{transform:translateX(-50%) translateY(-30px);opacity:0}to{transform:translateX(-50%) translateY(0);opacity:1}}
+@keyframes slideUp{from{opacity:1}to{opacity:0}}
+.subnav-btn{padding:6px 14px;border:1px solid var(--border,#e2e8f0);background:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:#374151;transition:all .15s}
+.subnav-btn.active{background:#1a3a8f;color:#fff;border-color:#1a3a8f}
+.subnav-btn:hover:not(.active){background:#f1f5f9}
+</style>
 </head>
 <body>
 
@@ -115,7 +122,7 @@
         </div>
         <div class="actions"><button id="m_add" class="primary">Add member</button><button type="button" class="ghost" data-clear="members">Clear</button><button type="button" class="ghost" id="m_cancel_edit" style="display:none;color:#dc2626" onclick="cancelEdit('member')">Cancel edit</button><span id="m_msg" class="msg"></span></div>
       </div>
-      <div class="card"><div class="card-head"><h2>Members</h2><button class="ghost" style="font-size:12px" onclick="downloadMembersCSV()">⬇ Download CSV</button><span style="display:flex;gap:8px"><button class="ghost" onclick="printMemberList()">Print List</button><button class="ghost" data-refresh="members">Refresh</button></span></div>
+      <div class="card"><div class="card-head"><h2>Members</h2><span style="display:flex;gap:8px"><button class="ghost" onclick="printMemberList()">Print List</button><button class="ghost" onclick="downloadMembersCSV()">⬇ CSV</button><button class="ghost" data-refresh="members">Refresh</button></span></div>
         <div class="grid" style="margin-bottom:10px"><label>Search members<input id="m_search" placeholder="name · member ID · phone" /></label></div>
         <div class="scrolly-list" id="m_list"></div></div>
       </div><!-- end members-panel-add-member -->
@@ -330,6 +337,10 @@
         <div class="card-head"><h2>Receipts <small>(print any anytime)</small></h2>
           <span style="display:flex;gap:8px;align-items:center">
             <span id="r_bal_warn" style="display:none;font-size:12px;color:#dc2626;font-weight:600"></span>
+            <select id="r_sort_sel" onchange="receiptSortOrder=this.value;loadLedger()" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:#fff">
+              <option value="desc">Newest First</option>
+              <option value="asc">Oldest First</option>
+            </select>
             <span id="r_closeLoanWrap" style="display:none">
               <button class="primary" style="background:#16a34a" onclick="closeLoanManual(lastLedgerLoanId)">Mark Loan Closed</button>
             </span>
