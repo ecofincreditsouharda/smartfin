@@ -427,7 +427,19 @@ function switchLoansTab(tab, btn){
   });
   document.querySelectorAll('#view-loans .subnav-btn').forEach(b=>b.classList.remove('active'));
   if(btn) btn.classList.add('active');
-  if(tab==='active-loans'||tab==='all-loans') renderLoanSubList(tab==='active-loans'?'active':'all');
+  if(tab==='active-loans'||tab==='all-loans'){
+    const _type=tab==='active-loans'?'active':'all';
+    const _targetEl=document.getElementById(_type==='active'?'l_active_list':'l_all_list');
+    if(!allLoans||!allLoans.length){
+      if(_targetEl) _targetEl.innerHTML='<p class="msg">Loading…</p>';
+      api('loans_list').then(({rows})=>{
+        allLoans=rows||[];
+        renderLoanSubList(_type);
+      }).catch(err=>{if(_targetEl)_targetEl.innerHTML='<p class="err">'+err.message+'</p>';});
+    } else {
+      renderLoanSubList(_type);
+    }
+  }
 }
 function switchMembersTab(tab, btn){
   ['add-member','members-list'].forEach(t=>{
@@ -466,7 +478,7 @@ function filterAllLoans(){renderLoanSubList('all');}
 function loadMembersList(){
   const el=document.getElementById('m_list');if(!el)return;
   el.innerHTML='<p class="msg">Loading…</p>';
-  api('members_list').then(({rows})=>{allMembers=rows;renderListHtml('m_list',rows,'member','member');})
+  api('members_list').then(({rows})=>{allMembers=rows||[];renderListHtml(rows,'m_list','member','member');})
     .catch(err=>{el.innerHTML='<p class="err">'+err.message+'</p>';});
 }
 
