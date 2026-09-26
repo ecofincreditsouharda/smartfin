@@ -404,6 +404,72 @@ async function start(user){
   showView('dashboard');
 }
 
+/* ── RECEIPT TOAST ─────────────────────────────────────────── */
+function showReceiptToast(receipt){
+  const existing=document.getElementById('receipt_toast');
+  if(existing) existing.remove();
+  const d=document.createElement('div');
+  d.id='receipt_toast';
+  d.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#fff;border:2px solid #16a34a;border-radius:14px;padding:16px 24px;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.18);text-align:center;min-width:260px;animation:slideDown .3s ease';
+  d.innerHTML='<div style="font-size:28px;margin-bottom:6px">✅</div>'+
+    '<div style="font-size:16px;font-weight:700;color:#16a34a;margin-bottom:4px">Receipt Added</div>'+
+    '<div style="font-size:13px;font-weight:600;color:#0f172a;font-family:monospace">'+esc(receipt.receiptNo||'')+'</div>'+
+    '<div style="font-size:12px;color:#6b7280;margin-top:4px">'+rupee(receipt.amount||0)+' · '+esc(receipt.mode||'')+'</div>';
+  document.body.appendChild(d);
+  setTimeout(()=>{d.style.animation='slideUp .3s ease';setTimeout(()=>d.remove(),300);},3000);
+}
+
+/* ── LOANS + MEMBERS SUB-TABS ─────────────────────────────── */
+function switchLoansTab(tab, btn){
+  ['add-loan','active-loans','all-loans'].forEach(t=>{
+    const p=document.getElementById('loans-panel-'+t);
+    if(p) p.style.display=(t===tab)?'':'none';
+  });
+  document.querySelectorAll('#view-loans .subnav-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  if(tab==='active-loans'||tab==='all-loans') renderLoanSubList(tab==='active-loans'?'active':'all');
+}
+function switchMembersTab(tab, btn){
+  ['add-member','members-list'].forEach(t=>{
+    const p=document.getElementById('members-panel-'+t);
+    if(p) p.style.display=(t===tab)?'':'none';
+  });
+  document.querySelectorAll('#view-members .subnav-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  if(tab==='members-list') loadMembersList();
+}
+function renderLoanSubList(type){
+  const target=type==='active'?'l_active_list':'l_all_list';
+  const searchId=type==='active'?'l_active_search':'l_all_search';
+  const q=(document.getElementById(searchId)?.value||'').toLowerCase();
+  const rows=(allLoans||[]).filter(r=>{
+    if(type==='active'&&(r['Status']||'').toLowerCase()==='closed') return false;
+    if(!q) return true;
+    return Object.values(r).some(v=>String(v).toLowerCase().includes(q));
+  });
+  const el=document.getElementById(target);
+  if(!rows.length){el.innerHTML='<p class="msg">No loans found.</p>';return;}
+  const cols=['Loan ID','Borrower','Branch','Amount','Balance','Status'];
+  const money=/amount|balance/i;
+  let h='<table><thead><tr>'+cols.map(c=>'<th>'+c+'</th>').join('')+'<th></th></tr></thead><tbody>';
+  rows.forEach(r=>{
+    const lid=esc(r['Loan ID']||'');
+    h+='<tr style="cursor:pointer" data-lid="'+lid+'" onclick="openLoanFromSubList(this)">';
+    cols.forEach(c=>{h+='<td style="white-space:nowrap">'+(money.test(c)?rupee(r[c]||0):esc(r[c]||''))+'</td>';});
+    h+='<td><button class="ghost" style="font-size:10px;padding:2px 6px" data-lid="'+lid+'" onclick="event.stopPropagation();openLoanFromSubList(this)">Open</button></td></tr>';
+  });
+  el.innerHTML=h+'</tbody></table>';
+}
+function openLoanFromSubList(el){const lid=el.dataset.lid||el.closest("[data-lid]")?.dataset.lid||"";if(!lid)return;showView("loans");setTimeout(()=>openLedger(lid),150);}
+function filterActiveLoans(){renderLoanSubList('active');}
+function filterAllLoans(){renderLoanSubList('all');}
+function loadMembersList(){
+  const el=document.getElementById('m_list');if(!el)return;
+  el.innerHTML='<p class="msg">Loading…</p>';
+  api('members_list').then(({rows})=>{allMembers=rows;renderListHtml('m_list',rows,'member','member');})
+    .catch(err=>{el.innerHTML='<p class="err">'+err.message+'</p>';});
+}
+
 /* ── NAVIGATION ──────────────────────────────────────────────── */
 async function populateBranchSelects(){
   let names=[];
@@ -705,7 +771,8 @@ async function loadLedger(){
         (_canEditRec?`<button class="ghost" style="font-size:10px;padding:1px 4px;color:#dc2626" data-rdel="${esc(x.Receipt)}" data-ramt="${x.Amount}" data-rmode="${esc(x.Mode||'')}" data-rdate="${esc(x.Date)}" onclick="confirmDeleteReceipt(this)">Delete</button>`:'')+
       `</div></td>`
       +`</tr>`);
-    $('r_recCard').hidden=false;$('r_receipts').innerHTML=sortBar+rh+'</tbody></table>';
+    $('r_recCard').hidden=false;$('r_receipts').innerHTML=rh+'</tbody></table>';
+    const _selEl=$('r_sort_sel');if(_selEl)_selEl.value=receiptSortOrder;
     $('r_schedCard').hidden=false;$('r_sched').innerHTML=schedTable(ledger.schedule);
   }catch(err){alert(err.message);}
 }
@@ -741,9 +808,12 @@ async function addReceipt(){
       return;
     }
     const receipt=res.receipt;
-    lastReceipt=receipt;$('r_msg').textContent='Receipt '+receipt.receiptNo;$('r_Amount').value='';
-    $('r_receiptBox').hidden=false;$('r_receiptView').innerHTML=receiptSummary(receipt);loadLedger();
-    loadRepaymentLoans(); // refresh loan list so arrears/collected update
+    lastReceipt=receipt;
+    $('r_Amount').value='';$('r_Utr').value='';$('r_Note').value='';
+    // Clean toast notification - auto-dismisses
+    showReceiptToast(receipt);
+    loadLedger();
+    loadRepaymentLoans();
     if($('r_pdf'))$('r_pdf').style.display=isPWA()?'inline-flex':'none';
   }catch(err){$('r_msg').textContent='';alert(err.message);}
 }
