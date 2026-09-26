@@ -540,7 +540,8 @@ function renderListHtml(rows,target,linkKind,editKey){
       if(editKey==='expenses') h+=`<button class="ghost" data-voucher="${esc(id)}">Voucher</button> `;
       if(editKey){
         h+='<div style="display:flex;flex-direction:column;gap:2px">';
-        h+=`<button class="ghost" style="font-size:10px;padding:2px 6px" data-edit="${esc(editKey)}:${esc(id)}">Edit</button>`;
+        if(editKey==='member') h+=`<button class="ghost" style="font-size:10px;padding:2px 6px;min-width:46px" onclick="viewMember('${esc(id)}')">View</button>`;
+        h+=`<button class="ghost" style="font-size:10px;padding:2px 6px;min-width:46px" data-edit="${esc(editKey)}:${esc(id)}">Edit</button>`;
         if(editKey==='deposits') h+=`<button class="ghost" style="font-size:10px;padding:2px 6px" onclick="printFDCertificate('${esc(id)}')">Certificate</button>`;
         h+='</div>';
       }
@@ -2792,6 +2793,22 @@ async function showMember(id){
     }else h+=`<p style="margin-top:8px;color:#7b8794;font-size:13px">No savings accounts linked.</p>`;
     $('m_detail').innerHTML=h;$('m_card').scrollIntoView({behavior:'smooth'});
   }catch(err){alert(err.message);}
+}
+function downloadMembersCSV(){
+  const rows=allMembers||[];
+  if(!rows.length){showToast('No data to export','err');return;}
+  const cols=Object.keys(rows[0]).filter(c=>!c.startsWith('_'));
+  const header=cols.join(',');
+  const body=rows.map(r=>cols.map(c=>{const v=String(r[c]===null||r[c]===undefined?'':r[c]);return '"'+v.replace(/"/g,'""')+'"';}).join(',')).join('\n');
+  const csv=header+'\n'+body;
+
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download='members_'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(a);a.click();
+  setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},100);
+  showToast('Downloaded as CSV','ok');
 }
 function printMemberList(){
   if(!allMembers||!allMembers.length){showToast('Load members list first','err');return;}
