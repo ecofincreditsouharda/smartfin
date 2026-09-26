@@ -1878,15 +1878,16 @@ async function doDeleteReceipt(receiptNo){
     loadRepaymentLoans(); // refresh loan list
   }catch(err){showToast('Error: '+err.message,'err');}
 }
-function openReceiptEdit(receiptNo,amount,date,mode,note,penalty){
+function openReceiptEdit(receiptNo,amount,date,mode,note,penalty,ref){
   editingReceipt=receiptNo;
   openModal('Edit Receipt '+receiptNo,
     `<div style="padding:4px 0"><div class="grid" style="gap:10px">`+
     `<label>Amount (₹)<input id="re_amount" type="number" value="${esc(String(amount||''))}" /></label>`+
     `<label>Date<input id="re_date" type="date" value="${esc(String(date||''))}" /></label>`+
-    `<label>Mode<select id="re_mode">`+
+    `<label>Mode<select id="re_mode" onchange="toggleEditUTR(this.value)">`+
     ['Cash','UPI','NEFT','RTGS','Cheque','DD'].map(m=>`<option${m===mode?' selected':''}>${m}</option>`).join('')+
     `</select></label>`+
+    `<label id="re_ref_wrap" style="${['UPI','NEFT','RTGS'].includes(mode)?'':'display:none'}">UTR / Ref No<input id="re_ref" value="${esc(String(ref||''))}" placeholder="Transaction reference" /></label>`+
     `<label>Penalty (₹)<input id="re_penalty" type="number" value="${esc(String(penalty||0))}" /></label>`+
     `<label style="grid-column:1/-1">Note<input id="re_note" value="${esc(String(note||''))}" /></label>`+
     `</div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">`+
@@ -1895,6 +1896,7 @@ function openReceiptEdit(receiptNo,amount,date,mode,note,penalty){
     `</div></div>`
   );
 }
+function toggleEditUTR(mode){const w=document.getElementById('re_ref_wrap');if(w)w.style.display=['UPI','NEFT','RTGS'].includes(mode)?'':'none';}
 async function saveReceiptEdit(){
   if(!editingReceipt)return;
   // Read values BEFORE closing modal (closeModal removes the DOM elements)
