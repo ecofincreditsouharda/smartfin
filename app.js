@@ -759,15 +759,15 @@ async function loadLedger(){
       return receiptSortOrder==='asc'?da-db2:db2-da;
     });
     const sortBar=buildReceiptSortBar(_sorted.length);
-    let rh='<table style="table-layout:fixed;width:100%">'
+    let rh='<table style="table-layout:fixed;width:100%;border-collapse:separate;border-spacing:0">'
       +'<colgroup><col style="width:22%"><col style="width:9%"><col style="width:10%"><col style="width:8%"><col style="width:14%"><col style="width:auto"><col style="width:52px"></colgroup>'
-      +'<thead><tr><th>Receipt No</th><th>Date</th><th class="num">Amount</th><th>Mode</th><th>UTR / Ref No</th><th>Note</th><th></th></tr></thead><tbody>';
+      +'<thead><tr><th style="position:sticky;top:0;background:#f3f4f6;box-shadow:0 1px 0 #e2e8f0">Receipt No</th><th style="position:sticky;top:0;background:#f3f4f6;box-shadow:0 1px 0 #e2e8f0">Date</th><th class="num" style="position:sticky;top:0;background:#f3f4f6;box-shadow:0 1px 0 #e2e8f0">Amount</th><th style="position:sticky;top:0;background:#f3f4f6;box-shadow:0 1px 0 #e2e8f0">Mode</th><th style="position:sticky;top:0;background:#f3f4f6;box-shadow:0 1px 0 #e2e8f0">UTR / Ref No</th><th style="position:sticky;top:0;background:#f3f4f6;box-shadow:0 1px 0 #e2e8f0">Note</th><th style="position:sticky;top:0;background:#f3f4f6;box-shadow:0 1px 0 #e2e8f0"></th></tr></thead><tbody>';
         _sorted.forEach(x=>rh+=`<tr style="white-space:nowrap"><td style="font-size:10px;overflow:hidden;text-overflow:ellipsis">${esc(x.Receipt)}</td><td>${esc(x.Date)}</td><td class="num">${rupee(x.Amount)}</td>`+
       `<td style="font-size:11px">${esc(x.Mode||'')} </td><td style="font-size:10px;font-family:monospace;color:#374151;overflow:hidden;text-overflow:ellipsis">${esc(x.Ref||'—')}</td><td style="color:#6b7280;overflow:hidden;text-overflow:ellipsis">${esc(x.Note||'')} </td>`+
       `<td><div style="display:flex;flex-direction:column;gap:2px">`+
         `<button class="ghost" style="font-size:10px;padding:1px 4px" data-rprint="${esc(x.Receipt)}">Print</button>`+
 
-        (_canEditRec?`<button class="ghost" style="font-size:10px;padding:1px 4px" onclick="openReceiptEdit('${esc(x.Receipt)}',${x.Amount},'${esc(x.Date)}','${esc(x.Mode||'')}','${esc(x.Note||'')}',${x.Penalty||0})">Edit</button>`:'')+
+        (_canEditRec?`<button class="ghost" style="font-size:10px;padding:1px 4px" onclick="openReceiptEdit('${esc(x.Receipt)}',${x.Amount},'${esc(x.Date)}','${esc(x.Mode||'')}','${esc(x.Note||'')}',${x.Penalty||0},'${esc(x.Ref||'')}')">Edit</button>`:'')+
         (_canEditRec?`<button class="ghost" style="font-size:10px;padding:1px 4px;color:#dc2626" data-rdel="${esc(x.Receipt)}" data-ramt="${x.Amount}" data-rmode="${esc(x.Mode||'')}" data-rdate="${esc(x.Date)}" onclick="confirmDeleteReceipt(this)">Delete</button>`:'')+
       `</div></td>`
       +`</tr>`);
@@ -1905,9 +1905,10 @@ async function saveReceiptEdit(){
   const _penalty=Number($('re_penalty')?.value||0);
   closeModal();
   try{
+    const _ref=document.getElementById('re_ref')?.value||'';
     const res=await api('repayment_edit',{
       receiptNo:editingReceipt,
-      amount:_amount,date:_date,mode:_mode,note:_note,penalty:_penalty
+      amount:_amount,date:_date,mode:_mode,note:_note,penalty:_penalty,ref:_ref
     });
     showToast('Receipt updated','ok');
     editingReceipt=null;
