@@ -797,7 +797,10 @@ async function loadLedger(){
 async function addReceipt(){
   const id=val('r_LoanId').trim();if(!id){alert('Load a loan first.');return;}
   const mode=val('r_Mode');
+  const _rAmt=Number(val('r_Amount')||0);
+  if(!_rAmt||_rAmt<=0){alert('Please enter an amount greater than zero.');return;}
   if(mode==='UPI'&&!val('r_Utr').trim()){alert('Please enter the UTR number for UPI.');return;}
+  if(['NEFT','RTGS'].includes(mode)&&!val('r_Utr').trim()){alert('Please enter the reference for '+mode+'.');return;}
   $('r_msg').textContent='Saving…';
   try{
     const res=await api('repayment_add',{repayment:{LoanID:id,Date:val('r_Date'),
@@ -2200,36 +2203,45 @@ async function showLoanDetail(loanId){
   try{
     const l = await api('loan_get_full', {loanId});
     const rate = (Number(l.rate_annual||0)*100).toFixed(2);
-    const pairs=[
-      ['Loan ID',         esc(l.loan_id)],
-      ['Borrower',        esc(l.borrower||'')],
-      ['Member ID',       esc(l.member_id||'—')],
-      ['Loan Type',       esc(l.loan_type||'')],
-      ['Branch',          esc(l.branch||'')],
-      ['Principal',       rupee(l.amount)],
-      ['Rate (Annual)',   rate+'%'],
-      ['Tenure',          l.tenure_months+' months'],
-      ['Method',          esc(l.method||'')],
-      ['Sanction Date',   esc(l.sanction_date||'—')],
-      ['Disbursement',    esc(l.disbursement_date||'—')],
-      ['First EMI Date',  esc(l.first_emi_date||'—')],
-      ['Custom EMI',      l.custom_emi?rupee(l.custom_emi):'—'],
-      ['Guarantor 1',     l.g1_name?(esc(l.g1_name)+(l.g1_member_id?' ('+esc(l.g1_member_id)+')':'')):'—'],
-      ['Guarantor 2',     l.g2_name?(esc(l.g2_name)+(l.g2_member_id?' ('+esc(l.g2_member_id)+')':'')):'—'],
-      ['Recommendation',  esc(l.recommendation||'—')],
-      ['Remarks',         esc(l.remarks||'—')],
-      ['Status',          l.status||'Active'],
-    ];
-    const body=`<div class="summary" style="max-height:70vh;overflow-y:auto">`+
-      pairs.map(([k,v])=>`<div><span>${k}:</span><b>${v}</b></div>`).join('')+
-      `</div>`;
     lastLoanDetailId=l.loan_id;
-    openModal('Loan Details — '+esc(l.loan_id), body+
-      '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">'+
-      '<button class="ghost" onclick="closeModal()">Close</button>'+
-      '<button class="ghost" data-loan="'+esc(l.loan_id)+'" onclick="closeModal()">View Schedule</button>'+
-      '<button class="primary" style="font-size:11px" onclick="closeModal();setTimeout(()=>printLoanApproval(lastLoanDetailId),200)">Sanction Letter</button>'+
-      '</div>');
+    // Inline full-width detail card
+    const detailId='loan_detail_card_inline';
+    let detailCard=document.getElementById(detailId);
+    if(!detailCard){
+      detailCard=document.createElement('div');
+      detailCard.id=detailId;
+      detailCard.className='card';
+      detailCard.style.cssText='margin-top:12px;grid-column:1/-1';
+      // Append to the loans view
+      const lv=document.getElementById('view-loans')||document.body;
+      lv.appendChild(detailCard);
+    }
+    detailCard.innerHTML=
+      '<div class="card-head"><h2 style="font-size:15px">Loan Details — '+esc(l.loan_id)+'</h2>'+
+      '<span style="display:flex;gap:6px">'+
+        '<button class="ghost" style="font-size:11px" data-loan="'+esc(l.loan_id)+'">Schedule</button>'+
+        '<button class="ghost" style="font-size:11px" onclick="printLoanApproval(\'' +esc(l.loan_id)+ '\')">Sanction Letter</button>'+
+        '<button class="ghost" style="font-size:11px" onclick="document.getElementById(\'' +detailId+ '\'). remove()">✕ Close</button>'+
+      '</span></div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">'+
+      [['Loan ID',l.loan_id],['Borrower',l.borrower||''],
+       ['Member ID',l.member_id||'—'],['Loan Type',l.loan_type||''],
+       ['Branch',l.branch||''],['Principal',rupee(l.amount)],
+       ['Rate (Annual)',rate+'%'],['Tenure',l.tenure_months+' months'],
+       ['Method',l.method||''],['Frequency',l.frequency||''],
+       ['Sanction Date',l.sanction_date||'—'],['Disbursement',l.disbursement_date||'—'],
+       ['First EMI Date',l.first_emi_date||'—'],['Custom EMI',l.custom_emi?rupee(l.custom_emi):'—'],
+       ['Guarantor 1', l.g1_name||'—'],
+       ['Guarantor 2', l.g2_name||'—'],
+       ['Enquiry Code',l.enquiry_code||'—'],['Status',l.status||'Active'],
+       ['Remarks',l.remarks||'—'],['Recommendation',l.recommendation||'—']
+      ].map(([k,v])=>
+        '<div style="padding:8px 12px;border-bottom:1px solid #f3f4f6;border-right:1px solid #f3f4f6">'+
+        '<div style="font-size:10px;color:#6b7280;font-weight:600">'+esc(k)+'</div>'+
+        '<div style="font-size:13px;font-weight:600;margin-top:2px">'+esc(String(v))+'</div></div>'
+      ).join('')+
+      '</div>';
+    detailCard.scrollIntoView({behavior:'smooth',block:'nearest'});
   }catch(err){showToast('Error: '+err.message,'err');}
 }
 
