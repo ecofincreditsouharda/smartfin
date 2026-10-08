@@ -1950,23 +1950,24 @@ async function closeLoanManual(loanId){
   }catch(err){showToast('Error: '+err.message,'err');}
 }
 function openPrepayment(){
-  if(!lastLedgerLoanId){showToast('Open a loan ledger first','err');return;}
-  // Auto-fill principal from ledger summary
-  const sumEl=document.getElementById('r_summary');
-  let bal=0;
-  if(sumEl){
-    const spans=[...sumEl.querySelectorAll('b')];
-    const balSpan=spans.find(s=>s.textContent&&s.textContent.includes('₹')&&s.parentElement?.textContent?.includes('Balance'));
-    if(balSpan){bal=Number(balSpan.textContent.replace(/[^\d.]/g,''))||0;}
-  }
+  if(!lastLedgerLoanId){showToast('Open a loan ledger first — search a loan and click Open','err');return;}
   const today=new Date().toISOString().split('T')[0];
-  if(document.getElementById('pp_principal')) document.getElementById('pp_principal').value=bal||'';
-  if(document.getElementById('pp_date')) document.getElementById('pp_date').value=today;
-  if(document.getElementById('pp_interest')) document.getElementById('pp_interest').value='0';
-  if(document.getElementById('pp_charges')) document.getElementById('pp_charges').value='0';
+  // Try to read balance from ledger summary (it's stored in lastSchedule or we fetch it)
+  let bal=0;
+  if(lastSchedule&&lastSchedule.summary){
+    const s=lastSchedule.summary;
+    const paid=Number(s.totalPaid||0);
+    const rep=Number(s.totalRepayable||0);
+    bal=Math.max(0,rep-paid);
+  }
+  const pp=document.getElementById('pp_principal');if(pp){pp.value=bal>0?bal:'';}
+  const pd=document.getElementById('pp_date');if(pd)pd.value=today;
+  const pi=document.getElementById('pp_interest');if(pi)pi.value='0';
+  const pc=document.getElementById('pp_charges');if(pc)pc.value='0';
+  const pr=document.getElementById('pp_ref');if(pr)pr.value='';
   calcPrepayment();
-  document.getElementById('r_prepCard').hidden=false;
-  document.getElementById('r_prepCard').scrollIntoView({behavior:'smooth'});
+  const card=document.getElementById('r_prepCard');
+  if(card){card.hidden=false;card.scrollIntoView({behavior:'smooth'});}
 }
 function calcPrepayment(){
   const p=Number(document.getElementById('pp_principal')?.value||0);
