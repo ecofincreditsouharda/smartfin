@@ -527,10 +527,19 @@ function filterMembersList(){
   renderListHtml(filtered,'m_list','member','member');
 }
 function loadMembersList(){
-  const el=document.getElementById('m_list');if(!el)return;
-  el.innerHTML='<p class="msg">Loading…</p>';
-  api('members_list').then(({rows})=>{allMembers=rows||[];const q=(document.getElementById('m_search')?.value||'').toLowerCase().trim();const display=q?allMembers.filter(r=>Object.values(r).some(v=>String(v).toLowerCase().includes(q))):allMembers;renderListHtml(display,'m_list','member','member');})
-    .catch(err=>{el.innerHTML='<p class="err">'+err.message+'</p>';});
+  const el=document.getElementById('m_list');
+  if(!el){console.warn('m_list element not found');return;}
+  el.innerHTML='<p class="msg">Loading members…</p>';
+  api('members_list').then(({rows})=>{
+    allMembers=rows||[];
+    if(!allMembers.length){el.innerHTML='<p class="msg">No members found.</p>';return;}
+    const q=(document.getElementById('m_search')?.value||'').toLowerCase().trim();
+    const display=q?allMembers.filter(r=>Object.values(r).some(v=>String(v).toLowerCase().includes(q))):allMembers;
+    renderListHtml(display,'m_list','member','member');
+  }).catch(err=>{
+    console.error('membersList error:',err);
+    el.innerHTML='<p class="err">'+esc(err.message)+'</p>';
+  });
 }
 
 /* ── NAVIGATION ──────────────────────────────────────────────── */
