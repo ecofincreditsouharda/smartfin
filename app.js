@@ -184,7 +184,7 @@ function applyBranding(appName, bankName){
 
 /* ── EVENTS ──────────────────────────────────────────────────── */
 document.addEventListener('change',e=>{
-  if(e.target.id==='r_Mode')$('r_UtrWrap').hidden=(e.target.value!=='UPI');
+  if(e.target.id==='r_Mode'){const _m=e.target.value;const _wrap=$('r_UtrWrap');_wrap.hidden=!['UPI','NEFT','RTGS'].includes(_m);const _lbl=_wrap?.querySelector('label')||_wrap;if(_lbl)_lbl.firstChild&&(_lbl.firstChild.textContent=_m==='UPI'?'UTR Number':'Reference No');}
   if(e.target.id==='rep_sheet')repPeriodToggle();
   if(e.target.id==='e_Category')$('e_ToWrap').hidden=(e.target.value!=='External Expenses');
 });
@@ -442,13 +442,14 @@ function switchLoansTab(tab, btn){
   }
 }
 function switchMembersTab(tab, btn){
-  ['add-member','members-list'].forEach(t=>{
+  ['add-member','members-list','defranchised'].forEach(t=>{
     const p=document.getElementById('members-panel-'+t);
     if(p) p.style.display=(t===tab)?'':'none';
   });
   document.querySelectorAll('#view-members .subnav-btn').forEach(b=>b.classList.remove('active'));
   if(btn) btn.classList.add('active');
   if(tab==='members-list') loadMembersList();
+  if(tab==='defranchised') loadDefranchisedList();
 }
 function renderLoanSubList(type){
   const target=type==='active'?'l_active_list':'l_all_list';
@@ -475,8 +476,52 @@ function renderLoanSubList(type){
 function openLoanFromSubList(el){const lid=el.dataset.lid||el.closest("[data-lid]")?.dataset.lid||"";if(!lid)return;showView("repayments");setTimeout(()=>openLedger(lid),200);}
 function filterActiveLoans(){renderLoanSubList('active');}
 function filterAllLoans(){renderLoanSubList('all');}
+function loadDefranchisedList(){
+  const el=document.getElementById('m_def_list');if(!el)return;
+  el.innerHTML='<p class="msg">Loading…</p>';
+  api('members_list').then(({rows})=>{
+    const defranchised=(rows||[]).filter(r=>(r._status||'').includes('Defranchis'));
+    if(!defranchised.length){el.innerHTML='<p class="msg">No defranchised members.</p>';return;}
+    let h='<table><thead><tr><th>Member ID</th><th>Full Name</th><th>Phone</th><th>Branch</th><th></th></tr></thead><tbody>';
+    defranchised.forEach(r=>{
+      h+=`<tr style="background:#fef2f2;opacity:.8">
+        <td style="font-weight:600">${esc(r['Member ID']||'')}</td>
+        <td style="color:#dc2626">${esc(r['Full Name']||'')}</td>
+        <td>${esc(r.Phone||'')}</td>
+        <td>${esc(r.Branch||'')}</td>
+        <td><button class="ghost" style="font-size:10px;padding:2px 6px;color:#16a34a" onclick="toggleDefranchise('${esc(r['Member ID']||'')}','${esc(r['Full Name']||'')}',true)">Reinstate</button></td>
+      </tr>`;
+    });
+    el.innerHTML=h+'</tbody></table>';
+  }).catch(err=>{el.innerHTML='<p class="err">'+err.message+'</p>';});
+}
+async function toggleDefranchise(memberId, name, isCurrentlyDefranchised){
+  const action=isCurrentlyDefranchised?'Reinstate':'Defranchise';
+  const colour=isCurrentlyDefranchised?'#16a34a':'#dc2626';
+  const msg=isCurrentlyDefranchised
+    ?'Member <b>'+esc(name)+'</b> will be reinstated as an active member.'
+    :'Member <b>'+esc(name)+'</b> will be marked as <b>Defranchised</b>. Their name stays in the list but highlighted in red.';
+  window._defParams={mid:memberId,def:defranchise};
+  openModal(action+' Member',
+    '<div style="padding:4px 0">'+
+    '<div style="text-align:center;font-size:36px;margin-bottom:10px">'+(isCurrentlyDefranchised?'✅':'⚠️')+'</div>'+
+    '<p style="font-size:13px;color:#374151;text-align:center;margin-bottom:14px">'+msg+'</p>'+
+    '<div style="display:flex;gap:10px;justify-content:flex-end">'+
+      '<button class="ghost" onclick="closeModal()">Cancel</button>'+
+      '<button class="primary" style="background:'+colour+'" onclick="_defParams&&confirmDefranchise(_defParams.mid,_defParams.def)">'+action+'</button>'+
+    '</div></div>'
+  );
+}
+async function confirmDefranchise(memberId, defranchise){
+  try{
+    await api('member_defranchise',{memberId, defranchise});
+    showToast('Member '+(defranchise?'defranchised':'reinstated'),'ok');
+    closeModal();
+    loadMembersList();
+  }catch(err){showToast('Error: '+err.message,'err');}
+}
 function filterMembersList(){
-  const q=(document.getElementById('m_search')?.value||''). toLowerCase();
+  const q=(document.getElementById('m_search')?.value||'').toLowerCase().trim();
   if(!allMembers||!allMembers.length) return;
   const filtered=q?allMembers.filter(r=>Object.values(r).some(v=>String(v).toLowerCase().includes(q))):allMembers;
   renderListHtml(filtered,'m_list','member','member');
@@ -484,7 +529,7 @@ function filterMembersList(){
 function loadMembersList(){
   const el=document.getElementById('m_list');if(!el)return;
   el.innerHTML='<p class="msg">Loading…</p>';
-  api('members_list').then(({rows})=>{allMembers=rows||[];renderListHtml(rows,'m_list','member','member');})
+  api('members_list').then(({rows})=>{allMembers=rows||[];const q=(document.getElementById('m_search')?.value||'').toLowerCase().trim();const display=q?allMembers.filter(r=>Object.values(r).some(v=>String(v).toLowerCase().includes(q))):allMembers;renderListHtml(display,'m_list','member','member');})
     .catch(err=>{el.innerHTML='<p class="err">'+err.message+'</p>';});
 }
 
@@ -609,7 +654,8 @@ function renderListHtml(rows,target,linkKind,editKey){
   const hasBtn=linkKind||editKey;
   let h='<table><tr>'+cols.map(c=>`<th>${esc(c)}</th>`).join('')+(hasBtn?'<th></th>':'')+' </tr>';
   rows.forEach(r=>{const id=r[cols[0]];
-    h+='<tr>'+cols.map(c=>{
+    const _isDef=(r['_status']||r._status||'').toLowerCase().includes('defranchis');
+    h+='<tr'+(editKey==='member'&&_isDef?' style="opacity:.55;background:#fef2f2"':'')+'>'+ cols.map(c=>{
       if(money.test(c)) return `<td class="num">${rupee(r[c])}</td>`;
       if(c===cols[0]&&linkKind==='member') return `<td style="font-weight:600">${esc(r[c]||'')}</td>`;
       if(c==='Photo'||c==='ID Proof') return `<td style="color:${r[c]==='Yes'?'#16a34a':'#9ca3af'};font-weight:600">${r[c]}</td>`;
@@ -624,7 +670,12 @@ function renderListHtml(rows,target,linkKind,editKey){
       if(editKey==='expenses') h+=`<button class="ghost" data-voucher="${esc(id)}">Voucher</button> `;
       if(editKey){
         h+='<div style="display:flex;flex-direction:column;gap:2px">';
-        if(editKey==='member') h+=`<button class="ghost" style="font-size:10px;padding:2px 6px;min-width:46px" onclick="viewMember('${esc(id)}')">View</button>`;
+        if(editKey==='member'){
+        const _ms=(r['_status']||'').toLowerCase();
+        const _isDefMem=_ms.includes('defranchis');
+        h+=`<button class="ghost" style="font-size:10px;padding:2px 6px;min-width:46px" onclick="viewMember('${esc(id)}')">View</button>`;
+        h+=`<button class="ghost" style="font-size:10px;padding:2px 6px;min-width:46px;margin-top:2px;color:${_isDefMem?'#16a34a':'#dc2626'}" onclick="toggleDefranchise('${esc(id)}','${esc(r['Full Name']||'')}',${_isDefMem})">${_isDefMem?'Reinstate':'Defranchise'}</button>`;
+      }
         h+=`<button class="ghost" style="font-size:10px;padding:2px 6px;min-width:46px" data-edit="${esc(editKey)}:${esc(id)}">Edit</button>`;
         if(editKey==='deposits') h+=`<button class="ghost" style="font-size:10px;padding:2px 6px" onclick="printFDCertificate('${esc(id)}')">Certificate</button>`;
         h+='</div>';
@@ -1971,17 +2022,21 @@ function openPrepayment(){
 }
 function calcPrepayment(){
   const p=Number(document.getElementById('pp_principal')?.value||0);
-  const i=Number(document.getElementById('pp_interest')?.value||0);
+  const rate=Number(document.getElementById('pp_interest_rate')?.value||0);
+  const i=Math.round((p*rate/100)*100)/100; // interest = principal × rate%
   const c=Number(document.getElementById('pp_charges')?.value||0);
   const total=p+i+c;
-  const el=document.getElementById('pp_total');
-  if(el) el.textContent='₹ '+total.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const elAmt=document.getElementById('pp_interest_amt');
+  if(elAmt) elAmt.textContent=rupee(i);
+  const elTot=document.getElementById('pp_total');
+  if(elTot) elTot.textContent=rupee(total);
+  return {p,i,c,total,rate};
 }
 async function confirmPrepayment(){
   const loanId=lastLedgerLoanId;
   if(!loanId){showToast('No loan loaded','err');return;}
   const principal=Number(document.getElementById('pp_principal')?.value||0);
-  const interest=Number(document.getElementById('pp_interest')?.value||0);
+  const _calc=calcPrepayment();const interest=_calc.i;const interestRate=_calc.rate;
   const charges=Number(document.getElementById('pp_charges')?.value||0);
   const date=document.getElementById('pp_date')?.value||'';
   const mode=document.getElementById('pp_mode')?.value||'Cash';
@@ -1997,7 +2052,7 @@ async function confirmPrepayment(){
     '<p style="font-size:13px;color:#374151;text-align:center;margin-bottom:14px">Confirm prepayment for <b>'+esc(loanId)+'</b></p>'+
     '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:14px">'+
       '<tr style="background:#f3f4f6"><td style="padding:8px">Outstanding Principal</td><td style="padding:8px;font-weight:700;text-align:right">'+rupee(principal)+'</td></tr>'+
-      '<tr><td style="padding:8px">Prepayment Interest</td><td style="padding:8px;text-align:right">'+rupee(interest)+'</td></tr>'+
+      '<tr><td style="padding:8px">Prepayment Interest ('+interestRate+'%)</td><td style="padding:8px;text-align:right">'+rupee(interest)+'</td></tr>'+
       '<tr><td style="padding:8px">Other Charges</td><td style="padding:8px;text-align:right">'+rupee(charges)+'</td></tr>'+
       '<tr style="background:#fef3c7"><td style="padding:8px;font-weight:700">Total Amount</td><td style="padding:8px;font-weight:800;text-align:right;font-size:16px">'+rupee(total)+'</td></tr>'+
     '</table>'+
