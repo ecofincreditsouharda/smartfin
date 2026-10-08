@@ -472,9 +472,15 @@ function renderLoanSubList(type){
   });
   el.innerHTML=h+'</tbody></table>';
 }
-function openLoanFromSubList(el){const lid=el.dataset.lid||el.closest("[data-lid]")?.dataset.lid||"";if(!lid)return;showView("loans");setTimeout(()=>openLedger(lid),150);}
+function openLoanFromSubList(el){const lid=el.dataset.lid||el.closest("[data-lid]")?.dataset.lid||"";if(!lid)return;showView("repayments");setTimeout(()=>openLedger(lid),200);}
 function filterActiveLoans(){renderLoanSubList('active');}
 function filterAllLoans(){renderLoanSubList('all');}
+function filterMembersList(){
+  const q=(document.getElementById('m_search')?.value||''). toLowerCase();
+  if(!allMembers||!allMembers.length) return;
+  const filtered=q?allMembers.filter(r=>Object.values(r).some(v=>String(v).toLowerCase().includes(q))):allMembers;
+  renderListHtml(filtered,'m_list','member','member');
+}
 function loadMembersList(){
   const el=document.getElementById('m_list');if(!el)return;
   el.innerHTML='<p class="msg">Loading…</p>';
@@ -605,7 +611,7 @@ function renderListHtml(rows,target,linkKind,editKey){
   rows.forEach(r=>{const id=r[cols[0]];
     h+='<tr>'+cols.map(c=>{
       if(money.test(c)) return `<td class="num">${rupee(r[c])}</td>`;
-      if(c===cols[0]&&linkKind==='member') return `<td><a href="#" onclick="viewMember('${esc(id)}');return false" style="color:var(--primary);text-decoration:underline;text-underline-offset:2px;font-weight:600">${esc(r[c]||'')}</a></td>`;
+      if(c===cols[0]&&linkKind==='member') return `<td style="font-weight:600">${esc(r[c]||'')}</td>`;
       if(c==='Photo'||c==='ID Proof') return `<td style="color:${r[c]==='Yes'?'#16a34a':'#9ca3af'};font-weight:600">${r[c]}</td>`;
       return `<td>${esc(r[c]||'')}</td>`;
     }).join('');
@@ -614,7 +620,7 @@ function renderListHtml(rows,target,linkKind,editKey){
         h+=`<button class="ghost" data-loan="${esc(id)}">Schedule</button> `;
         if(['Admin','CEO'].includes(session.role)) h+=`<button class="ghost" style="color:#dc2626" onclick="deleteLoan('${esc(id)}')">Delete</button> `;
       }
-      if(linkKind==='member') h+=`<button class="ghost" data-member="${esc(id)}">View</button> `;
+      // member view handled by editKey block (avoids duplication)
       if(editKey==='expenses') h+=`<button class="ghost" data-voucher="${esc(id)}">Voucher</button> `;
       if(editKey){
         h+='<div style="display:flex;flex-direction:column;gap:2px">';
