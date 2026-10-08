@@ -421,23 +421,23 @@ function showReceiptToast(receipt){
 
 /* ── LOANS + MEMBERS SUB-TABS ─────────────────────────────── */
 function switchLoansTab(tab, btn){
-  ['add-loan','active-loans','all-loans'].forEach(t=>{
+  ['add-loan','active-loans','closed-loans'].forEach(t=>{
     const p=document.getElementById('loans-panel-'+t);
     if(p) p.style.display=(t===tab)?'':'none';
   });
   document.querySelectorAll('#view-loans .subnav-btn').forEach(b=>b.classList.remove('active'));
   if(btn) btn.classList.add('active');
-  if(tab==='active-loans'||tab==='all-loans'){
-    const _type=tab==='active-loans'?'active':'all';
-    const _targetEl=document.getElementById(_type==='active'?'l_active_list':'l_all_list');
+  if(tab==='closed-loans'){
+    loadLoanHistory(); return;
+  }
+  if(tab==='active-loans'){
+    const _targetEl=document.getElementById('l_active_list');
     if(!allLoans||!allLoans.length){
       if(_targetEl) _targetEl.innerHTML='<p class="msg">Loading…</p>';
-      api('loans_list').then(({rows})=>{
-        allLoans=rows||[];
-        renderLoanSubList(_type);
-      }).catch(err=>{if(_targetEl)_targetEl.innerHTML='<p class="err">'+err.message+'</p>';});
+      api('loans_list').then(({rows})=>{allLoans=rows||[];renderLoanSubList('active');})
+        .catch(err=>{if(_targetEl)_targetEl.innerHTML='<p class="err">'+err.message+'</p>';});
     } else {
-      renderLoanSubList(_type);
+      renderLoanSubList('active');
     }
   }
 }
@@ -859,7 +859,7 @@ function printTable(title, tableHtml){
   const now=new Date().toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric'});
   const body=
     `<div style="display:flex;align-items:center;gap:12px;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:12px">`+
-    `<img src="${LOGO_URL}" style="width:44px;height:44px;object-fit:contain" onerror="this.style.display='none'"/>`+
+    `<img src="${LOGO_URL}" style="width:44px;height:44px;object-fit:contain" onerror=\"this.style.display=\'none\'\"/>`+
     `<div><div style="font-size:17px;font-weight:700">${esc(BANK)}</div>`+
     `<div style="font-size:12px;font-weight:600">${esc(title)}</div></div></div>`+
     tableHtml+
@@ -906,7 +906,7 @@ function buildReceiptHtml(r){
   const inr=n=>'\u20b9'+Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
   const D='--------------------------------';
   return `<div class="rc">`+
-    `<img src="${LOGO_URL}" class="rl" onerror="this.style.display='none'"/>`+
+    `<img src="${LOGO_URL}" class="rl" onerror=\"this.style.display=\'none\'\"/>`+
     `<div class="bn">${esc(BANK)}</div>`+
     `<div class="st">Loan Repayment Receipt</div>`+
     `<pre>${D}\nReceipt : ${esc(r.receiptNo)}\nDate    : ${esc(r.date)}\nLoan ID : ${esc(r.loanId)}\nBorrower: ${esc(r.borrower)}\nMode    : ${esc(r.mode)}${r.ref?' ('+esc(r.ref)+')':''}\n${D}\nEMIs    : ${r.emisPaid}\nPaid    : ${inr(r.amountPaidTillNow)}\nBalance : ${inr(r.pendingAmount)}\n`+
@@ -932,7 +932,7 @@ function pdfReceiptObj(r){
 }
 
 function printHeader(subtitle){
-  return `<div class="hd"><img src="${LOGO_URL}" class="lg" onerror="this.style.display='none'"/>`+
+  return `<div class="hd"><img src="${LOGO_URL}" class="lg" onerror=\"this.style.display=\'none\'\"/>`+
     `<div><h2>${esc(BANK)}</h2><h3>${esc(subtitle)}</h3></div></div>`;
 }
 function printSchedule(){
@@ -1189,7 +1189,7 @@ function printPassbook(){
   const fmtDob=d=>{if(!d)return'—';try{const dt=new Date(d);const M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return`${String(dt.getDate()).padStart(2,'0')}-${M[dt.getMonth()]}-${dt.getFullYear()}`;}catch(e){return d;}};
   const hd=
     `<div class="pb-header">`+
-    `<img src="${LOGO_URL}" style="width:60px;height:60px;object-fit:contain;display:block;margin:0 auto 6px" onerror="this.style.display='none'"/>`+
+    `<img src="${LOGO_URL}" style="width:60px;height:60px;object-fit:contain;display:block;margin:0 auto 6px" onerror=\"this.style.display=\'none\'\"/>`+
     `<h2 style="margin:0;font-size:20px;letter-spacing:-.5px">${esc(BANK)}</h2>`+
     `<h3 style="margin:4px 0 0;font-weight:400;font-size:13px;color:#444">Savings Passbook</h3>`+
     `</div>`+
@@ -1468,7 +1468,7 @@ function printShareReceipt() {
   const r = lastShareReceipt;
   if (!r) { alert('No receipt to print.'); return; }
   const body =
-    `<div class="sh-hd"><img src="${LOGO_URL}" class="sh-logo" onerror="this.style.display='none'"/>` +
+    `<div class="sh-hd"><img src="${LOGO_URL}" class="sh-logo" onerror=\"this.style.display=\'none\'\"/>` +
     `<div><div class="sh-bname">${esc(BANK)}</div><div class="sh-title">Share Capital Receipt</div></div></div>` +
     `<table class="sh-tbl">` +
     `<tr><td class="k">Receipt No</td><td class="v">${esc(r.txnNo)}</td><td class="k">Date</td><td class="v">${esc(r.date)}</td></tr>` +
@@ -1851,7 +1851,7 @@ function printClosedLoan(){
     `</tr></thead><tbody>${rows}</tbody></table>`;
   const body=
     `<div style="display:flex;align-items:center;gap:12px;border-bottom:3px double #111;padding-bottom:10px;margin-bottom:12px">`+
-    `<img src="${LOGO_URL}" style="width:52px;height:52px;object-fit:contain" onerror="this.style.display='none'"/>`+
+    `<img src="${LOGO_URL}" style="width:52px;height:52px;object-fit:contain" onerror=\"this.style.display=\'none\'\"/>`+
     `<div><div style="font-size:18px;font-weight:700">${esc(BANK)}</div>`+
     `<div style="font-size:13px;font-weight:600;margin-top:2px">Loan Closure Statement</div></div></div>`+
     info+tbl+
@@ -1946,6 +1946,169 @@ async function closeLoanManual(loanId){
     loadLoansList();
   }catch(err){showToast('Error: '+err.message,'err');}
 }
+function openPrepayment(){
+  if(!lastLedgerLoanId){showToast('Open a loan ledger first','err');return;}
+  // Auto-fill principal from ledger summary
+  const sumEl=document.getElementById('r_summary');
+  let bal=0;
+  if(sumEl){
+    const spans=[...sumEl.querySelectorAll('b')];
+    const balSpan=spans.find(s=>s.textContent&&s.textContent.includes('₹')&&s.parentElement?.textContent?.includes('Balance'));
+    if(balSpan){bal=Number(balSpan.textContent.replace(/[^\d.]/g,''))||0;}
+  }
+  const today=new Date().toISOString().split('T')[0];
+  if(document.getElementById('pp_principal')) document.getElementById('pp_principal').value=bal||'';
+  if(document.getElementById('pp_date')) document.getElementById('pp_date').value=today;
+  if(document.getElementById('pp_interest')) document.getElementById('pp_interest').value='0';
+  if(document.getElementById('pp_charges')) document.getElementById('pp_charges').value='0';
+  calcPrepayment();
+  document.getElementById('r_prepCard').hidden=false;
+  document.getElementById('r_prepCard').scrollIntoView({behavior:'smooth'});
+}
+function calcPrepayment(){
+  const p=Number(document.getElementById('pp_principal')?.value||0);
+  const i=Number(document.getElementById('pp_interest')?.value||0);
+  const c=Number(document.getElementById('pp_charges')?.value||0);
+  const total=p+i+c;
+  const el=document.getElementById('pp_total');
+  if(el) el.textContent='₹ '+total.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+async function confirmPrepayment(){
+  const loanId=lastLedgerLoanId;
+  if(!loanId){showToast('No loan loaded','err');return;}
+  const principal=Number(document.getElementById('pp_principal')?.value||0);
+  const interest=Number(document.getElementById('pp_interest')?.value||0);
+  const charges=Number(document.getElementById('pp_charges')?.value||0);
+  const date=document.getElementById('pp_date')?.value||'';
+  const mode=document.getElementById('pp_mode')?.value||'Cash';
+  const ref=document.getElementById('pp_ref')?.value||'';
+  if(!principal){showToast('Enter outstanding principal amount','err');return;}
+  if(!date){showToast('Enter payment date','err');return;}
+  const total=principal+interest+charges;
+  // Confirm with user
+  _ppParams={loanId,principal,interest,charges,date,mode,ref};
+  openModal('Confirm Prepayment / Preclosure',
+    '<div style="padding:4px 0">'+
+    '<div style="text-align:center;font-size:36px;margin-bottom:10px">💰</div>'+
+    '<p style="font-size:13px;color:#374151;text-align:center;margin-bottom:14px">Confirm prepayment for <b>'+esc(loanId)+'</b></p>'+
+    '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:14px">'+
+      '<tr style="background:#f3f4f6"><td style="padding:8px">Outstanding Principal</td><td style="padding:8px;font-weight:700;text-align:right">'+rupee(principal)+'</td></tr>'+
+      '<tr><td style="padding:8px">Prepayment Interest</td><td style="padding:8px;text-align:right">'+rupee(interest)+'</td></tr>'+
+      '<tr><td style="padding:8px">Other Charges</td><td style="padding:8px;text-align:right">'+rupee(charges)+'</td></tr>'+
+      '<tr style="background:#fef3c7"><td style="padding:8px;font-weight:700">Total Amount</td><td style="padding:8px;font-weight:800;text-align:right;font-size:16px">'+rupee(total)+'</td></tr>'+
+    '</table>'+
+    '<p style="font-size:11px;color:#6b7280;text-align:center;margin-bottom:16px">Mode: '+esc(mode)+(ref?' · Ref: '+esc(ref):'')+'<br>Date: '+esc(date)+'</p>'+
+    '<p style="font-size:12px;color:#16a34a;font-weight:600;text-align:center;margin-bottom:14px">✓ Loan will be closed and moved to Loan History</p>'+
+    '<div style="display:flex;gap:8px;justify-content:flex-end">'+
+      '<button class="ghost" onclick="closeModal()">Cancel</button>'+
+      '<button class="primary" style="background:#d97706" onclick="closeModal();doPrepayment(_ppParams.loanId,_ppParams.principal,_ppParams.interest,_ppParams.charges,_ppParams.date,_ppParams.mode,_ppParams.ref)">Confirm & Close Loan</button>'+
+      '<!-- pp params stored below -->'+
+    '</div></div>'
+  );
+}
+let _ppParams={};
+async function doPrepayment(loanId,principal,interest,charges,date,mode,ref){
+  closeModal();
+  document.getElementById('pp_msg').textContent='Processing…';
+  try{
+    const res=await api('loan_prepayment',{loanId,principal,interest,charges,date,mode,ref});
+    document.getElementById('r_prepCard').hidden=true;
+    showToast('Loan '+loanId+' prepaid and closed ✓','ok');
+    document.getElementById('pp_msg').textContent='';
+    // Generate closure letter
+    if(res.receiptNo) showReceiptToast({receiptNo:res.receiptNo,amount:principal+interest+charges,mode:mode});
+    loadLedger(loanId);
+    setTimeout(()=>printPreclosureLetter(loanId,{principal,interest,charges,date,receiptNo:res.receiptNo||''}),500);
+  }catch(err){document.getElementById('pp_msg').textContent='';showToast('Error: '+err.message,'err');}
+}
+function printPreclosureLetter(loanId,pp){
+  const now=new Date().toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'long',year:'numeric'});
+  const payDate=pp.date?new Date(pp.date).toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'}):now;
+  const body=
+    '<div style="text-align:center;border-bottom:3px double #1a3a8f;padding-bottom:14px;margin-bottom:18px">'+
+    '<img src="'+LOGO_URL+'" style="width:60px;height:60px;object-fit:contain" onerror=\"this.style.display=\'none\'\"/>'+
+    '<div style="font-size:22px;font-weight:800;color:#1a3a8f;margin-top:6px">'+esc(BANK)+'</div>'+
+    '<div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:.06em">Loan Preclosure Letter</div>'+
+    '</div>'+
+    '<div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:14px">'+
+      '<span>Loan ID: <b>'+esc(loanId)+'</b></span>'+
+      '<span>Date: <b>'+now+'</b></span>'+
+    '</div>'+
+    '<div style="font-size:11px;line-height:1.8;margin-bottom:14px">'+
+    'This is to certify that the above loan account has been fully settled by prepayment on <b>'+payDate+'</b>. '+
+    'All outstanding dues including principal, interest, and applicable charges have been received in full. '+
+    'The loan account is hereby <b>CLOSED</b> with effect from the above date.'+
+    '</div>'+
+    '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:18px">'+
+      '<tr style="background:#f3f4f6"><td style="padding:7px 12px;font-weight:600;width:50%">Outstanding Principal Paid</td><td style="padding:7px 12px;text-align:right;font-weight:700">'+rupee(pp.principal)+'</td></tr>'+
+      '<tr><td style="padding:7px 12px;font-weight:600">Prepayment Interest</td><td style="padding:7px 12px;text-align:right">'+rupee(pp.interest||0)+'</td></tr>'+
+      '<tr style="background:#f3f4f6"><td style="padding:7px 12px;font-weight:600">Other Charges</td><td style="padding:7px 12px;text-align:right">'+rupee(pp.charges||0)+'</td></tr>'+
+      '<tr style="background:#16a34a;color:#fff"><td style="padding:8px 12px;font-weight:700;font-size:13px">Total Amount Received</td><td style="padding:8px 12px;font-weight:800;font-size:14px;text-align:right">'+rupee((pp.principal||0)+(pp.interest||0)+(pp.charges||0))+'</td></tr>'+
+    '</table>'+
+    (pp.receiptNo?'<div style="font-size:11px;margin-bottom:18px">Receipt No: <b>'+esc(pp.receiptNo)+'</b></div>':'')+
+    '<div style="background:#f0fdf4;border:2px solid #16a34a;border-radius:8px;padding:12px;text-align:center;margin-bottom:20px;font-size:13px;font-weight:700;color:#15803d">LOAN ACCOUNT CLOSED</div>'+
+    '<div style="display:flex;justify-content:space-between;margin-top:40px;font-size:10px">'+
+      '<div style="text-align:center"><div style="border-top:1px solid #333;width:160px;margin-bottom:4px"></div>Member Signature</div>'+
+      '<div style="text-align:center"><div style="border-top:1px solid #333;width:160px;margin-bottom:4px"></div>Authorised Signatory<br><b>'+esc(BANK)+'</b></div>'+
+    '</div>'+
+    '<div style="margin-top:16px;border-top:1px solid #e5e7eb;padding-top:6px;font-size:8px;color:#9ca3af;text-align:center">'+esc(BANK)+' · Loan Preclosure Certificate · '+now+'</div>';
+  printDoc(body,'@page{size:A4;margin:1.5cm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:11px;margin:0}','');
+}
+
+/* ── LOAN CLOSURE LETTER (from history) ───────────────────── */
+function printClosureLetter(){
+  if(!lhCurrentLoan){showToast('Open a closed loan first','err');return;}
+  const item=lhCurrentLoan;const l=item.loan||{};
+  // Ask for closure date
+  const today=new Date().toISOString().split('T')[0];
+  openModal('Loan Closure Letter — '+esc(l.loan_id||''),
+    '<div style="padding:6px 0">'+
+    '<p style="font-size:13px;color:#374151;margin-bottom:12px">Select the closure date to appear on the letter:</p>'+
+    '<input type="date" id="closure_date_inp" value="'+today+'" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px;font-size:15px;display:block;margin-bottom:14px"/>'+
+    '<div style="display:flex;gap:8px;justify-content:flex-end">'+
+      '<button class="ghost" onclick="closeModal()">Cancel</button>'+
+      '<button class="primary" onclick="doClosureLetter()">Generate Letter</button>'+
+    '</div></div>'
+  );
+}
+function doClosureLetter(){
+  const d=document.getElementById('closure_date_inp')?.value||new Date().toISOString().split('T')[0];
+  closeModal();
+  const item=lhCurrentLoan;const l=item.loan||{};
+  const closureDate=new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'});
+  const now=new Date().toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'long',year:'numeric'});
+  const totalPaid=(item.totalPaid||0);
+  const body=
+    '<div style="text-align:center;border-bottom:3px double #1a3a8f;padding-bottom:14px;margin-bottom:18px">'+
+    '<img src="'+LOGO_URL+'" style="width:60px;height:60px;object-fit:contain" onerror=\"this.style.display=\'none\'\"/>'+
+    '<div style="font-size:22px;font-weight:800;color:#1a3a8f;margin-top:6px">'+esc(BANK)+'</div>'+
+    '<div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:.06em">Loan Closure Certificate</div>'+
+    '</div>'+
+    '<div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:14px">'+
+      '<span>Loan ID: <b>'+esc(l.loan_id)+'</b></span><span>Letter Date: <b>'+now+'</b></span>'+
+    '</div>'+
+    '<div style="font-size:11px;line-height:1.8;margin-bottom:14px">'+
+    'This is to certify that the loan account <b>'+esc(l.loan_id)+'</b> in the name of <b>'+esc(l.borrower||'')+'</b> '+
+    'has been fully repaid and <b>CLOSED</b> with effect from <b>'+closureDate+'</b>.'+
+    '</div>'+
+    '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:18px">'+
+      '<tr style="background:#f3f4f6"><td style="padding:7px 12px;font-weight:600;width:50%">Loan ID</td><td style="padding:7px 12px">'+esc(l.loan_id)+'</td></tr>'+
+      '<tr><td style="padding:7px 12px;font-weight:600">Borrower</td><td style="padding:7px 12px;font-weight:700">'+esc(l.borrower||'')+'</td></tr>'+
+      '<tr style="background:#f3f4f6"><td style="padding:7px 12px;font-weight:600">Member ID</td><td style="padding:7px 12px">'+esc(l.member_id||'—')+'</td></tr>'+
+      '<tr><td style="padding:7px 12px;font-weight:600">Principal Amount</td><td style="padding:7px 12px">'+rupee(l.amount||0)+'</td></tr>'+
+      '<tr style="background:#f3f4f6"><td style="padding:7px 12px;font-weight:600">Total Repaid</td><td style="padding:7px 12px;font-weight:700">'+rupee(totalPaid)+'</td></tr>'+
+      '<tr><td style="padding:7px 12px;font-weight:600">Receipts</td><td style="padding:7px 12px">'+(item.receipts||[]).length+' payment(s)</td></tr>'+
+      '<tr style="background:#f3f4f6"><td style="padding:7px 12px;font-weight:600">Closure Date</td><td style="padding:7px 12px;font-weight:700;color:#16a34a">'+closureDate+'</td></tr>'+
+    '</table>'+
+    '<div style="background:#f0fdf4;border:2px solid #16a34a;border-radius:8px;padding:12px;text-align:center;margin-bottom:20px;font-size:13px;font-weight:700;color:#15803d">LOAN FULLY REPAID AND CLOSED</div>'+
+    '<div style="display:flex;justify-content:space-between;margin-top:40px;font-size:10px">'+
+      '<div style="text-align:center"><div style="border-top:1px solid #333;width:160px;margin-bottom:4px"></div>Member Signature</div>'+
+      '<div style="text-align:center"><div style="border-top:1px solid #333;width:160px;margin-bottom:4px"></div>Authorised Signatory<br><b>'+esc(BANK)+'</b></div>'+
+    '</div>'+
+    '<div style="margin-top:16px;border-top:1px solid #e5e7eb;padding-top:6px;font-size:8px;color:#9ca3af;text-align:center">'+esc(BANK)+' · Loan Closure Certificate · '+now+'</div>';
+  printDoc(body,'@page{size:A4;margin:1.5cm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:11px;margin:0}','');
+}
+
 async function reactivateLoan(loanId){
   if(!confirm('Reactivate loan '+loanId+'? It will appear as Active again.')) return;
   try{
@@ -2124,7 +2287,7 @@ async function printNotice(loanId, noticeType, overridePenaltyPct, noticeDate){
     const body=
       // Header
       `<div style="text-align:center;border-bottom:3px double #111;padding-bottom:12px;margin-bottom:16px">`+
-        `<img src="${LOGO_URL}" style="width:60px;height:60px;object-fit:contain" onerror="this.style.display='none'"/>`+
+        `<img src="${LOGO_URL}" style="width:60px;height:60px;object-fit:contain" onerror=\"this.style.display=\'none\'\"/>`+
         `<div style="font-size:20px;font-weight:800;margin-top:6px">${esc(BANK)}</div>`+
         `<div style="font-size:11px;color:#555;margin-top:2px">Cooperative Credit Society</div>`+
         `<div style="font-size:15px;font-weight:700;color:${urgencyColor};margin-top:8px;letter-spacing:.04em;border:2px solid ${urgencyColor};display:inline-block;padding:3px 18px;border-radius:4px">${noticeName}</div>`+
@@ -2372,7 +2535,7 @@ function printFoirEnquiry(i){
   const vc=e.verdict==='APPROVED'?'#16a34a':e.verdict==='REVIEW REQUIRED'?'#d97706':'#dc2626';
   const body=
     `<div style="text-align:center;border-bottom:2px solid #1a3a8f;padding-bottom:12px;margin-bottom:16px">`+
-      `<img src="${LOGO_URL}" style="width:56px;height:56px;object-fit:contain" onerror="this.style.display='none'"/>`+
+      `<img src="${LOGO_URL}" style="width:56px;height:56px;object-fit:contain" onerror=\"this.style.display=\'none\'\"/>`+
       `<div style="font-size:20px;font-weight:800;color:#1a3a8f;margin-top:6px">${esc(BANK)}</div>`+
       `<div style="font-size:11px;color:#555;letter-spacing:.04em">LOAN ELIGIBILITY — FOIR REPORT</div>`+
     `</div>`+
@@ -2447,7 +2610,7 @@ async function printLoanApproval(loanId){
     const body=
       // Header
       `<div style="text-align:center;border-bottom:3px double #1a3a8f;padding-bottom:14px;margin-bottom:18px">`+
-        `<img src="${LOGO_URL}" style="width:64px;height:64px;object-fit:contain" onerror="this.style.display='none'"/>`+
+        `<img src="${LOGO_URL}" style="width:64px;height:64px;object-fit:contain" onerror=\"this.style.display=\'none\'\"/>`+
         `<div style="font-size:22px;font-weight:800;color:#1a3a8f;margin-top:6px">${esc(BANK)}</div>`+
         `<div style="font-size:11px;color:#555;margin-top:2px;letter-spacing:.06em;text-transform:uppercase">Loan Sanction Letter</div>`+
       `</div>`+
@@ -2722,7 +2885,7 @@ async function printFDCertificate(depositId){
     const body=
       // Header
       `<div style="text-align:center;border-bottom:3px double #0f2057;padding-bottom:16px;margin-bottom:18px">`+
-        `<img src="${LOGO_URL}" style="height:60px;object-fit:contain" onerror="this.style.display='none'"/>`+
+        `<img src="${LOGO_URL}" style="height:60px;object-fit:contain" onerror=\"this.style.display=\'none\'\"/>`+
         `<div style="font-size:22px;font-weight:800;color:#0f2057;margin-top:8px">${esc(BANK)}</div>`+
         `<div style="font-size:11px;color:#555;margin-top:3px;letter-spacing:.06em;text-transform:uppercase">Fixed Deposit Certificate</div>`+
       `</div>`+
@@ -2911,7 +3074,7 @@ function printMemberList(){
       `<td style="text-align:right">${esc(m['Share Capital']||'—')}</td></tr>`;
   });
   const body=
-    `<div class="lh"><img src="${LOGO_URL}" class="ll" onerror="this.style.display='none'"/>`+
+    `<div class="lh"><img src="${LOGO_URL}" class="ll" onerror=\"this.style.display=\'none\'\"/>`+
     `<div><div class="lb">${esc(BANK)}</div><div class="lt">Member List — As on ${now}</div>`+
     `<div class="ld">Total: ${allMembers.length} members</div></div></div>`+
     `<table class="ltbl"><colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"><col class="c5"><col class="c6"></colgroup>`+
@@ -2937,7 +3100,7 @@ function printMemberDetail(){
   const fv=v=>v&&String(v).trim()&&v!=='—'?esc(String(v)):'—';
   const body=
     `<div class="mb-hd">`+
-      `<img src="${LOGO_URL}" class="mb-logo" onerror="this.style.display='none'"/>`+
+      `<img src="${LOGO_URL}" class="mb-logo" onerror=\"this.style.display=\'none\'\"/>`+
       `<div><div class="mb-bname">${esc(BANK)}</div><div class="mb-title">Member Details</div></div>`+
     `</div>`+
     `<table class="mb-tbl">`+
@@ -3006,7 +3169,7 @@ async function addExpense(){
 }
 function printVoucher(v){
   if(!v){alert('Add an expense first.');return;}
-  const body=`<div class="vh"><img src="${LOGO_URL}" class="vl" onerror="this.style.display='none'"/><div class="vbank">${esc(BANK)}</div><div class="vtitle">EXPENSE VOUCHER</div></div>`+
+  const body=`<div class="vh"><img src="${LOGO_URL}" class="vl" onerror=\"this.style.display=\'none\'\"/><div class="vbank">${esc(BANK)}</div><div class="vtitle">EXPENSE VOUCHER</div></div>`+
     `<table class="vmeta"><tr><td class="vl-col">Voucher No.</td><td class="vc-col">${esc(v.expenseNo)}</td><td class="vl-col" style="text-align:right">Date</td><td class="vr-col">${esc(v.date)}</td></tr><tr><td class="vl-col">To</td><td class="vc-col">${esc(v.to)}</td><td class="vl-col" style="text-align:right">Category</td><td class="vr-col">${esc(v.category)}</td></tr></table>`+
     `<table class="vamt"><tr><th>Description</th><th>Amount (₹)</th></tr><tr><td>${esc(v.description||v.category)}</td><td>${rupee(v.amount)}</td></tr><tr class="vtot"><td><b>Total</b></td><td><b>${rupee(v.amount)}</b></td></tr></table>`+
     `<div class="vsign"><div><div class="vline"></div>Receiver Signature</div><div><div class="vline"></div>Branch Manager Signature</div></div>`+
@@ -3038,7 +3201,7 @@ function printReport(){
   const fmtD=d=>{if(!d)return'';const dt=new Date(d);const M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return dt.getDate()+'-'+M[dt.getMonth()]+'-'+dt.getFullYear();};
   const tl=from&&to?`<div class="tl">Period: <b>${fmtD(from)}</b> &nbsp;to&nbsp; <b>${fmtD(to)}</b></div>`:'';
   const hqFoot=HQ_ADDRESS?`<div style="font-size:7px;color:#666;text-align:center;border-top:1px solid #ccc;padding-top:4px;margin-top:8px">${esc(HQ_ADDRESS)}${HQ_PHONE?' | Tel: '+esc(HQ_PHONE):''}${COMMON_EMAIL?' | '+esc(COMMON_EMAIL):''}</div>`:'';
-  const hdr=`<div class="rh"><img src="${LOGO_URL}" class="rl" onerror="this.style.display='none'"/><h1>${esc(BANK)}</h1><h2>${esc(lastReportName||'Report')}</h2>${tl}</div>`;
+  const hdr=`<div class="rh"><img src="${LOGO_URL}" class="rl" onerror=\"this.style.display=\'none\'\"/><h1>${esc(BANK)}</h1><h2>${esc(lastReportName||'Report')}</h2>${tl}</div>`;
   const css=`body{font-size:8.5px;font-family:Arial,sans-serif;color:#000}.rh{text-align:center;border-bottom:2px solid #222;padding-bottom:8px;margin-bottom:10px}.rl{width:44px;height:44px;object-fit:contain;display:block;margin:0 auto 4px}h1{margin:0;font-size:16px;text-align:center}h2{margin:2px 0 0;font-size:11px;font-weight:600;text-align:center;color:#444}.tl{font-size:9px;color:#333;margin-top:5px;text-align:center;background:#f5f5f5;padding:3px 8px;border-radius:3px;display:inline-block}table{width:100%;border-collapse:collapse;margin-top:8px;table-layout:fixed}th{background:#e8eef8;color:#1a3a8f;font-size:7.5px;padding:4px 5px;text-align:right;border:1px solid #bbb;text-transform:uppercase;font-weight:700}th:first-child,th:nth-child(2){text-align:left}td{padding:3px 5px;text-align:right;border:1px solid #ddd;font-size:8.5px;word-break:break-word}td:first-child,td:nth-child(2){text-align:left}tr:nth-child(even) td{background:#fafbff}`;
   printDoc(hdr+grid+hqFoot,'@page{size:A4 landscape;margin:1cm}',css);
 }
@@ -3133,7 +3296,7 @@ function printSociety(){
 
   const body=
     `<div class="ph">`+
-      `<img src="${LOGO_URL}" class="pl" onerror="this.style.display='none'"/>`+
+      `<img src="${LOGO_URL}" class="pl" onerror=\"this.style.display=\'none\'\"/>`+
       `<div><div class="pb">${esc(BANK)}</div><div class="pt">Society Bank Statement</div></div>`+
     `</div>`+
     `<div class="pi">Period: ${esc(dateRange)}${q?' | Filter: "'+esc(q)+'"':''} | Generated: ${new Date().toLocaleDateString('en-IN')}</div>`+
