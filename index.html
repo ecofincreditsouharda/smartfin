@@ -64,7 +64,7 @@
     <button class="navbtn" data-view="dashboard">Dashboard</button>
     <button class="navbtn" data-view="members">Members</button>
     <button class="navbtn" data-view="loans">Loans</button>
-    <button class="navbtn" data-view="loan-history">Loan History</button>
+    
     <button class="navbtn" data-view="notices">Notices</button>
     <button class="navbtn" data-view="foir">FOIR Calculator</button>
     <button class="navbtn" data-view="member-portal-admin">Members Portal</button>
@@ -123,8 +123,6 @@
         <div class="actions"><button id="m_add" class="primary">Add member</button><button type="button" class="ghost" data-clear="members">Clear</button><button type="button" class="ghost" id="m_cancel_edit" style="display:none;color:#dc2626" onclick="cancelEdit('member')">Cancel edit</button><span id="m_msg" class="msg"></span></div>
       </div>
       <div class="card"><div class="card-head"><h2>Members</h2><span style="display:flex;gap:8px"><button class="ghost" onclick="printMemberList()">Print List</button><button class="ghost" onclick="downloadMembersCSV()">⬇ CSV</button><button class="ghost" data-refresh="members">Refresh</button></span></div>
-        <div class="grid" style="margin-bottom:10px"><label>Search members<input id="m_search" placeholder="name · member ID · phone" /></label></div>
-        <div class="scrolly-list" id="m_list"></div></div>
       </div><!-- end members-panel-add-member -->
       <div id="members-panel-members-list" style="display:none">
         <div class="card"><div class="card-head"><h2>Members List</h2><span style="display:flex;gap:8px"><button class="ghost" onclick="printMemberList()">Print List</button><button class="ghost" onclick="downloadMembersCSV()">⬇ CSV</button><button class="ghost" onclick="loadMembersList()">Refresh</button></span></div>
@@ -313,8 +311,32 @@
         <div class="scrolly-list" id="r_loanlist"></div></div>
       <div class="card" id="r_ledgerHead" style="margin-top:8px" hidden>
         <div class="card-head"><h2 id="r_ledgerTitle">Ledger</h2>
-          <button class="ghost" onclick="loadLedger()">Refresh</button><button class="ghost" id="r_min">Minimise</button></div>
+          <span style="display:flex;gap:6px;margin-left:auto">
+            <button class="ghost" onclick="loadLedger()">Refresh</button>
+            <button class="ghost" style="color:#d97706;font-weight:600" onclick="openPrepayment()">💰 Prepayment</button>
+            <button class="ghost" id="r_min">Minimise</button>
+          </span></div>
         <div id="r_summary" class="summary"></div></div>
+      <!-- PREPAYMENT CARD -->
+      <div class="card add-only" id="r_prepCard" hidden>
+        <h2>💰 Prepayment / Preclosure</h2>
+        <div class="grid">
+          <label>Outstanding Principal (₹)<input id="pp_principal" type="number" placeholder="Auto-filled from balance" oninput="calcPrepayment()" /></label>
+          <label>Prepayment Interest (₹)<input id="pp_interest" type="number" placeholder="0" value="0" oninput="calcPrepayment()" /></label>
+          <label>Other Charges (₹)<input id="pp_charges" type="number" placeholder="0" value="0" oninput="calcPrepayment()" /></label>
+          <label>Payment Date<input id="pp_date" type="date" /></label>
+          <label>Payment Mode<select id="pp_mode"><option>Cash</option><option>UPI</option><option>NEFT</option><option>RTGS</option><option>Cheque</option></select></label>
+          <label>UTR / Ref No<input id="pp_ref" placeholder="If UPI / NEFT / RTGS" /></label>
+        </div>
+        <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px">
+          <b>Total Payable: </b><span id="pp_total" style="font-size:16px;font-weight:800;color:#92400e">₹ 0</span>
+        </div>
+        <div class="actions">
+          <button class="primary" style="background:#d97706" onclick="confirmPrepayment()">Confirm Prepayment &amp; Close Loan</button>
+          <button type="button" class="ghost" onclick="document.getElementById('r_prepCard').hidden=true">Cancel</button>
+          <span id="pp_msg" class="msg"></span>
+        </div>
+      </div>
       <div class="card add-only" id="r_addCard" hidden><h2>Record a receipt</h2>
         <div class="grid">
           <label>Date<input id="r_Date" type="date" /></label>
