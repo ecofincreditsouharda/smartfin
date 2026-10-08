@@ -98,6 +98,7 @@
       <div class="sub-nav" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
         <button class="subnav-btn active" data-sub="add-member" onclick="switchMembersTab('add-member',this)">Add Member</button>
         <button class="subnav-btn" data-sub="members-list" onclick="switchMembersTab('members-list',this)">Members List</button>
+        <button class="subnav-btn" data-sub="defranchised" onclick="switchMembersTab('defranchised',this)" style="color:#dc2626">Defranchised</button>
       </div>
       <div id="members-panel-add-member">
       <div class="card add-only"><h2>Add member</h2>
@@ -130,6 +131,13 @@
           <div class="scrolly-list" id="m_list"></div>
         </div>
       </div><!-- end members-panel-members-list -->
+      <div id="members-panel-defranchised" style="display:none">
+        <div class="card"><div class="card-head"><h2 style="color:#dc2626">Defranchised Members</h2>
+          <button class="ghost" onclick="loadDefranchisedList()">Refresh</button>
+        </div>
+          <div class="scrolly-list" id="m_def_list"></div>
+        </div>
+      </div><!-- end members-panel-defranchised -->
       <div class="card" id="m_card" hidden><div class="card-head"><h2>Member details</h2><span><button class="ghost" id="m_print_detail">🖨 Print</button><button class="ghost" style="color:#dc2626" id="m_delete">🗑 Delete</button><button class="ghost" id="m_close">✕ Close</button></span></div><div id="m_detail"></div></div>
     </section>
 
@@ -322,14 +330,17 @@
         <h2>💰 Prepayment / Preclosure</h2>
         <div class="grid">
           <label>Outstanding Principal (₹)<input id="pp_principal" type="number" placeholder="Auto-filled from balance" oninput="calcPrepayment()" /></label>
-          <label>Prepayment Interest (₹)<input id="pp_interest" type="number" placeholder="0" value="0" oninput="calcPrepayment()" /></label>
+          <label>Prepayment Interest Rate (%)<input id="pp_interest_rate" type="number" placeholder="e.g. 2" step="0.01" value="0" oninput="calcPrepayment()" /></label>
           <label>Other Charges (₹)<input id="pp_charges" type="number" placeholder="0" value="0" oninput="calcPrepayment()" /></label>
           <label>Payment Date<input id="pp_date" type="date" /></label>
           <label>Payment Mode<select id="pp_mode"><option>Cash</option><option>UPI</option><option>NEFT</option><option>RTGS</option><option>Cheque</option></select></label>
           <label>UTR / Ref No<input id="pp_ref" placeholder="If UPI / NEFT / RTGS" /></label>
         </div>
         <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px">
-          <b>Total Payable: </b><span id="pp_total" style="font-size:16px;font-weight:800;color:#92400e">₹ 0</span>
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+            <span>Interest Amount: <b id="pp_interest_amt" style="color:#92400e">₹ 0</b></span>
+            <span style="font-size:16px;font-weight:800;color:#92400e">Total: <span id="pp_total">₹ 0</span></span>
+          </div>
         </div>
         <div class="actions">
           <button class="primary" style="background:#d97706" onclick="confirmPrepayment()">Confirm Prepayment &amp; Close Loan</button>
@@ -341,7 +352,7 @@
         <div class="grid">
           <label>Date<input id="r_Date" type="date" /></label>
           <label>Amount (₹)<input id="r_Amount" type="number" /></label>
-          <label>Mode<select id="r_Mode"><option>Cash</option><option>UPI</option><option>NEFT</option><option>RTGS</option><option>Cheque</option><option>DD</option></select></label>
+          <label>Mode<select id="r_Mode"><option>Cash</option><option>UPI</option><option>NEFT</option><option>RTGS</option><option>Cheque</option></select></label>
           <label id="r_UtrWrap" hidden>UTR Number<input id="r_Utr" /></label>
           <label>Note<input id="r_Note" /></label>
           <label>Penalty (₹)<input id="r_Penalty" type="number" value="0" /></label>
