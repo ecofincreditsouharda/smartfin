@@ -1,4 +1,3 @@
-
 /* ── CONFIG ──────────────────────────────────────────────────── */
 const WEB_APP_URL = 'https://tgopjjtamvoftzdfvzuc.supabase.co/functions/v1/api';
 const IDLE_MS = 60 * 1000;
@@ -2010,6 +2009,348 @@ async function closeLoanManual(loanId){
     loadLoansList();
   }catch(err){showToast('Error: '+err.message,'err');}
 }
+/* ── LOAN RESTRUCTURE ───────────────────────────────────────── */
+async function openRestructure(){
+  if(!lastLedgerLoanId){showToast('Open a loan ledger first','err');return;}
+  const card=document.getElementById('r_restructCard');
+  if(!card) return;
+
+  // Fetch current loan data to show summary
+  try{
+    const l=await api('loan_get_full',{loanId:lastLedgerLoanId});
+    const freq=l.frequency||'Monthly';
+    const summEl=document.getElementById('r_restruct_summary');
+    if(summEl) summEl.innerHTML=
+      '<b>'+esc(lastLedgerLoanId)+'</b> · '+esc(l.borrower||'')+
+      '<br>Current: <b>'+l.tenure_months+' months</b> · Freq: <b>'+esc(freq)+'</b>'+
+      ' · Rate: <b>'+((Number(l.rate_annual||0)*100).toFixed(2))+'%</b> · Method: <b>'+esc(l.method||'Flat')+'</b>';
+
+    // Default new first EMI to next month
+    const today=new Date();today.setMonth(today.getMonth()+1);
+    const nextMonth=today.toISOString().split('T')[0];
+    const fe=document.getElementById('rs_firstEMI');if(fe)fe.value=nextMonth;
+    const rtn=document.getElementById('rs_tenure');if(rtn)rtn.value='';
+    const rfreq=document.getElementById('rs_freq');if(rfreq)rfreq.value='';
+
+    // Show/hide arrear option based on frequency
+    const isDaily=freq==='Daily';
+    const aw=document.getElementById('rs_arrear_wrap');
+    if(aw)aw.style.display=isDaily?'':'none';
+
+    card.hidden=false;
+    card.scrollIntoView({behavior:'smooth'});
+    await calcRestructure();
+  }catch(err){showToast('Error loading loan: '+err.message,'err');}
+}
+
+async function calcRestructure(){
+  if(!lastLedgerLoanId) return;
+  try{
+    const newTenure=document.getElementById('rs_tenure')?.value||'';
+    const newFreq=document.getElementById('rs_freq')?.value||'';
+    const newFirstEMI=document.getElementById('rs_firstEMI')?.value||'';
+    const arrearOpt=(document.querySelector('input[name="rs_arrear"]:checked')?.value)||'A';
+
+    const res=await api('loan_restructure',{
+      loanId:lastLedgerLoanId,
+      newTenure:newTenure?Number(newTenure):null,
+      newFrequency:newFreq||null,
+      newFirstEMIDate:newFirstEMI||null,
+      arrearOption:arrearOpt,
+      preview:true  // preview only, don't save
+    });
+
+    document.getElementById('rs_outstanding').textContent=rupee(res.outstandingPrincipal);
+    document.getElementById('rs_restruct_principal').textContent=rupee(res.restructuredPrincipal);
+    document.getElementById('rs_new_emi').textContent=rupee(res.newEMI);
+    document.getElementById('rs_total_rep').textContent=rupee(res.newTotalRepayable);
+
+    // Show arrear section if there are arrears
+    const aw=document.getElementById('rs_arrear_wrap');
+    const aa=document.getElementById('rs_arrear_amt');
+    if(aw&&aa){
+      if(res.arrearAmount>0){
+        aw.style.display='';
+        aa.textContent=rupee(res.arrearAmount);
+      } else {
+        aw.style.display='none';
+      }
+    }
+  }catch(err){
+    // Preview failed - show error in fields
+    ['rs_outstanding','rs_restruct_principal','rs_new_emi','rs_total_rep'].forEach(id=>{
+      const el=document.getElementById(id);if(el)el.textContent='—';
+    });
+  }
+}
+
+async function confirmRestructure(){
+  if(!lastLedgerLoanId) return;
+  const newTenure=document.getElementById('rs_tenure')?.value||'';
+  const newFreq=document.getElementById('rs_freq')?.value||'';
+  const newFirstEMI=document.getElementById('rs_firstEMI')?.value||'';
+  const arrearOpt=(document.querySelector('input[name="rs_arrear"]:checked')?.value)||'A';
+
+  // Validate
+  if(!newTenure&&!newFreq){alert('Please enter a new tenure or select a new frequency.');return;}
+
+  // Get preview to show in confirm modal
+  try{
+    const res=await api('loan_restructure',{
+      loanId:lastLedgerLoanId,
+      newTenure:newTenure?Number(newTenure):null,
+      newFrequency:newFreq||null,
+      newFirstEMIDate:newFirstEMI||null,
+      arrearOption:arrearOpt,
+      preview:true
+    });
+
+    const arrearLine=res.arrearAmount>0
+      ?'<tr><td style="padding:6px">Arrears</td><td style="padding:6px;font-weight:700">'+rupee(res.arrearAmount)+' (Option '+arrearOpt+')</td></tr>'
+      :'';
+
+    openModal('Confirm Loan Restructure',
+      '<div style="padding:4px 0">'+
+      '<div style="text-align:center;font-size:32px;margin-bottom:10px">🔄</div>'+
+      '<p style="font-size:13px;color:#374151;text-align:center;margin-bottom:14px">'+
+        'Restructure loan <b>'+esc(lastLedgerLoanId)+'</b>?</p>'+
+      '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:14px">'+
+        '<tr style="background:#f5f3ff"><td style="padding:6px">Outstanding Principal</td><td style="padding:6px;font-weight:700">'+rupee(res.outstandingPrincipal)+'</td></tr>'+
+        arrearLine+
+        '<tr><td style="padding:6px">Restructured Principal</td><td style="padding:6px;font-weight:700">'+rupee(res.restructuredPrincipal)+'</td></tr>'+
+        '<tr style="background:#f5f3ff"><td style="padding:6px">New Tenure</td><td style="padding:6px;font-weight:700">'+res.remainingMonths+' months</td></tr>'+
+        '<tr><td style="padding:6px">New Frequency</td><td style="padding:6px;font-weight:700">'+esc(res.targetFreq)+'</td></tr>'+
+        '<tr style="background:#7c3aed;color:#fff"><td style="padding:8px;font-weight:700">New EMI</td><td style="padding:8px;font-weight:800;font-size:15px">'+rupee(res.newEMI)+'</td></tr>'+
+        '<tr><td style="padding:6px">Total Repayable</td><td style="padding:6px">'+rupee(res.newTotalRepayable)+'</td></tr>'+
+      '</table>'+
+      (arrearOpt==='B'&&res.arrearAmount>0?
+        '<div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px">'+
+        '⚠️ <b>Option B:</b> Member must pay <b>'+rupee(res.arrearAmount)+'</b> upfront before the new schedule starts.</div>':'')+
+      '<div style="display:flex;gap:8px;justify-content:flex-end">'+
+        '<button class="ghost" onclick="closeModal()">Cancel</button>'+
+        '<button class="primary" style="background:#7c3aed" onclick="doRestructure()">Confirm &amp; Save</button>'+
+      '</div></div>'
+    );
+    // Store params for doRestructure
+    window._rsParams={loanId:lastLedgerLoanId,newTenure:newTenure?Number(newTenure):null,
+      newFrequency:newFreq||null,newFirstEMIDate:newFirstEMI||null,arrearOption:arrearOpt};
+  }catch(err){showToast('Error: '+err.message,'err');}
+}
+
+async function doRestructure(){
+  closeModal();
+  const p=window._rsParams||{};
+  document.getElementById('rs_msg').textContent='Saving…';
+  try{
+    const res=await api('loan_restructure',{...p, preview:false});
+    document.getElementById('r_restructCard').hidden=true;
+    document.getElementById('rs_msg').textContent='';
+    showToast('Loan restructured ✓ New EMI: '+rupee(res.newEMI),'ok');
+    loadLedger(p.loanId);
+    // Print restructure letter
+    setTimeout(()=>printRestructureLetter(res),500);
+  }catch(err){
+    document.getElementById('rs_msg').textContent='';
+    showToast('Error: '+err.message,'err');
+  }
+}
+
+function printRestructureLetter(res){
+  const now=new Date().toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'long',year:'numeric'});
+  const body=
+    '<div style="text-align:center;border-bottom:3px double #1a3a8f;padding-bottom:14px;margin-bottom:18px">'+
+    '<img src="'+LOGO_URL+'" style="width:60px;height:60px;object-fit:contain" onerror="this.style.display=\'none\'"/>'+
+    '<div style="font-size:22px;font-weight:800;color:#1a3a8f;margin-top:6px">'+esc(BANK)+'</div>'+
+    '<div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:.06em">Loan Restructuring Letter</div>'+
+    '</div>'+
+    '<div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:14px">'+
+      '<span>Loan ID: <b>'+esc(res.loanId)+'</b></span><span>Date: <b>'+now+'</b></span>'+
+    '</div>'+
+    '<div style="font-size:11px;line-height:1.8;margin-bottom:14px">'+
+    'This is to confirm that the above loan has been restructured with effect from '+now+'. '+
+    'The revised repayment schedule is as follows:</div>'+
+    '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:18px">'+
+      '<tr style="background:#f5f3ff"><td style="padding:7px 12px;font-weight:600;width:50%">Outstanding Principal</td><td style="padding:7px 12px;font-weight:700;text-align:right">'+rupee(res.outstandingPrincipal)+'</td></tr>'+
+      (res.arrearAmount>0?'<tr><td style="padding:7px 12px;font-weight:600">Arrears Capitalised</td><td style="padding:7px 12px;text-align:right">'+rupee(res.arrearAmount)+'</td></tr>':'')+
+      '<tr style="background:#f5f3ff"><td style="padding:7px 12px;font-weight:600">Restructured Principal</td><td style="padding:7px 12px;font-weight:700;text-align:right">'+rupee(res.restructuredPrincipal)+'</td></tr>'+
+      '<tr><td style="padding:7px 12px;font-weight:600">New Tenure</td><td style="padding:7px 12px;text-align:right">'+res.remainingMonths+' months</td></tr>'+
+      '<tr style="background:#f5f3ff"><td style="padding:7px 12px;font-weight:600">Repayment Frequency</td><td style="padding:7px 12px;text-align:right">'+esc(res.targetFreq)+'</td></tr>'+
+      '<tr style="background:#7c3aed;color:#fff"><td style="padding:8px 12px;font-weight:700;font-size:13px">New EMI Amount</td><td style="padding:8px 12px;font-weight:800;font-size:14px;text-align:right">'+rupee(res.newEMI)+'</td></tr>'+
+      '<tr><td style="padding:7px 12px;font-weight:600">Total Repayable (revised)</td><td style="padding:7px 12px;text-align:right">'+rupee(res.newTotalRepayable)+'</td></tr>'+
+    '</table>'+
+    '<div style="display:flex;justify-content:space-between;margin-top:40px;font-size:10px">'+
+      '<div style="text-align:center"><div style="border-top:1px solid #333;width:160px;margin-bottom:4px"></div>Member Signature</div>'+
+      '<div style="text-align:center"><div style="border-top:1px solid #333;width:160px;margin-bottom:4px"></div>Authorised Signatory<br><b>'+esc(BANK)+'</b></div>'+
+    '</div>'+
+    '<div style="margin-top:16px;border-top:1px solid #e5e7eb;padding-top:6px;font-size:8px;color:#9ca3af;text-align:center">'+esc(BANK)+' · Loan Restructuring Certificate · '+now+'</div>';
+  printDoc(body,'@page{size:A4;margin:1.5cm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:11px;margin:0}','');
+}
+
+// ── LOAN RESTRUCTURE ──────────────────────────────────────────────
+let _rsLoanData=null;
+async function openRestructure(){
+  if(!lastLedgerLoanId){showToast('Open a loan ledger first','err');return;}
+  const card=document.getElementById('r_restructCard');
+  if(!card)return;
+  // Pre-fill date
+  const today=new Date().toISOString().split('T')[0];
+  const dateEl=document.getElementById('rs_date');if(dateEl)dateEl.value=today;
+  // Fetch loan data to show current terms
+  try{
+    const loan=await api('loan_get_full',{loanId:lastLedgerLoanId});
+    _rsLoanData=loan;
+    // Set current frequency in select
+    const freqEl=document.getElementById('rs_freq');
+    if(freqEl&&loan.frequency){
+      [...freqEl.options].forEach(o=>{o.selected=(o.value===loan.frequency);});
+    }
+    // Tenure
+    const tenEl=document.getElementById('rs_tenure');if(tenEl)tenEl.value=loan.tenure_months||'';
+    // Summary
+    const sumEl=document.getElementById('r_restruct_summary');
+    if(sumEl) sumEl.innerHTML=
+      '<b>Current Loan:</b> '+esc(lastLedgerLoanId)+' · '+
+      rupee(loan.amount)+' · '+
+      (loan.frequency||'Monthly')+' · '+
+      loan.tenure_months+' months · '+
+      esc(loan.method||'Flat')+' rate';
+    calcRestructure();
+    card.hidden=false;
+    card.scrollIntoView({behavior:'smooth'});
+  }catch(err){showToast('Error loading loan: '+err.message,'err');}
+}
+
+function calcRestructure(){
+  if(!lastSchedule||!lastSchedule.summary)return;
+  const s=lastSchedule.summary;
+  // Outstanding principal from schedule
+  const paid=Number(s.totalPaid||0);
+  const totalRep=Number(s.totalRepayable||0);
+  // Approximate outstanding principal
+  const outPrin=Math.max(0,totalRep-paid);
+  const arrears=Math.max(0,(s.arrears||0));
+  // Show arrear option if arrears exist
+  const arrWrap=document.getElementById('rs_arrear_wrap');
+  if(arrWrap)arrWrap.style.display=arrears>0?'':'none';
+  // New parameters
+  const newTenure=Number(document.getElementById('rs_tenure')?.value||0);
+  const newFreq=document.getElementById('rs_freq')?.value||'Monthly';
+  const arrOpt=document.getElementById('rs_arrear_opt')?.value||'A';
+  const newPrin=arrOpt==='A'?outPrin+arrears:outPrin;
+  // Simple EMI estimate
+  let newEMI=0;
+  if(newTenure>0&&_rsLoanData){
+    const method=_rsLoanData.method||'Flat';
+    const annualRate=Number(_rsLoanData.rate_annual||0);
+    if(method==='Flat'){
+      const totalFlat=newPrin*(1+annualRate*newTenure/12);
+      newEMI=newFreq==='Daily'?Math.ceil(totalFlat/(newTenure*30)):Math.ceil(totalFlat/newTenure);
+    } else {
+      const mr=annualRate/12;
+      if(mr===0){newEMI=Math.ceil(newPrin/newTenure);}
+      else{newEMI=Math.ceil(newPrin*mr*Math.pow(1+mr,newTenure)/(Math.pow(1+mr,newTenure)-1));}
+      if(newFreq==='Daily')newEMI=Math.ceil(newEMI/30);
+    }
+  }
+  const totalRepayable=newFreq==='Daily'?newEMI*newTenure*30:newEMI*newTenure;
+  // Show result
+  const res=document.getElementById('rs_result');if(res)res.style.display='';
+  setText('rs_out_prin', rupee(outPrin));
+  setText('rs_arrears', arrears>0?rupee(arrears)+' ⚠️':'₹ 0');
+  setText('rs_new_prin', rupee(newPrin));
+  setText('rs_new_emi', newEMI>0?rupee(newEMI)+'/'+(newFreq==='Daily'?'day':'month'):'—');
+  setText('rs_total_rep', newEMI>0?rupee(totalRepayable):'—');
+  setText('rs_new_tenure', newTenure>0?newTenure+' months':'—');
+}
+
+async function confirmRestructure(){
+  if(!lastLedgerLoanId){showToast('No loan loaded','err');return;}
+  const newTenure=Number(document.getElementById('rs_tenure')?.value||0);
+  const newFreq=document.getElementById('rs_freq')?.value||'Monthly';
+  const arrOpt=document.getElementById('rs_arrear_opt')?.value||'A';
+  const rDate=document.getElementById('rs_date')?.value||new Date().toISOString().split('T')[0];
+  if(!newTenure||newTenure<1){showToast('Please enter valid new tenure','err');return;}
+  const oldFreq=_rsLoanData?.frequency||'Monthly';
+  const oldTenure=_rsLoanData?.tenure_months||0;
+  const freqChanging=newFreq!==oldFreq;
+  const tenureChanging=newTenure!==oldTenure;
+  // Confirmation modal
+  const changeDesc=[];
+  if(tenureChanging) changeDesc.push('Tenure: '+oldTenure+' → '+newTenure+' months');
+  if(freqChanging) changeDesc.push('Frequency: '+oldFreq+' → '+newFreq);
+  if(arrOpt==='B') changeDesc.push('Arrears paid upfront (Option B)');
+  if(arrOpt==='A') changeDesc.push('Arrears added to principal (Option A)');
+  openModal('Confirm Loan Restructure',
+    '<div style="padding:4px 0">'+
+    '<div style="text-align:center;font-size:36px;margin-bottom:10px">🔄</div>'+
+    '<p style="font-size:13px;font-weight:700;color:#1d4ed8;text-align:center;margin-bottom:14px">Restructure Loan '+esc(lastLedgerLoanId)+'</p>'+
+    '<ul style="font-size:13px;color:#374151;margin-bottom:14px;list-style:disc;padding-left:20px">'+
+    changeDesc.map(c=>'<li>'+esc(c)+'</li>').join('')+
+    '</ul>'+
+    '<p style="font-size:11px;color:#6b7280;margin-bottom:14px">The loan will be restructured using the outstanding principal. The new EMI schedule will be recalculated.</p>'+
+    '<div style="display:flex;gap:10px;justify-content:flex-end">'+
+      '<button class="ghost" onclick="closeModal()">Cancel</button>'+
+      '<button class="primary" style="background:#1d4ed8" onclick="doRestructure()">Confirm Restructure</button>'+
+    '</div></div>'
+  );
+}
+
+async function doRestructure(){
+  closeModal();
+  const loanId=lastLedgerLoanId;
+  const newTenure=Number(document.getElementById('rs_tenure')?.value||0);
+  const newFreq=document.getElementById('rs_freq')?.value||'Monthly';
+  const arrOpt=document.getElementById('rs_arrear_opt')?.value||'A';
+  const rDate=document.getElementById('rs_date')?.value||new Date().toISOString().split('T')[0];
+  document.getElementById('rs_msg').textContent='Restructuring…';
+  try{
+    const res=await api('loan_restructure',{loanId,newTenureMonths:newTenure,newFrequency:newFreq,arrearOption:arrOpt,restructureDate:rDate});
+    document.getElementById('r_restructCard').hidden=true;
+    document.getElementById('rs_msg').textContent='';
+    showToast('Loan '+loanId+' restructured ✓ New EMI: '+rupee(res.newEMI)+'/'+
+      (newFreq==='Daily'?'day':'month'),'ok');
+    // Print restructure letter
+    setTimeout(()=>printRestructureLetter(loanId,res),400);
+    loadLedger(loanId);
+  }catch(err){document.getElementById('rs_msg').textContent='';showToast('Error: '+err.message,'err');}
+}
+
+function printRestructureLetter(loanId,res){
+  const now=new Date().toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'long',year:'numeric'});
+  const rDate=res.restructureDate||now;
+  const body=
+    '<div style="text-align:center;border-bottom:3px double #1a3a8f;padding-bottom:14px;margin-bottom:18px">'+
+    '<img src="'+LOGO_URL+'" style="width:60px;height:60px;object-fit:contain" onerror=\"this.style.display=\'none\'\"/>'+
+    '<div style="font-size:22px;font-weight:800;color:#1a3a8f;margin-top:6px">'+esc(BANK)+'</div>'+
+    '<div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:.06em">Loan Restructure Letter</div>'+
+    '</div>'+
+    '<div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:14px">'+
+      '<span>Loan ID: <b>'+esc(loanId)+'</b></span><span>Date: <b>'+now+'</b></span>'+
+    '</div>'+
+    '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:16px">'+
+      '<tr style="background:#eff6ff"><th colspan="3" style="padding:8px;text-align:left;font-size:12px">Restructure Details</th></tr>'+
+      '<tr style="background:#f8fafc"><td style="padding:7px 10px;color:#6b7280;width:33%">Old Tenure</td><td style="padding:7px 10px;font-weight:600">'+res.oldTenure+' months</td><td></td></tr>'+
+      '<tr><td style="padding:7px 10px;color:#6b7280">New Tenure</td><td style="padding:7px 10px;font-weight:700;color:#1d4ed8">'+res.newTenure+' months</td><td></td></tr>'+
+      '<tr style="background:#f8fafc"><td style="padding:7px 10px;color:#6b7280">Old Frequency</td><td style="padding:7px 10px;font-weight:600">'+esc(res.oldFrequency||'')+'</td><td></td></tr>'+
+      '<tr><td style="padding:7px 10px;color:#6b7280">New Frequency</td><td style="padding:7px 10px;font-weight:700;color:#1d4ed8">'+esc(res.newFrequency||'')+'</td><td></td></tr>'+
+      '<tr style="background:#f8fafc"><td style="padding:7px 10px;color:#6b7280">Outstanding Principal</td><td style="padding:7px 10px;font-weight:600">'+rupee(res.outstandingPrincipal||0)+'</td><td></td></tr>'+
+      (res.arrears>0?'<tr><td style="padding:7px 10px;color:#dc2626">Arrears at Restructure</td><td style="padding:7px 10px;font-weight:600;color:#dc2626">'+rupee(res.arrears||0)+'</td><td style="font-size:10px;color:#6b7280">'+esc(res.arrearsHandled||'')+'</td></tr>':'')+
+      '<tr style="background:#dbeafe"><td style="padding:8px 10px;font-weight:700">New Principal</td><td style="padding:8px 10px;font-weight:800;font-size:13px;color:#1d4ed8">'+rupee(res.newPrincipal||0)+'</td><td></td></tr>'+
+      '<tr style="background:#ecfdf5"><td style="padding:8px 10px;font-weight:700">New EMI</td><td style="padding:8px 10px;font-weight:800;font-size:15px;color:#15803d">'+rupee(res.newEMI||0)+'</td><td style="font-size:10px;color:#6b7280">per '+(res.newFrequency==='Daily'?'day':'month')+'</td></tr>'+
+      '<tr><td style="padding:7px 10px;color:#6b7280">Total Repayable</td><td style="padding:7px 10px;font-weight:700">'+rupee(res.totalRepayable||0)+'</td><td></td></tr>'+
+    '</table>'+
+    '<div style="font-size:11px;line-height:1.8;margin-bottom:14px">'+
+    'The above loan has been restructured effective <b>'+esc(String(rDate))+'</b>. '+
+    'The new EMI schedule replaces the original. The member agrees to the revised terms.'+
+    '</div>'+
+    '<div style="display:flex;justify-content:space-between;margin-top:40px;font-size:10px">'+
+      '<div style="text-align:center"><div style="border-top:1px solid #333;width:160px;margin-bottom:4px"></div>Member Signature</div>'+
+      '<div style="text-align:center"><div style="border-top:1px solid #333;width:160px;margin-bottom:4px"></div>Authorised Signatory<br><b>'+esc(BANK)+'</b></div>'+
+    '</div>'+
+    '<div style="margin-top:16px;border-top:1px solid #e5e7eb;padding-top:6px;font-size:8px;color:#9ca3af;text-align:center">'+esc(BANK)+' · Loan Restructure Certificate · '+now+'</div>';
+  printDoc(body,'@page{size:A4;margin:1.5cm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:11px;margin:0}','');
+}
+
 function openPrepayment(){
   if(!lastLedgerLoanId){showToast('Open a loan ledger first — search a loan and click Open','err');return;}
   const today=new Date().toISOString().split('T')[0];
@@ -2587,6 +2928,7 @@ function renderFoirList(){
         `<button class="ghost" style="font-size:10px;padding:1px 5px" onclick="editFoirEnquiry(${i})">Edit</button>`+
         `<button class="ghost" style="font-size:10px;padding:1px 5px" onclick="printFoirEnquiry(${i})">Print</button>`+
         `<button class="ghost" style="font-size:10px;padding:1px 5px;color:#dc2626" onclick="deleteFoirEnquiry(${i})">Delete</button>`+
+        `<button class="ghost" style="font-size:10px;padding:1px 5px;color:#1d4ed8;font-weight:600" onclick="useFOIRForLoan('${esc(e.code||'')}')" title="Use this code in the Loan form">→ Loan</button>`+
       `</div></td></tr>`;
   });
   el.innerHTML=h+'</tbody></table>';
@@ -2638,6 +2980,16 @@ function printFoirEnquiry(i){
   printDoc(body,'@page{size:A4;margin:1.5cm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:10px;margin:0}','');
 }
 function r10f(label,val){return `<tr><td style="padding:5px 10px;border:1px solid #e5e7eb;font-weight:600;width:45%;background:#f9fafb">${label}</td><td style="padding:5px 10px;border:1px solid #e5e7eb">${val}</td></tr>`;}
+function useFOIRForLoan(code){
+  if(!code){showToast('No code','err');return;}
+  // Navigate to loans and fill EnquiryCode
+  showView('loans');
+  setTimeout(()=>{
+    const el=$('l_EnquiryCode');
+    if(el){el.value=code;showToast('Enquiry code '+code+' set for new loan','ok');}
+    else showToast('Open Add Loan form first','err');
+  },200);
+}
 function foirClear(){
   ['foir_cibil','foir_income','foir_existing','foir_loan','foir_rate','foir_tenure'].forEach(id=>{const el=$(id);if(el)el.value='';});
   const r=$('foir_result');if(r)r.innerHTML='<p style="color:#6b7280;font-size:13px;text-align:center;padding:20px">Fill in all fields to see results.</p>';
