@@ -1,4 +1,4 @@
-const CACHE = 'coopfr-v34';
+const CACHE = 'coopfr-v35';
 const ASSETS = ['./', 'index.html', 'app.js', 'style.css', 'manifest.webmanifest', 'logo.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
