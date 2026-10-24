@@ -4251,3 +4251,13 @@ async function resetAll(){
   }
   if(session&&session.userId===userId) applyModulePerms(userId,session.role);
 }let receiptSortOrder='desc';
+
+/* ── BUILD STAMP — shown at the bottom of the left menu so you can see which version is running ── */
+const APP_BUILD='2026-10-24-c';
+(function(){
+  const n=document.getElementById('nav');
+  if(n&&!document.getElementById('build_stamp')){
+    const d=document.createElement('div');d.id='build_stamp';
+    d.style.cssText='font-size:10px;color:#9ca3af;padding:8px 12px';d.textContent='Build '+APP_BUILD;n.appendChild(d);
+  }
+})();
