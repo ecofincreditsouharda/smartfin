@@ -2076,6 +2076,8 @@ function _rsCardHtml(st,today){
     '<label>New EMI frequency<select id="rs_freq">'+opt('Monthly')+opt('Daily')+'</select></label>'+
     '<label>Interest rate (% p.a.)<input id="rs_rate" type="number" step="0.01" min="0" max="100" value="'+cur.ratePct+'" /></label>'+
     '<label>Restructure date<input id="rs_date" type="date" value="'+today+'" onchange="_rsRefreshState()" /></label>'+
+    '<label>First EMI date <small style="font-weight:400;color:#6b7280">(optional — leave blank to use restructure date + 1 month)</small>'
+      +'<input id="rs_first_emi" type="date" /></label>'+
   '</div>'+
   '<div id="rs_arrear_box" style="display:none;margin:10px 0;padding:10px 14px;border:1px solid #fcd34d;background:#fffbeb;border-radius:8px;font-size:13px"></div>'+
   '<div class="actions">'+
@@ -2130,7 +2132,9 @@ function _rsInputs(){
   const rateRaw=(g('rs_rate')||{}).value;
   const o={loanId:lastLedgerLoanId,newTenureMonths:Number((g('rs_tenure')||{}).value||0),newFrequency:(g('rs_freq')||{}).value||'Monthly',
     newRatePct:(rateRaw===undefined||rateRaw==='')?null:Number(rateRaw),
-    asOf:(g('rs_date')||{}).value||new Date().toISOString().split('T')[0],arrearOption:chk?chk.value:'A'};
+    asOf:(g('rs_date')||{}).value||new Date().toISOString().split('T')[0],
+    firstEMIDate:((g('rs_first_emi')||{}).value||'').trim()||null,
+    arrearOption:chk?chk.value:'A'};
   if(o.arrearOption==='B'){o.arrearMode=(g('rs_mode')||{}).value||'Cash';o.arrearRef=((g('rs_ref')||{}).value||'').trim();}
   return o;
 }
@@ -2179,7 +2183,9 @@ function _rsShowPreview(p,o){
         '<div style="font-size:11px;color:#b45309;font-weight:700;letter-spacing:.03em">PREVIEW ONLY — NOTHING HAS BEEN SAVED YET</div></div>'+
         '<button class="ghost" onclick="_rsCloseOverlay()">✕</button></div>'+
       '<div style="padding:14px 18px;overflow:auto;flex:1">'+
-        '<div style="font-size:12.5px;color:#334155;margin-bottom:10px">On <b>Confirm</b>, a <b>new loan ID</b> is created for '+_rsM(p.newPrincipal)+' starting '+_rsD(p.asOf)+', and <b>'+esc(p.loanId)+'</b> is closed as restructured (its receipts stay on it).</div>'+
+        '<div style="font-size:12.5px;color:#334155;margin-bottom:10px">On <b>Confirm</b>, a <b>new loan ID</b> is created for '+_rsM(p.newPrincipal)+' starting '+_rsD(p.asOf)+
+      (p.firstEMIDate?', first EMI on <b>'+_rsD(p.firstEMIDate)+'</b>':'')+
+      ', and <b>'+esc(p.loanId)+'</b> is closed as restructured (its receipts stay on it).</div>'+
         '<table style="width:100%;border-collapse:collapse;font-size:13px;border:1px solid #e5e7eb"><thead><tr style="background:#f1f5f9"><th style="padding:7px 10px;text-align:left"></th><th style="padding:7px 10px;text-align:right">Current loan (what is left)</th><th style="padding:7px 10px;text-align:right">After restructure</th></tr></thead><tbody>'+
           cmp('Principal',_rsM(p.outstandingPrincipal),_rsM(p.newPrincipal))+
           cmp('Interest rate (p.a.)',cur.ratePct+'%',nx.ratePct+'%')+
