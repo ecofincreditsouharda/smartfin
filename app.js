@@ -2148,6 +2148,14 @@ async function previewRestructure(){
   }catch(err){setText('rs_msg','');showToast(err.message,'err');}
 }
 function _rsShowPreview(p,o){
+  const cmpHL=(label,a,b,diff)=>{
+    const col=diff>0?'#15803d':diff<0?'#dc2626':'#374151';
+    const sign=diff>0?'+':'';
+    return '<tr><td style="padding:6px 10px;color:#475569">'+label+'</td>'
+      +'<td style="padding:6px 10px;text-align:right">'+a+'</td>'
+      +'<td style="padding:6px 10px;text-align:right;font-weight:700">'
+      +b+'&nbsp;<span style="font-size:11px;color:'+col+'">'+sign+_rsM(diff)+'</span></td></tr>';
+  };
   const cur=p.current||{},nx=p.next||{},old=p.old||{};
   const per=f=>f==='Daily'?'day':'month';
   const cmp=(label,a,b)=>'<tr><td style="padding:6px 10px;color:#475569">'+label+'</td><td style="padding:6px 10px;text-align:right">'+a+'</td><td style="padding:6px 10px;text-align:right;font-weight:700;color:#1d4ed8">'+b+'</td></tr>';
@@ -2179,8 +2187,9 @@ function _rsShowPreview(p,o){
           cmp('Instalments',cur.installmentsRemaining+' left',nx.installments+' ('+nx.tenureMonths+' months)')+
           cmp('EMI per '+per(nx.frequency),_rsM(old.emi)+' / '+per(cur.frequency),_rsM(nx.emi)+' / '+per(nx.frequency))+
           cmp('Interest still to pay',_rsM(old.remainingInterest),_rsM(nx.totalInterest))+
-          cmp('Total still to pay',_rsM(old.remainingPayable),_rsM(nx.totalRepayable))+
+          cmp('Total still to pay (schedule)',_rsM(old.remainingPayable),_rsM(nx.totalRepayable))+
           cmp('First / last instalment','—',esc(nx.firstDue)+' → '+esc(nx.lastDue))+
+          cmpHL('Bank interest: gain / (loss)',_rsM(old.remainingInterest),_rsM(nx.totalInterest),nx.bankInterestGain)+
         '</tbody></table>'+
         arr+
         '<div style="font-weight:700;margin:14px 0 6px">New repayment schedule</div>'+
