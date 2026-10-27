@@ -800,7 +800,17 @@ function renderLoanList(){
   rows.forEach(r=>{const _lid=esc(r[cols[0]]);h+=`<tr style="cursor:pointer" onclick="openLedger('${_lid}')">` +cols.map(c=>`<td>${money.test(c)?rupee(r[c]):esc(r[c])}</td>`).join('')+`<td><div style="display:flex;flex-direction:column;gap:2px"><button class="ghost" style="font-size:10px;padding:2px 5px" onclick="event.stopPropagation();openLedger('${_lid}')">Collect</button><button class="ghost" style="font-size:10px;padding:2px 5px" onclick="event.stopPropagation();openLedger('${_lid}')">View</button></div></td></tr>`;});
   $('r_loanlist').innerHTML=h+'</table>';
 }
-function openLedger(id){if(!id)return;$('r_LoanId').value=id;loadLedger();}
+function openLedger(id){
+  if(!id)return;
+  var _p=document.getElementById('r_prepCard');
+  var _rs=document.getElementById('r_restructCard');
+  var _ov=document.getElementById('rs_overlay');
+  if(_p) _p.hidden=true;
+  if(_rs) _rs.hidden=true;
+  if(_ov) _ov.style.display='none';
+  $('r_LoanId').value=id;
+  loadLedger();
+}
 function minimiseLedger(){['r_ledgerHead','r_addCard','r_recCard','r_schedCard'].forEach(x=>$(x).hidden=true);}
 function buildReceiptSortBar(count){
   const sd=receiptSortOrder==='desc';
@@ -841,6 +851,8 @@ async function loadLedger(){
       +'<colgroup><col style="width:22%"><col style="width:9%"><col style="width:10%"><col style="width:8%"><col style="width:14%"><col style="width:auto"><col style="width:52px"></colgroup>'
       +'<thead><tr><th style="position:sticky;top:0;background:#f3f4f6;box-shadow:0 1px 0 #e2e8f0">Receipt No</th><th style="position:sticky;top:0;background:#f3f4f6;box-shadow:0 1px 0 #e2e8f0">Date</th><th class="num" style="position:sticky;top:0;background:#f3f4f6;box-shadow:0 1px 0 #e2e8f0">Amount</th><th style="position:sticky;top:0;background:#f3f4f6;box-shadow:0 1px 0 #e2e8f0">Mode</th><th style="position:sticky;top:0;background:#f3f4f6;box-shadow:0 1px 0 #e2e8f0">UTR / Ref No</th><th style="position:sticky;top:0;background:#f3f4f6;box-shadow:0 1px 0 #e2e8f0">Note</th><th style="position:sticky;top:0;background:#f3f4f6;box-shadow:0 1px 0 #e2e8f0"></th></tr></thead><tbody>';
         _sorted.forEach(x=>rh+=`<tr style="white-space:nowrap"><td style="font-size:10px;overflow:hidden;text-overflow:ellipsis">${esc(x.Receipt)}</td><td>${esc(x.Date)}</td><td class="num">${rupee(x.Amount)}</td>`+
+      `<td class="num" style="color:${Number(x.Penalty||0)>0?'#dc2626':'#9ca3af'}">${Number(x.Penalty||0)>0?rupee(x.Penalty):'—'}</td>`+
+      `<td class="num" style="font-weight:600">${rupee(Number(x.Amount||0)+Number(x.Penalty||0))}</td>`+
       `<td style="font-size:11px">${esc(x.Mode||'')} </td><td style="font-size:10px;font-family:monospace;color:#374151;overflow:hidden;text-overflow:ellipsis">${esc(x.Ref||'—')}</td><td style="color:#6b7280;overflow:hidden;text-overflow:ellipsis">${esc(x.Note||'')} </td>`+
       `<td><div style="display:flex;flex-direction:column;gap:2px">`+
         `<button class="ghost" style="font-size:10px;padding:1px 4px" data-rprint="${esc(x.Receipt)}">Print</button>`+
@@ -973,8 +985,9 @@ function buildReceiptHtml(r){
     `<img src="${LOGO_URL}" class="rl" onerror=\"this.style.display=\'none\'\"/>`+
     `<div class="bn">${esc(BANK)}</div>`+
     `<div class="st">Loan Repayment Receipt</div>`+
-    `<pre>${D}\nReceipt : ${esc(r.receiptNo)}\nDate    : ${esc(r.date)}\nLoan ID : ${esc(r.loanId)}\nBorrower: ${esc(r.borrower)}\nMode    : ${esc(r.mode)}${r.ref?' ('+esc(r.ref)+')':''}\n${D}\nEMIs    : ${r.emisPaid}\nPaid    : ${inr(r.amountPaidTillNow)}\nBalance : ${inr(r.pendingAmount)}\n`+
-    (r.penalty&&Number(r.penalty)>0?`Penalty : ${inr(r.penalty)} (${esc(r.penaltyType||'Late')})\n`:'')+
+    `<pre>${D}\nReceipt : ${esc(r.receiptNo)}\nDate    : ${esc(r.date)}\nLoan ID : ${esc(r.loanId)}\nBorrower: ${esc(r.borrower)}\nMode    : ${esc(r.mode)}${r.ref?' ('+esc(r.ref)+')':''}\n${D}\nThis EMI: ${inr(r.amount)}\n`+
+    (r.penalty&&Number(r.penalty)>0?`Penalty : ${inr(r.penalty)} (${esc(r.penaltyType||'Late')})\nTotal   : ${inr(Number(r.amount||0)+Number(r.penalty||0))}\n`:'')+
+    `${D}\nEMIs    : ${r.emisPaid}\nPaid    : ${inr(r.amountPaidTillNow)}\nBalance : ${inr(r.pendingAmount)}\n`+
     (r.arrears&&Number(r.arrears)>0?`ARREARS : ${inr(r.arrears)}\n`:'')+
     `${D}\nOperator: ${esc(r.operator)}\n${D}\n      ** THANK YOU **\n Computer Generated Receipt\n   No Signature Required</pre></div>`;
 }
@@ -1878,7 +1891,7 @@ function showClosedLoanDetail(idx){
   ]);
   h+='<h3 style="margin:14px 0 6px;font-size:13px;font-weight:700">Repayment Receipts</h3>';
   h+='<div class="scrolly-list"><table><thead><tr><th>Receipt No</th><th>Date</th><th class="num">Amount</th>'+
-    '<th class="num">Penalty</th><th>Mode</th><th>Note</th></tr></thead><tbody>';
+    '<th class="num">Penalty</th><th class="num" style="position:sticky;top:0;background:#f3f4f6;box-shadow:0 1px 0 #e2e8f0">Total</th><th>Mode</th><th>Note</th></tr></thead><tbody>';
   item.receipts.forEach(r=>{
     h+=`<tr><td>${esc(r.receipt_no)}</td><td>${esc(r.date)}</td>`+
       `<td class="num">${rupee(r.amount)}</td><td class="num">${r.penalty>0?rupee(r.penalty):'—'}</td>`+
