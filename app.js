@@ -867,8 +867,8 @@ async function loadLedger(){
       `<td><div style="display:flex;flex-direction:column;gap:2px">`+
         `<button class="ghost" style="font-size:10px;padding:1px 4px" data-rprint="${esc(x.Receipt)}">Print</button>`+
 
-        (_canEditRec?`<button class="ghost" style="font-size:10px;padding:1px 4px" data-redit="1" data-rno="${esc(x.Receipt)}" data-ramt="${x.Amount}" data-rdate="${esc(x.Date)}" data-rmode="${esc(x.Mode||'')} " data-rnote="${esc(x.Note||'')} " data-rpen="${x.Penalty||0}" data-rref="${esc(x.Ref||'')} ">Edit</button>`:'')+
-        (_canEditRec?`<button class="ghost" style="font-size:10px;padding:1px 4px;color:#dc2626" data-rdel="${esc(x.Receipt)}" data-ramt="${x.Amount}" data-rmode="${esc(x.Mode||'')}" data-rdate="${esc(x.Date)}" onclick="confirmDeleteReceipt(this)">Delete</button>`:'')+
+        (_canEditRec?`<button class="ghost" style="font-size:10px;padding:1px 4px" data-redit="1" data-rno="${esc(x.Receipt)}" data-ramt="${x.Amount}" data-rdate="${esc(x._rawDate||x.Date)}" data-rmode="${esc(x.Mode||'')} " data-rnote="${esc(x.Note||'')} " data-rpen="${x.Penalty||0}" data-rref="${esc(x.Ref||'')} ">Edit</button>`:'')+
+        (_canEditRec?`<button class="ghost" style="font-size:10px;padding:1px 4px;color:#dc2626" data-rdel="${esc(x.Receipt)}" data-ramt="${x.Amount}" data-rmode="${esc(x.Mode||'')}" data-rdate="${esc(x._rawDate||x.Date)}" onclick="confirmDeleteReceipt(this)">Delete</button>`:'')+
       `</div></td>`
       +`</tr>`);
     $('r_recCard').hidden=false;$('r_receipts').innerHTML=rh+'</tbody></table>';
