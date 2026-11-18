@@ -146,8 +146,12 @@ window.addEventListener('DOMContentLoaded', async () => {
     if(bi.bankName) BANK=bi.bankName;
     if(bi.appName){APP_NAME=bi.appName;localStorage.setItem('coop_app_name',APP_NAME);}
     else{APP_NAME=localStorage.getItem('coop_app_name')||'ECOSMART';}
-  }catch(e){APP_NAME=localStorage.getItem('coop_app_name')||'ECOSMART';}
-  applyBranding(APP_NAME, BANK);
+    TOPBAR_TITLE=bi.topbarTitle||'';
+    if(TOPBAR_TITLE) localStorage.setItem('coop_topbar_title',TOPBAR_TITLE);
+    else TOPBAR_TITLE=localStorage.getItem('coop_topbar_title')||'';
+  }catch(e){APP_NAME=localStorage.getItem('coop_app_name')||'ECOSMART';
+    TOPBAR_TITLE=localStorage.getItem('coop_topbar_title')||'';}
+  applyBranding(APP_NAME, BANK, TOPBAR_TITLE);
   // Apply app name immediately to login page (Fix 2)
   if($('loginName')) $('loginName').textContent = APP_NAME;
   if($('splashName')) $('splashName').textContent = APP_NAME;
@@ -169,17 +173,20 @@ function setupPwToggle(btnId, inputId) {
 function setViewTitle(title){
   const el=$('view_title');if(el)el.textContent=title;
 }
-function applyBranding(appName, bankName){
-  // APP_NAME = application/UI name shown in splash, login header, topbar, nav
-  // BANK     = cooperative/bank name used ONLY in printed docs (receipts, passbooks, vouchers, reports)
+let TOPBAR_TITLE = ''; // separate from APP_NAME — only changes the header
+function applyBranding(appName, bankName, topbarTitle){
+  // APP_NAME = application/UI name shown in splash, login, nav sidebar
+  // TOPBAR_TITLE = header bar title only (can be different from APP_NAME)
+  // BANK     = cooperative/bank name used ONLY in printed docs
   if(appName) APP_NAME = appName;
   if(bankName) BANK = bankName;
-  document.title = APP_NAME;
+  if(topbarTitle !== undefined) TOPBAR_TITLE = topbarTitle;
+  document.title = TOPBAR_TITLE || APP_NAME;
   if($('splashName'))    $('splashName').textContent    = APP_NAME;
   if($('loginName'))     $('loginName').textContent     = APP_NAME;
-  if($('brandName'))     $('brandName').textContent     = APP_NAME;
-  if($('nav_bank'))      $('nav_bank').textContent      = APP_NAME; // nav shows app name
-  if($('login_bankname'))$('login_bankname').textContent= BANK;     // login footer shows bank name
+  if($('brandName'))     $('brandName').textContent     = TOPBAR_TITLE || APP_NAME;
+  if($('nav_bank'))      $('nav_bank').textContent      = APP_NAME;   // sidebar: always APP_NAME
+  if($('login_bankname'))$('login_bankname').textContent= BANK;
 }
 
 /* ── EVENTS ──────────────────────────────────────────────────── */
@@ -3748,6 +3755,7 @@ async function socTxn(){
 async function loadSettings(){
   // Populate app name field
   if($('set_appname')) $('set_appname').value=localStorage.getItem('coop_app_name')||APP_NAME||'';
+  if($('set_topbar_title')) $('set_topbar_title').value=localStorage.getItem('coop_topbar_title')||TOPBAR_TITLE||'';
   try{const{settings}=await api('settings_get');
     $('set_form').innerHTML=settings.map(s=>`<label>${esc(s.label)}<input data-skey="${esc(s.key)}" type="${s.type==='date'?'date':(s.type==='number'?'number':'text')}" value="${esc(s.value)}"></label>`).join('');
   }catch(err){$('set_form').innerHTML=`<p class="err">${err.message}</p>`;}
@@ -3755,12 +3763,20 @@ async function loadSettings(){
 async function saveSettings(){
   $('set_msg').textContent='Saving…';const values={};
   document.querySelectorAll('#set_form input[data-skey]').forEach(i=>values[i.dataset.skey]=i.value);
-  // Save appName locally (not sent to backend — UI-only setting)
+  // Save appName — stored in DB AND locally
   const appNameEl=$('set_appname');
   if(appNameEl && appNameEl.value.trim()){
     APP_NAME = appNameEl.value.trim();
     localStorage.setItem('coop_app_name', APP_NAME);
     values['appName'] = APP_NAME;
+  }
+  // Save topbarTitle — stored in DB so ALL users see the new header
+  const topbarEl=$('set_topbar_title');
+  if(topbarEl){
+    TOPBAR_TITLE = topbarEl.value.trim();
+    localStorage.setItem('coop_topbar_title', TOPBAR_TITLE);
+    values['topbarTitle'] = TOPBAR_TITLE;
+    applyBranding(APP_NAME, BANK, TOPBAR_TITLE);
   }
   try{await api('settings_update',{values});$('set_msg').textContent='Saved.';
     try{const{bankName}=await api('bank_info');if(bankName)BANK=bankName;}catch(e){}
