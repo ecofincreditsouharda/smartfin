@@ -645,10 +645,14 @@ GRANT ALL ON public.share_txns TO service_role;</pre>
         <div class="card-head"><h2>Settings</h2></div>
         <!-- Application Name (Admin only, stored locally) -->
         <div class="admin-only" style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
-          <label style="max-width:320px">Application Name <small style="font-weight:400;text-transform:none;color:#6b7280">(UI display name — shown instead of bank name in nav &amp; splash)</small>
+          <label style="max-width:320px">Application Name <small style="font-weight:400;text-transform:none;color:#6b7280">(UI display name — shown in nav sidebar &amp; splash)</small>
             <input id="set_appname" placeholder="e.g. ECOSMART Cooperative" />
           </label>
-          <p style="font-size:11px;color:#9ca3af;margin:6px 0 0">Bank Name (from settings below) appears on printed documents: receipts, passbooks, vouchers, reports.</p>
+          <p style="font-size:11px;color:#9ca3af;margin:6px 0 8px">Bank Name (from settings below) appears on printed documents: receipts, passbooks, vouchers, reports.</p>
+          <label style="max-width:320px;margin-top:8px">Header / Topbar Title <small style="font-weight:400;text-transform:none;color:#6b7280">(shown in the top bar only — leave blank to use Application Name)</small>
+            <input id="set_topbar_title" placeholder="e.g. ECOFINACLE Credit Co-operative" />
+          </label>
+          <p style="font-size:11px;color:#9ca3af;margin:4px 0 0">Changing this updates the header for <b>all users</b> immediately on next page load.</p>
         </div>
         <div id="set_form" class="grid"></div>
         <div class="actions"><button id="set_save" class="primary">Save settings</button><span id="set_msg" class="msg"></span></div></div>
