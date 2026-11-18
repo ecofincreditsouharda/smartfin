@@ -248,6 +248,14 @@ document.addEventListener('click',e=>{
   if(map[t.id]) return map[t.id]();
   if(d.loan)   return showSchedule(d.loan);
   if(d.member) return showMember(d.member);
+  if(d.redit)  return openReceiptEdit(
+    t.dataset.rno, Number(t.dataset.ramt||0),
+    (t.dataset.rdate||'').trim(),
+    (t.dataset.rmode||'').trim(),
+    (t.dataset.rnote||'').trim(),
+    Number(t.dataset.rpen||0),
+    (t.dataset.rref||'').trim()
+  );
   if(d.reset)  return resetUser(d.reset);
   if(d.toggle) return toggleUser(d.toggle, d.active==='true');
 });
@@ -827,8 +835,10 @@ async function loadLedger(){
   const id=val('r_LoanId').trim();if(!id)return;curLoanId=id;
   try{const{ledger}=await api('repayment_ledger',{loanId:id});const s=ledger.summary;
     lastLedgerLoanId=id;$('r_ledgerHead').hidden=false;_rsMountLoanActions();$('r_ledgerTitle').textContent='Ledger — '+id;
-    $('r_summary').innerHTML=summaryHtml([['Total Payable',rupee(s.totalPayable)],['Total Paid',rupee(s.totalPaid)],
-      ['Balance Remaining',rupee(s.balanceRemaining)],['Penalties Charged',s.totalPenalty>0?rupee(s.totalPenalty):'—'],['Scheduled Due To-Date',rupee(s.scheduledDueToDate)],
+    $('r_summary').innerHTML=summaryHtml([['Total Payable',rupee(s.totalPayable)],['Total EMI Paid',rupee(s.totalPaid)],
+      ['Penalties Charged',s.totalPenalty>0?rupee(s.totalPenalty):'—'],
+      ['Total Collected (EMI + Penalty)',rupee(Number(s.totalPaid||0)+Number(s.totalPenalty||0))],
+      ['Balance Remaining',rupee(s.balanceRemaining)],['Scheduled Due To-Date',rupee(s.scheduledDueToDate)],
       ['Arrears / (Advance)',rupee(s.arrears)],['Next Due',s.nextDueDate+' · '+rupee(s.nextDueAmount)]]);
     $('r_addCard').hidden=(session.role==='Director');$('r_receiptBox').hidden=true;
     const _canEditRec=['Admin','CEO','BranchManager'].includes(session?.role||'');
@@ -857,7 +867,7 @@ async function loadLedger(){
       `<td><div style="display:flex;flex-direction:column;gap:2px">`+
         `<button class="ghost" style="font-size:10px;padding:1px 4px" data-rprint="${esc(x.Receipt)}">Print</button>`+
 
-        (_canEditRec?`<button class="ghost" style="font-size:10px;padding:1px 4px" onclick="openReceiptEdit('${esc(x.Receipt)}',${x.Amount},'${esc(x.Date)}','${esc(x.Mode||'')}','${esc(x.Note||'')}',${x.Penalty||0},'${esc(x.Ref||'')}')">Edit</button>`:'')+
+        (_canEditRec?`<button class="ghost" style="font-size:10px;padding:1px 4px" data-redit="1" data-rno="${esc(x.Receipt)}" data-ramt="${x.Amount}" data-rdate="${esc(x.Date)}" data-rmode="${esc(x.Mode||'')} " data-rnote="${esc(x.Note||'')} " data-rpen="${x.Penalty||0}" data-rref="${esc(x.Ref||'')} ">Edit</button>`:'')+
         (_canEditRec?`<button class="ghost" style="font-size:10px;padding:1px 4px;color:#dc2626" data-rdel="${esc(x.Receipt)}" data-ramt="${x.Amount}" data-rmode="${esc(x.Mode||'')}" data-rdate="${esc(x.Date)}" onclick="confirmDeleteReceipt(this)">Delete</button>`:'')+
       `</div></td>`
       +`</tr>`);
@@ -1977,7 +1987,7 @@ function openReceiptEdit(receiptNo,amount,date,mode,note,penalty,ref){
   editingReceipt=receiptNo;
   openModal('Edit Receipt '+receiptNo,
     `<div style="padding:4px 0"><div class="grid" style="gap:10px">`+
-    `<label>Amount (₹)<input id="re_amount" type="number" value="${esc(String(amount||''))}" /></label>`+
+    `<label>EMI Amount (₹)<input id="re_amount" type="number" value="${esc(String(amount||''))}" /></label>`+
     `<label>Date<input id="re_date" type="date" value="${esc(String(date||''))}" /></label>`+
     `<label>Mode<select id="re_mode" onchange="toggleEditUTR(this.value)">`+
     ['Cash','UPI','NEFT','RTGS','Cheque','DD'].map(m=>`<option${m===mode?' selected':''}>${m}</option>`).join('')+
