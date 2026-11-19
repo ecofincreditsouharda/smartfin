@@ -4,6 +4,8 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#ffe3df" />
+<link rel="icon" type="image/png" href="logo.png" />
+<link rel="shortcut icon" href="logo.png" />
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="logo.png" />
 <title>ECOSMART</title>
@@ -590,6 +592,11 @@ GRANT ALL ON public.share_txns TO service_role;</pre>
           <option value="Borrower_Collections">Borrower Collections</option>
           <option value="Share_Capital_Detail">Share Capital (per member)</option>
           <option value="Share_Txn_History">Share Transactions History</option>
+          <optgroup label="Receipts &amp; Payments">
+            <option value="Receipts_Payments_Month">Receipts &amp; Payments — This Month</option>
+            <option value="Receipts_Payments_FY">Receipts &amp; Payments — Full FY</option>
+            <option value="Receipts_Payments_Custom">Receipts &amp; Payments — Custom Period</option>
+          </optgroup>
         </select></label>
         <label>From Date<input id="rep_from" type="date" /></label>
         <label>To Date<input id="rep_to" type="date" /></label></div>
