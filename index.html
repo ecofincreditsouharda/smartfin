@@ -592,11 +592,7 @@ GRANT ALL ON public.share_txns TO service_role;</pre>
           <option value="Borrower_Collections">Borrower Collections</option>
           <option value="Share_Capital_Detail">Share Capital (per member)</option>
           <option value="Share_Txn_History">Share Transactions History</option>
-          <optgroup label="Receipts &amp; Payments">
-            <option value="Receipts_Payments_Month">Receipts &amp; Payments — This Month</option>
-            <option value="Receipts_Payments_FY">Receipts &amp; Payments — Full FY</option>
-            <option value="Receipts_Payments_Custom">Receipts &amp; Payments — Custom Period</option>
-          </optgroup>
+          <option value="Receipts_Payments_Custom">Receipts &amp; Payments</option>
         </select></label>
         <label>From Date<input id="rep_from" type="date" /></label>
         <label>To Date<input id="rep_to" type="date" /></label></div>
@@ -816,6 +812,22 @@ GRANT ALL ON public.audit_log TO service_role;</pre>
         <label>Email<input id="prof_Email" /></label>
         <label>Address<input id="prof_Address" /></label>
         <div class="actions"><button id="prof_save" class="primary">Save profile</button><span id="prof_msg" class="msg"></span></div></div>
+      <div class="card narrow">
+        <div class="card-head"><h2>Display &amp; Text Size</h2></div>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 12px">Adjust text size for your account. This setting is saved on this device only.</p>
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <span style="font-size:12px;color:var(--muted);font-weight:600">A</span>
+          <input type="range" id="fs_range" min="12" max="20" step="1" value="14"
+            style="flex:1;min-width:140px;max-width:280px;accent-color:var(--blue);cursor:pointer"
+            oninput="previewFontSize(this.value)" />
+          <span style="font-size:18px;color:var(--muted);font-weight:800">A</span>
+          <span id="fs_label" style="font-size:12px;color:var(--muted);min-width:34px;font-weight:600">14px</span>
+        </div>
+        <div class="actions" style="margin-top:12px">
+          <button class="primary" onclick="saveFontSize()">Save text size</button>
+          <button class="ghost" onclick="resetFontSize()">Reset to default</button>
+        </div>
+      </div>
       <div class="card narrow"><h2>Change password</h2>
         <label>Current
           <span class="pw-wrap">
