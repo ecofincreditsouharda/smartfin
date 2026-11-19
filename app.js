@@ -133,6 +133,7 @@ function resetIdle(){if(!session)return;clearTimeout(idleTimer);
 window.addEventListener('DOMContentLoaded', async () => {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
   LOGO_URL = new URL('logo.png', location.href).href;
+  loadFontSize();
   if ($('loginMsg')) $('loginMsg').textContent='';
   localStorage.removeItem('coop_token');
   // Password toggle for login page — direct button handler (fix #1)
@@ -575,6 +576,9 @@ const VIEW_TITLES={dashboard:'Dashboard',members:'Members',loans:'Loans',repayme
   society:'Society Bank',expenses:'Expenses',reports:'Reports',approvals:'Loan Approvals',foir:'FOIR Calculator','member-portal-admin':'Members Portal','loan-history':'Loan History',
   settings:'Settings',users:'Users',activity:'Activity Log',account:'My Account'};
 function showView(v){
+  if(v==='account'){const saved=localStorage.getItem(FS_KEY)||'14';
+    const rng=document.getElementById('fs_range');if(rng)rng.value=saved;
+    const lbl=document.getElementById('fs_label');if(lbl)lbl.textContent=saved+'px';}
   document.querySelectorAll('.view').forEach(s=>s.hidden=true);
   const vEl=$('view-'+v); if(!vEl) return;
   vEl.hidden=false;
@@ -2333,6 +2337,30 @@ document.addEventListener('click',function(e){
   if(m&&m.style.display!=='none'&&!(e.target.closest&&e.target.closest('#r_actions_wrap')))m.style.display='none';
 });
 
+// ── FONT SIZE PREFERENCE ────────────────────────────────────────
+const FS_KEY='coop_font_size';
+function applyFontSize(px){
+  const v=Math.min(20,Math.max(12,Number(px)||14));
+  document.documentElement.style.setProperty('--fs',v+'px');
+  const lbl=document.getElementById('fs_label');if(lbl)lbl.textContent=v+'px';
+  const rng=document.getElementById('fs_range');if(rng)rng.value=v;
+}
+function previewFontSize(px){applyFontSize(px);}
+function saveFontSize(){
+  const v=document.getElementById('fs_range')?.value||'14';
+  localStorage.setItem(FS_KEY,v);
+  applyFontSize(v);
+  showToast('Text size saved','ok');
+}
+function resetFontSize(){
+  localStorage.removeItem(FS_KEY);
+  applyFontSize(14);
+  showToast('Text size reset to default','ok');
+}
+function loadFontSize(){
+  const saved=localStorage.getItem(FS_KEY);
+  if(saved) applyFontSize(saved);
+}
 function openPrepayment(){
   if(!lastLedgerLoanId){showToast('Open a loan ledger first — search a loan and click Open','err');return;}
   const today=new Date().toISOString().split('T')[0];
