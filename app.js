@@ -622,10 +622,81 @@ function showToast(msg,type){
 }
 
 /* ── DASHBOARD ───────────────────────────────────────────────── */
+async // ── MONTHLY INTEREST DETAIL ─────────────────────────────────────
+let _intFrom='', _intTo='';
+function openInterestDetail(){
+  const now=new Date();
+  _intFrom=_intFrom||`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+  const last=new Date(now.getFullYear(),now.getMonth()+1,0);
+  _intTo=_intTo||`${last.getFullYear()}-${String(last.getMonth()+1).padStart(2,'0')}-${String(last.getDate()).padStart(2,'0')}`;
+  _loadInterestDetail(_intFrom,_intTo);
+}
+async function _loadInterestDetail(from,to){
+  openModal('📊 Monthly Interest — Per Loan',
+    '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px">'
+    +'<label style="font-size:12px;font-weight:600;color:var(--muted);display:flex;flex-direction:column;gap:3px">From<input type="date" id="int_from" value="'+from+'" style="font-size:13px;padding:6px 9px;border:1.5px solid var(--border);border-radius:var(--r-sm)" /></label>'
+    +'<label style="font-size:12px;font-weight:600;color:var(--muted);display:flex;flex-direction:column;gap:3px">To<input type="date" id="int_to" value="'+to+'" style="font-size:13px;padding:6px 9px;border:1.5px solid var(--border);border-radius:var(--r-sm)" /></label>'
+    +'<button class="primary" style="padding:8px 14px;font-size:13px" onclick="_applyInterestFilter()">Apply</button>'
+    +'</div>'
+    +'<div id="int_body"><p class="msg">Loading…</p></div>'
+  );
+  try{
+    const{rows,totals,fromDate,toDate}=await api('monthly_interest_detail',{fromDate:from,toDate:to});
+    _intFrom=fromDate;_intTo=toDate;
+    if(!rows.length){document.getElementById('int_body').innerHTML='<p class="msg">No loans had instalments due in this period.</p>';return;}
+    let h='<div style="background:var(--chip-bg);border-radius:var(--r-sm);padding:10px 14px;margin-bottom:10px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px 16px">'
+      +'<div><div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Total Interest</div>'
+      +'<div style="font-size:18px;font-weight:800;color:var(--blue)">'+rupee(totals.interest)+'</div></div>'
+      +'<div><div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Total EMI Due</div>'
+      +'<div style="font-size:18px;font-weight:800;color:var(--head)">'+rupee(totals.emi)+'</div></div>'
+      +'<div><div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Total Principal</div>'
+      +'<div style="font-size:18px;font-weight:800;color:var(--head)">'+rupee(totals.principal)+'</div></div>'
+      +'<div><div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Collected</div>'
+      +'<div style="font-size:18px;font-weight:800;color:var(--ok)">'+rupee(totals.paid)+'</div></div>'
+      +'</div>'
+      +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'
+      +'<thead><tr style="background:var(--chip-bg)">'
+      +'<th style="padding:7px 8px;text-align:left;border-bottom:1.5px solid var(--border);white-space:nowrap">Loan ID</th>'
+      +'<th style="padding:7px 8px;text-align:left;border-bottom:1.5px solid var(--border)">Borrower</th>'
+      +'<th style="padding:7px 8px;text-align:left;border-bottom:1.5px solid var(--border)">Branch</th>'
+      +'<th style="padding:7px 8px;text-align:center;border-bottom:1.5px solid var(--border)">Rate%</th>'
+      +'<th style="padding:7px 8px;text-align:center;border-bottom:1.5px solid var(--border)">EMIs</th>'
+      +'<th style="padding:7px 8px;text-align:right;border-bottom:1.5px solid var(--border);color:var(--blue)">Interest (₹)</th>'
+      +'<th style="padding:7px 8px;text-align:right;border-bottom:1.5px solid var(--border)">Principal (₹)</th>'
+      +'<th style="padding:7px 8px;text-align:right;border-bottom:1.5px solid var(--border)">EMI Due (₹)</th>'
+      +'<th style="padding:7px 8px;text-align:right;border-bottom:1.5px solid var(--border);color:var(--ok)">Collected (₹)</th>'
+      +'</tr></thead><tbody>';
+    rows.forEach(r=>{
+      const diff=r['Paid']-r['EMI Due'];
+      const paidCol=diff<-0.5?'color:var(--danger)':diff>0.5?'color:var(--ok)':'color:var(--head)';
+      h+=`<tr style="border-bottom:1px solid var(--border)">`
+        +`<td style="padding:6px 8px;font-family:monospace;font-size:11px">${esc(r['Loan ID'])}</td>`
+        +`<td style="padding:6px 8px;font-weight:600">${esc(r['Borrower'])}</td>`
+        +`<td style="padding:6px 8px;font-size:11px;color:var(--muted)">${esc(r['Branch'])}</td>`
+        +`<td style="padding:6px 8px;text-align:center">${r['Rate (%)'].toFixed(1)}%</td>`
+        +`<td style="padding:6px 8px;text-align:center;color:var(--muted)">${r['Instalments']}</td>`
+        +`<td style="padding:6px 8px;text-align:right;font-weight:700;color:var(--blue)">${rupee(r['Interest'])}</td>`
+        +`<td style="padding:6px 8px;text-align:right">${rupee(r['Principal'])}</td>`
+        +`<td style="padding:6px 8px;text-align:right">${rupee(r['EMI Due'])}</td>`
+        +`<td style="padding:6px 8px;text-align:right;font-weight:700;${paidCol}">${rupee(r['Paid'])}</td>`
+        +`</tr>`;
+    });
+    h+='</tbody></table></div>';
+    document.getElementById('int_body').innerHTML=h;
+  }catch(err){document.getElementById('int_body').innerHTML=`<p class="err">${err.message}</p>`;}
+}
+function _applyInterestFilter(){
+  const f=document.getElementById('int_from')?.value;
+  const t=document.getElementById('int_to')?.value;
+  if(!f||!t){showToast('Please set both dates','warn');return;}
+  _intFrom=f;_intTo=t;
+  document.getElementById('int_body').innerHTML='<p class="msg">Loading…</p>';
+  _loadInterestDetail(f,t);
+}
 async function loadDashboard(){
   $('dash').innerHTML='<p class="msg">Loading…</p>';$('dash_overdue').innerHTML='';
   try{const{stats,overdue,extraStats}=await api('dashboard_stats');
-    const mkStat=(l,v,c,nav,sub='')=>`<div class="stat ${c}" onclick="showView('${nav}')">`+
+    const mkStat=(l,v,c,nav,sub='')=>`<div class="stat ${c}" onclick="${nav.startsWith('_')?nav.slice(1)+'()':"showView('"+nav+"')"}">`+
       `<span>${l}</span><b>${v}</b></div>`;
     let html=
       mkStat('Active Loans',stats.activeLoanCount||stats.loanCount,'ok','loans')+
@@ -636,7 +707,8 @@ async function loadDashboard(){
       mkStat('Total Arrears',rupee(stats.totalArrears),stats.totalArrears>0?'warn':'ok','repayments');
     if(extraStats){
       html+=
-        mkStat('Interest Due This Month',rupee(extraStats.interestDueMonth),'','repayments')+
+        ((['Admin','CEO'].includes(session?.role))?mkStat('Monthly Interest Earned',rupee(extraStats.interestDueMonth),'','_openInterestDetail'):
+          mkStat('Interest Due This Month',rupee(extraStats.interestDueMonth),'','repayments'))+
         mkStat('Principal Due This Month',rupee(extraStats.principalDueMonth),'','repayments')+
         mkStat('New Loans This Month',extraStats.newLoansThisMonth,'ok','loans')+
         mkStat('FDs Held (active)',rupee(extraStats.totalFDHeld),'','deposits')+
