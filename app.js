@@ -1,3 +1,4 @@
+
 /* ── CONFIG ──────────────────────────────────────────────────── */
 const WEB_APP_URL = 'https://tgopjjtamvoftzdfvzuc.supabase.co/functions/v1/api';
 const IDLE_MS = 60 * 1000;
@@ -1757,13 +1758,15 @@ async function loadExpensesWithCache(){
   expAllRows = r.rows||[];
   renderExpensesTable(expAllRows);
 }
+let _expRows=[];  // cached for index-based edit access
 function renderExpensesTable(rows){
   if(!rows.length){$('e_list').innerHTML='<p class="msg">No expenses.</p>';return;}
+  _expRows=rows;  // store so onclick can reference by index
   let h='<table><thead><tr>'
     +'<th>Expense ID</th><th>Date</th><th>Category</th><th>To / Payee</th>'
     +'<th>Description</th><th>Branch</th><th class="num">Amount (₹)</th><th>Remarks</th><th></th>'
     +'</tr></thead><tbody>';
-  rows.forEach(r=>{
+  rows.forEach((r,i)=>{
     const id=esc(r['Expense ID']||r.expense_id||'');
     h+=`<tr>`
       +`<td style="font-size:11px;font-family:monospace">${id}</td>`
@@ -1775,7 +1778,7 @@ function renderExpensesTable(rows){
       +`<td class="num">${rupee(r.Amount||r.amount||0)}</td>`
       +`<td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;color:var(--muted);font-size:12px">${esc(r.Remarks||r.remarks||'')}</td>`
       +`<td style="white-space:nowrap">`
-        +`<button class="ghost" style="font-size:11px;padding:2px 7px;margin-right:4px" onclick="openEditExpense(${JSON.stringify(r)})">Edit</button>`
+        +`<button class="ghost" style="font-size:11px;padding:2px 7px;margin-right:4px" onclick="openEditExpense(_expRows[${i}])">Edit</button>`
         +`<button class="ghost" style="font-size:11px;padding:2px 7px;color:var(--danger);border-color:#fca5a5" onclick="confirmDeleteExpense('${id}')">Delete</button>`
       +`</td>`
       +`</tr>`;
