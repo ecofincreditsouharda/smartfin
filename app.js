@@ -1,4 +1,3 @@
-
 /* ── CONFIG ──────────────────────────────────────────────────── */
 const WEB_APP_URL = 'https://tgopjjtamvoftzdfvzuc.supabase.co/functions/v1/api';
 const IDLE_MS = 60 * 1000;
@@ -1758,33 +1757,72 @@ async function loadExpensesWithCache(){
   expAllRows = r.rows||[];
   renderExpensesTable(expAllRows);
 }
-let _expRows=[];  // cached for index-based edit access
+let _expRows=[];  // cached for index-based edit/print access
 function renderExpensesTable(rows){
   if(!rows.length){$('e_list').innerHTML='<p class="msg">No expenses.</p>';return;}
-  _expRows=rows;  // store so onclick can reference by index
+  _expRows=rows;
   let h='<table><thead><tr>'
+    +'<th style="width:28px"><input type="checkbox" id="exp_chk_all" title="Select all" onchange="_expToggleAll(this.checked)"/></th>'
     +'<th>Expense ID</th><th>Date</th><th>Category</th><th>To / Payee</th>'
     +'<th>Description</th><th>Branch</th><th class="num">Amount (₹)</th><th>Remarks</th><th></th>'
     +'</tr></thead><tbody>';
   rows.forEach((r,i)=>{
     const id=esc(r['Expense ID']||r.expense_id||'');
     h+=`<tr>`
+      +`<td><input type="checkbox" class="exp-chk" data-idx="${i}"/></td>`
       +`<td style="font-size:11px;font-family:monospace">${id}</td>`
       +`<td style="white-space:nowrap">${esc(r.Date||r.date||'')}</td>`
       +`<td>${esc(r.Category||r.category||'')}</td>`
-      +`<td style="max-width:120px;overflow:hidden;text-overflow:ellipsis">${esc(r.To||r.to_party||'—')}</td>`
-      +`<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis">${esc(r.Description||r.description||'')}</td>`
+      +`<td style="max-width:110px;overflow:hidden;text-overflow:ellipsis">${esc(r.To||r.to_party||'—')}</td>`
+      +`<td style="max-width:140px;overflow:hidden;text-overflow:ellipsis">${esc(r.Description||r.description||'')}</td>`
       +`<td>${esc(r.Branch||r.branch||'')}</td>`
       +`<td class="num">${rupee(r.Amount||r.amount||0)}</td>`
-      +`<td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;color:var(--muted);font-size:12px">${esc(r.Remarks||r.remarks||'')}</td>`
+      +`<td style="max-width:110px;overflow:hidden;text-overflow:ellipsis;color:var(--muted);font-size:12px">${esc(r.Remarks||r.remarks||'')}</td>`
       +`<td style="white-space:nowrap">`
-        +`<button class="ghost" style="font-size:11px;padding:2px 7px;margin-right:4px" onclick="openEditExpense(_expRows[${i}])">Edit</button>`
+        +`<button class="ghost" style="font-size:11px;padding:2px 7px;margin-right:3px" onclick="_expPrintOne(${i})">🖨</button>`
+        +`<button class="ghost" style="font-size:11px;padding:2px 7px;margin-right:3px" onclick="openEditExpense(_expRows[${i}])">Edit</button>`
         +`<button class="ghost" style="font-size:11px;padding:2px 7px;color:var(--danger);border-color:#fca5a5" onclick="confirmDeleteExpense('${id}')">Delete</button>`
       +`</td>`
       +`</tr>`;
   });
   h+='</tbody></table>';
   $('e_list').innerHTML=h;
+}
+function _expToggleAll(v){document.querySelectorAll('.exp-chk').forEach(c=>c.checked=v);}
+function _expPrintOne(i){const r=_expRows[i];if(!r)return;printVoucher(_expRowToVoucher(r));}
+function _expRowToVoucher(r){
+  return {expenseNo:r['Expense ID']||r.expense_id||'',
+    date:r.Date||r.date||'',to:r.To||r.to_party||'',
+    category:r.Category||r.category||'',
+    description:r.Description||r.description||'',
+    amount:r.Amount||r.amount||0,
+    branch:r.Branch||r.branch||'',
+    bankName:BANK, branchAddress:'', branchPhone:'', email:''};
+}
+function printSelectedVouchers(){
+  const checked=[...document.querySelectorAll('.exp-chk:checked')];
+  if(!checked.length){showToast('Select at least one expense first','warn');return;}
+  const vouchers=checked.map(c=>_expRowToVoucher(_expRows[Number(c.dataset.idx)]));
+  _printMultiVouchers(vouchers);
+}
+function _printMultiVouchers(vouchers){
+  const css=`@page{size:A4;margin:1cm}body{font-family:Arial,sans-serif;font-size:11px;color:#000}.vh{text-align:center;border-bottom:2px solid #222;padding-bottom:10px;margin-bottom:12px}.vl{width:52px;height:52px;object-fit:contain;display:block;margin:0 auto 4px}.vbank{font-size:18px;font-weight:bold;letter-spacing:.5px}.vtitle{font-size:14px;font-weight:700;margin-top:4px;letter-spacing:2px;text-transform:uppercase;border:1px solid #444;display:inline-block;padding:2px 14px}table.vmeta{width:100%;border-collapse:collapse;margin:12px 0}table.vmeta td{padding:5px 8px;border:1px solid #ccc;font-size:11px}.vl-col{color:#555;width:80px;font-weight:600}.vc-col{font-weight:bold;width:180px}.vr-col{font-weight:bold;text-align:right;width:120px}table.vamt{width:100%;border-collapse:collapse;margin-top:8px}table.vamt th{background:#f0f0f0;border:1px solid #aaa;padding:5px 8px;font-size:11px;text-align:right}table.vamt th:first-child{text-align:left}table.vamt td{border:1px solid #ccc;padding:5px 8px;text-align:right}table.vamt td:first-child{text-align:left}.vtot td{border-top:2px solid #444;background:#f9f9f9}.vsign{display:flex;justify-content:space-between;margin-top:48px;font-size:11px;text-align:center}.vline{border-top:1px solid #333;width:160px;margin:0 auto 4px}.vfoot{margin-top:16px;border-top:1px solid #aaa;padding-top:6px;font-size:9px;color:#555;text-align:center}.page-break{page-break-after:always;border:3px double #222;padding:16px;margin-bottom:1cm}`;
+  const body=vouchers.map((v,idx)=>`<div class="${idx<vouchers.length-1?'page-break':''}"`
+    +` style="border:3px double #222;padding:16px${idx>0?';margin-top:1cm':''}">`
+    +`<div class="vh"><img src="${LOGO_URL}" class="vl" onerror="this.style.display='none'"/>`
+    +`<div class="vbank">${esc(BANK)}</div><div class="vtitle">EXPENSE VOUCHER</div></div>`
+    +`<table class="vmeta"><tr><td class="vl-col">Voucher No.</td><td class="vc-col">${esc(v.expenseNo)}</td>`
+    +`<td class="vl-col" style="text-align:right">Date</td><td class="vr-col">${esc(v.date)}</td></tr>`
+    +`<tr><td class="vl-col">To</td><td class="vc-col">${esc(v.to)}</td>`
+    +`<td class="vl-col" style="text-align:right">Category</td><td class="vr-col">${esc(v.category)}</td></tr></table>`
+    +`<table class="vamt"><tr><th>Description</th><th>Amount (₹)</th></tr>`
+    +`<tr><td>${esc(v.description||v.category)}</td><td>${rupee(v.amount)}</td></tr>`
+    +`<tr class="vtot"><td><b>Total</b></td><td><b>${rupee(v.amount)}</b></td></tr></table>`
+    +`<div class="vsign"><div><div class="vline"></div>Receiver Signature</div>`
+    +`<div><div class="vline"></div>Branch Manager Signature</div></div>`
+    +`<div class="vfoot">${esc(v.branch)} Branch</div></div>`
+  ).join('');
+  printDoc(body,css,'');
 }
 function filterExpenses(){
   const q    = (val('e_search')||'').toLowerCase();
@@ -3665,7 +3703,7 @@ async function addExpense(){
     $('e_voucherView').innerHTML=summaryHtml([['Bank',esc(voucher.bankName)],['Voucher No.',esc(voucher.expenseNo)],
       ['Date',esc(voucher.date)],['To',esc(voucher.to)],['Category',esc(voucher.category)],
       ['Description',esc(voucher.description)],['Amount',rupee(voucher.amount)],['Branch',esc(voucher.branch)]]);
-    loadList('expenses_list','e_list',null,'expenses');
+    const rr=await api('expenses_list');expAllRows=rr.rows||[];renderExpensesTable(expAllRows);
   }catch(err){$('e_msg').textContent='';alert(err.message);}
 }
 function printVoucher(v){
