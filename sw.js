@@ -1,4 +1,4 @@
-const CACHE = 'coopfr-v61';
+const CACHE = 'coopfr-v62';
 const ASSETS = ['./', 'index.html', 'app.js', 'style.css', 'manifest.webmanifest', 'logo.png'];
 
 // Install: fetch every file fresh from the server (cache:'reload' skips the browser's own cache)
