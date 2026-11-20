@@ -885,6 +885,30 @@ GRANT ALL ON public.audit_log TO service_role;</pre>
         <div id="ap_list"></div>
       </div>
     </section>
+    <!-- MONTHLY INTEREST DETAIL (Admin / CEO only) -->
+    <section class="view" id="view-interest-detail" hidden>
+      <div class="card">
+        <div class="card-head">
+          <h2>📊 Monthly Interest Earned — Per Loan</h2>
+          <span style="display:flex;gap:8px;align-items:center">
+            <button class="ghost" onclick="window.print()">🖨 Print</button>
+            <button class="ghost" onclick="showView('dashboard')">← Back to Dashboard</button>
+          </span>
+        </div>
+        <!-- Date filter -->
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+          <label style="margin:0">From date<input type="date" id="int_from" style="margin-top:4px" /></label>
+          <label style="margin:0">To date<input type="date" id="int_to" style="margin-top:4px" /></label>
+          <button class="primary" onclick="_applyInterestFilter()">Apply</button>
+          <button class="ghost" onclick="_intSetThisMonth()">This month</button>
+          <button class="ghost" onclick="_intSetThisFY()">This FY</button>
+        </div>
+        <!-- Summary tiles -->
+        <div id="int_summary" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px"></div>
+        <!-- Per-loan table -->
+        <div id="int_body" class="scrolly-list"><p class="msg">Loading…</p></div>
+      </div>
+    </section>
   </main>
 </div>
 
