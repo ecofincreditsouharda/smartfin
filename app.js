@@ -1,3 +1,4 @@
+
 /* ── CONFIG ──────────────────────────────────────────────────── */
 const WEB_APP_URL = 'https://tgopjjtamvoftzdfvzuc.supabase.co/functions/v1/api';
 const IDLE_MS = 60 * 1000;
@@ -622,7 +623,7 @@ function showToast(msg,type){
 }
 
 /* ── DASHBOARD ───────────────────────────────────────────────── */
-async // ── MONTHLY INTEREST DETAIL ─────────────────────────────────────
+// ── MONTHLY INTEREST DETAIL ─────────────────────────────────────
 let _intFrom='', _intTo='';
 function openInterestDetail(){
   const now=new Date();
