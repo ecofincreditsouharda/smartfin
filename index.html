@@ -565,7 +565,7 @@ GRANT ALL ON public.share_txns TO service_role;</pre>
         <div id="e_voucherBox" hidden><div id="e_voucherView" class="summary"></div>
           <button class="ghost" id="e_print">Print voucher</button></div></div>
       <div class="card">
-        <div class="card-head"><h2>Expenses</h2><button class="ghost" data-refresh="expenses">Refresh</button></div>
+        <div class="card-head"><h2>Expenses</h2><span style="display:flex;gap:8px"><button class="ghost" onclick="printSelectedVouchers()">🖨 Print selected</button><button class="ghost" onclick="printTable('Expenses',getCurrentTableHtml('e_list'))">Print list</button><button class="ghost" data-refresh="expenses">Refresh</button></span></div>
         <div class="grid" style="margin:6px 0 4px;grid-template-columns:1fr 1fr 1fr auto">
           <label style="margin:0">Search<input id="e_search" placeholder="category · description · branch" /></label>
           <label style="margin:0">From<input id="e_from" type="date" /></label>
