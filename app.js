@@ -1759,7 +1759,29 @@ async function loadExpensesWithCache(){
 }
 function renderExpensesTable(rows){
   if(!rows.length){$('e_list').innerHTML='<p class="msg">No expenses.</p>';return;}
-  $('e_list').innerHTML = tableFrom(rows);
+  let h='<table><thead><tr>'
+    +'<th>Expense ID</th><th>Date</th><th>Category</th><th>To / Payee</th>'
+    +'<th>Description</th><th>Branch</th><th class="num">Amount (₹)</th><th>Remarks</th><th></th>'
+    +'</tr></thead><tbody>';
+  rows.forEach(r=>{
+    const id=esc(r['Expense ID']||r.expense_id||'');
+    h+=`<tr>`
+      +`<td style="font-size:11px;font-family:monospace">${id}</td>`
+      +`<td style="white-space:nowrap">${esc(r.Date||r.date||'')}</td>`
+      +`<td>${esc(r.Category||r.category||'')}</td>`
+      +`<td style="max-width:120px;overflow:hidden;text-overflow:ellipsis">${esc(r.To||r.to_party||'—')}</td>`
+      +`<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis">${esc(r.Description||r.description||'')}</td>`
+      +`<td>${esc(r.Branch||r.branch||'')}</td>`
+      +`<td class="num">${rupee(r.Amount||r.amount||0)}</td>`
+      +`<td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;color:var(--muted);font-size:12px">${esc(r.Remarks||r.remarks||'')}</td>`
+      +`<td style="white-space:nowrap">`
+        +`<button class="ghost" style="font-size:11px;padding:2px 7px;margin-right:4px" onclick="openEditExpense(${JSON.stringify(r)})">Edit</button>`
+        +`<button class="ghost" style="font-size:11px;padding:2px 7px;color:var(--danger);border-color:#fca5a5" onclick="confirmDeleteExpense('${id}')">Delete</button>`
+      +`</td>`
+      +`</tr>`;
+  });
+  h+='</tbody></table>';
+  $('e_list').innerHTML=h;
 }
 function filterExpenses(){
   const q    = (val('e_search')||'').toLowerCase();
@@ -3592,14 +3614,49 @@ async function deleteMember(){
 /* ── EXPENSES ────────────────────────────────────────────────── */
 function expenseFromForm(){
   const cat=val('e_Category');
-  const ex={Date:val('e_Date'),Category:cat,Description:val('e_Description'),Branch:val('e_Branch'),Amount:val('e_Amount'),Remarks:val('e_Remarks')};
-  if(cat==='External Expenses')ex.To=val('e_To');return ex;
+  const ex={Date:val('e_Date'),Category:cat,To:val('e_To')||'',Description:val('e_Description'),Branch:val('e_Branch'),Amount:val('e_Amount'),Remarks:val('e_Remarks')};return ex;
+}
+function openEditExpense(r){
+  // Pre-fill the form fields
+  const id=r['Expense ID']||r.expense_id||'';
+  setV('e_Date',    r._rawDate||r.Date||r.date||'');
+  setV('e_Category',r.Category||r.category||'');
+  setV('e_To',      r.To||r.to_party||'');
+  setV('e_Description',r.Description||r.description||'');
+  setV('e_Branch',  r.Branch||r.branch||'');
+  setV('e_Amount',  r.Amount||r.amount||'');
+  setV('e_Remarks', r.Remarks||r.remarks||'');
+  editing={type:'expenses',id};
+  setText('e_add','Update expense');
+  if($('e_cancel_edit')) $('e_cancel_edit').style.display='';
+  // Scroll to form
+  const card=document.querySelector('#view-expenses .add-only');
+  if(card) card.scrollIntoView({behavior:'smooth',block:'start'});
+  showToast('Editing '+id+' — make changes and click Update expense','ok');
+}
+function confirmDeleteExpense(id){
+  openModal('🗑 Delete Expense',
+    '<p style="margin:0 0 14px">Are you sure you want to delete <b>'+esc(id)+'</b>? This cannot be undone.</p>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button class="primary" style="background:var(--danger)" onclick="doDeleteExpense(&quot;'+id+'&quot;)">Yes, delete</button>'
+    +'<button class="ghost" onclick="closeModal()">Cancel</button>'
+    +'</div>'
+  );
+}
+async function doDeleteExpense(id){
+  closeModal();
+  try{
+    await api('expense_delete',{id});
+    showToast('Deleted '+id,'ok');
+    const r=await api('expenses_list');expAllRows=r.rows||[];renderExpensesTable(expAllRows);
+  }catch(err){showToast(err.message,'err');}
 }
 async function addExpense(){
   $('e_msg').textContent='Saving…';
   try{
-    if(editing.type==='expenses'){await api('reg_edit',{key:'expenses',id:editing.id,fields:expenseFromForm()});
-      $('e_msg').textContent='Updated '+editing.id;clearEdit();return loadList('expenses_list','e_list',null,'expenses');}
+    if(editing.type==='expenses'){await api('expense_edit',{id:editing.id,fields:expenseFromForm()});
+      $('e_msg').textContent='Updated '+editing.id;clearEdit();
+      const r2=await api('expenses_list');expAllRows=r2.rows||[];renderExpensesTable(expAllRows);return;}
     const{id,voucher}=await api('expenses_add',{expense:expenseFromForm()});
     lastVoucher=voucher;$('e_msg').textContent='Saved '+id;$('e_voucherBox').hidden=false;
     $('e_voucherView').innerHTML=summaryHtml([['Bank',esc(voucher.bankName)],['Voucher No.',esc(voucher.expenseNo)],
